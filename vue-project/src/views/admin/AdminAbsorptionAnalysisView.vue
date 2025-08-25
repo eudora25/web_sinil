@@ -458,8 +458,7 @@ async function fetchCompaniesForMonth() {
       .from('performance_records')
       .select('company_id, companies ( company_name, company_group )')
       .eq('settlement_month', selectedSettlementMonth.value)
-      .eq('review_status', '완료')
-        .not('company_id', 'is', null)
+      .not('company_id', 'is', null)
         .range(from, from + batchSize - 1);
 
     if (error) throw error;
@@ -498,7 +497,6 @@ async function fetchClientsForMonth(companyId = null) {
           .from('performance_records')
           .select('client_id, clients ( name )')
           .eq('settlement_month', selectedSettlementMonth.value)
-          .eq('review_status', '완료')
           .not('client_id', 'is', null);
 
         const finalCompanyId = companyId || (selectedCompanyId.value === 'ALL' ? null : selectedCompanyId.value);
@@ -546,12 +544,11 @@ const checkAnalysisStatus = async () => {
   if (!selectedSettlementMonth.value) return;
   loading.value = true;
   try {
-    // 분석할 원본 데이터(완료 상태)가 있는지 확인
+    // 분석할 원본 데이터가 있는지 확인 (review_status 조건 제거)
     const { count: completedCount, error: completedError } = await supabase
       .from('performance_records')
       .select('id', { count: 'exact', head: true })
-      .eq('settlement_month', selectedSettlementMonth.value)
-      .eq('review_status', '완료');
+      .eq('settlement_month', selectedSettlementMonth.value);
     if (completedError) throw completedError;
     hasCompletedData.value = (completedCount || 0) > 0;
 
@@ -1009,12 +1006,11 @@ const calculateAbsorptionRates = async () => {
       console.warn('기존 분석 데이터 삭제 중 오류 (무시):', deleteError);
     }
 
-    // 필터 조건에 맞는 performance_records 데이터 조회
+    // 필터 조건에 맞는 performance_records 데이터 조회 (review_status 조건 제거)
     let sourceQuery = supabase
       .from('performance_records')
       .select('*')
-      .eq('settlement_month', selectedSettlementMonth.value)
-      .eq('review_status', '완료');
+      .eq('settlement_month', selectedSettlementMonth.value);
     
     if (selectedCompanyId.value !== 'ALL') {
       sourceQuery = sourceQuery.eq('company_id', selectedCompanyId.value);
