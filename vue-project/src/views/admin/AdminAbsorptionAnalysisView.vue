@@ -799,7 +799,7 @@ async function loadAbsorptionAnalysisResults() {
                 prescription_amount: prescriptionAmount.toLocaleString(),
                 payment_amount: paymentAmount.toLocaleString(),
                 commission_rate: `${(commissionRate * 100).toFixed(1)}%`,
-                absorption_rate: absorptionRate * 100,
+                absorption_rate: absorptionRate,
                 created_date: formatDateTime(row.created_at),
                 created_by: userMap.get(row.registered_by) || '-',
                 updated_date: row.updated_at ? formatDateTime(row.updated_at) : null,
