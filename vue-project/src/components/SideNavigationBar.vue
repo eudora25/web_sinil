@@ -137,8 +137,13 @@ const breadcrumbSubMenu = computed(() => {
 });
 
 const handleLogout = async () => {
-  await supabase.auth.signOut();
-  router.push('/login');
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch (error) {
+    console.error('로그아웃 중 오류:', error);
+  } finally {
+    router.push('/login');
+  }
 };
 
 const titleTemplate = (row) => {

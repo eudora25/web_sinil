@@ -220,18 +220,21 @@ onMounted(async () => {
 const handleLogout = async () => {
   console.log('[App.vue] handleLogout: Attempting logout');
   try {
-    const { error } = await supabase.auth.signOut();
+    // 먼저 로컬 세션 정리
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) {
         console.error('[App.vue] handleLogout: Logout failed', error);
-        alert('로그아웃 실패: ' + error.message);
+        // 에러가 발생해도 로컬 상태는 정리
+        setUserState(null);
+        router.push('/login');
     } else {
         console.log('[App.vue] handleLogout: Logout successful. onAuthStateChange will handle redirect.');
-        // setUserState(null); // onAuthStateChange에서 처리
-        // router.push('/login'); // onAuthStateChange에서 처리
     }
   } catch (error) {
     console.error('[App.vue] handleLogout: Exception during logout', error);
-    alert('로그아웃 중 예외 발생: ' + error.message);
+    // 예외가 발생해도 로컬 상태는 정리
+    setUserState(null);
+    router.push('/login');
   }
 };
 
