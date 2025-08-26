@@ -282,6 +282,7 @@ const handleSignup = async () => {
       return;
     }
     
+    // 1. 먼저 인증 사용자 생성
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: emailLower,
       password: formData.value.password,
@@ -295,6 +296,16 @@ const handleSignup = async () => {
     if (authError) throw authError;
 
     if (authData && authData.user) {
+      // 2. 인증 세션 확인 및 대기
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+
+      // 3. 세션이 없으면 잠시 대기 후 재시도
+      if (!session) {
+        // 인증 처리가 완료될 때까지 잠시 대기
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
       const companyDataToInsert = {
         user_id: authData.user.id,
         email: emailLower,
@@ -309,13 +320,19 @@ const handleSignup = async () => {
         created_by: authData.user.id,
       };
 
-      // 1. companies 테이블에 먼저 insert
+      // 4. companies 테이블에 insert (RLS 정책에 따라 허용됨)
       const { error: companyInsertError } = await supabase
         .from('companies')
         .insert([companyDataToInsert]);
-      if (companyInsertError) throw companyInsertError;
+      
+      if (companyInsertError) {
+        console.error('Company insert error:', companyInsertError);
+        // 회사 정보 삽입 실패 시 사용자 계정도 삭제
+        await supabase.auth.admin.deleteUser(authData.user.id);
+        throw companyInsertError;
+      }
 
-      // 2. 안내 후 로그아웃
+      // 5. 성공 안내 후 로그아웃
       alert('가입 요청이 완료되었습니다. 관리자 승인 후 로그인 가능합니다.');
       await supabase.auth.signOut();
       router.push('/login');
