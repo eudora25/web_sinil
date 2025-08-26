@@ -18,10 +18,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     flowType: 'pkce',
     // 이메일 검증 완화 옵션
-    emailRedirectTo: `${window.location.origin}/auth/callback`,
-    // 로그아웃 시 scope 설정
-    signOutOptions: {
-      scope: 'local' // 'local' 또는 'global' - 'local'이 더 안전
-    }
+    emailRedirectTo: `${window.location.origin}/auth/callback`
   }
 })
