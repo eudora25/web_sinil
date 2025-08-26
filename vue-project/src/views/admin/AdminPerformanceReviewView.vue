@@ -1073,15 +1073,7 @@ async function loadPerformanceData() {
       
       if (item.review_action !== '삭제') {
         prescriptionAmount = Math.round(item.prescription_qty * (item.products?.price || 0));
-        
-        // 수수료율이 퍼센트(%)인지 소수점인지 확인하여 계산
-        if (item.commission_rate && item.commission_rate > 1) {
-          // 수수료율이 1보다 크면 퍼센트(%) 단위로 간주
-          paymentAmount = Math.round(prescriptionAmount * (item.commission_rate || 0) / 100);
-        } else {
-          // 수수료율이 1 이하면 소수점 단위로 간주
-          paymentAmount = Math.round(prescriptionAmount * (item.commission_rate || 0));
-        }
+        paymentAmount = Math.round(prescriptionAmount * (item.commission_rate || 0));
       }
       
       return {

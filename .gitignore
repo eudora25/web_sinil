@@ -134,3 +134,4 @@ BACKUP_*.md
 # Database backup files
 db_cluster-*.backup
 *.sql
+.vercel

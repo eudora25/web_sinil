@@ -468,6 +468,7 @@ import ColumnGroup from 'primevue/columngroup';
 import Row from 'primevue/row';
 import { supabase } from '@/supabase'
 import { useRouter } from 'vue-router'
+import * as XLSX from 'xlsx'
 import ExcelJS from 'exceljs'
 import { getNoticeModalHidePreference, setNoticeModalHidePreference } from '@/utils/userPreferences'
 

@@ -394,7 +394,7 @@ const averageAbsorptionRate = computed(() => {
   // 흡수율 = (합계 합산액 ÷ 합계 처방액) × 100
   const absorptionRate = (totalCombinedRevenue / totalPrescriptionAmount) * 100;
   
-  return `${absorptionRate.toFixed(3)}%`;
+  return `${absorptionRate.toFixed(1)}%`;
 });
 
 const averageCommissionRate = computed(() => {
@@ -458,7 +458,8 @@ async function fetchCompaniesForMonth() {
       .from('performance_records')
       .select('company_id, companies ( company_name, company_group )')
       .eq('settlement_month', selectedSettlementMonth.value)
-      .not('company_id', 'is', null)
+      .eq('review_status', '완료')
+        .not('company_id', 'is', null)
         .range(from, from + batchSize - 1);
 
     if (error) throw error;
@@ -497,6 +498,7 @@ async function fetchClientsForMonth(companyId = null) {
           .from('performance_records')
           .select('client_id, clients ( name )')
           .eq('settlement_month', selectedSettlementMonth.value)
+          .eq('review_status', '완료')
           .not('client_id', 'is', null);
 
         const finalCompanyId = companyId || (selectedCompanyId.value === 'ALL' ? null : selectedCompanyId.value);
@@ -544,11 +546,12 @@ const checkAnalysisStatus = async () => {
   if (!selectedSettlementMonth.value) return;
   loading.value = true;
   try {
-    // 분석할 원본 데이터가 있는지 확인 (review_status 조건 제거)
+    // 분석할 원본 데이터(완료 상태)가 있는지 확인
     const { count: completedCount, error: completedError } = await supabase
       .from('performance_records')
       .select('id', { count: 'exact', head: true })
-      .eq('settlement_month', selectedSettlementMonth.value);
+      .eq('settlement_month', selectedSettlementMonth.value)
+      .eq('review_status', '완료');
     if (completedError) throw completedError;
     hasCompletedData.value = (completedCount || 0) > 0;
 
@@ -1006,11 +1009,12 @@ const calculateAbsorptionRates = async () => {
       console.warn('기존 분석 데이터 삭제 중 오류 (무시):', deleteError);
     }
 
-    // 필터 조건에 맞는 performance_records 데이터 조회 (review_status 조건 제거)
+    // 필터 조건에 맞는 performance_records 데이터 조회
     let sourceQuery = supabase
       .from('performance_records')
       .select('*')
-      .eq('settlement_month', selectedSettlementMonth.value);
+      .eq('settlement_month', selectedSettlementMonth.value)
+      .eq('review_status', '완료');
     
     if (selectedCompanyId.value !== 'ALL') {
       sourceQuery = sourceQuery.eq('company_id', selectedCompanyId.value);
@@ -1242,13 +1246,13 @@ function applySorting() {
 function formatAbsorptionRate(value) {
   try {
     if (value === null || value === undefined || isNaN(value)) {
-      return '0.000%';
+      return '0.0%';
     }
-    const numValue = Number(value);
-    return `${numValue.toFixed(3)}%`;
+    const numValue = Number(value) * 100;  // 소수점 형태를 퍼센트로 변환
+    return `${numValue.toFixed(1)}%`;
   } catch (error) {
     console.error('흡수율 포맷 오류:', error, value);
-    return '0.000%';
+    return '0.0%';
   }
 }
 
@@ -1327,7 +1331,7 @@ async function downloadExcel() {
       '도매매출': Number(totalWholesaleRevenue.value.replace(/,/g, '')),
       '직거래매출': Number(totalDirectRevenue.value.replace(/,/g, '')),
       '합산액': Number(totalCombinedRevenue.value.replace(/,/g, '')),
-      '흡수율': (Number(totalPrescriptionAmount.value.replace(/,/g, '')) > 0 ? (Number(totalCombinedRevenue.value.replace(/,/g, '')) / Number(totalPrescriptionAmount.value.replace(/,/g, ''))) : 0),
+      '흡수율': (Number(totalPrescriptionAmount.value.replace(/,/g, '')) > 0 ? (Number(totalCombinedRevenue.value.replace(/,/g, '')) / Number(totalPrescriptionAmount.value.replace(/,/g, '')) * 100) : 0),
       '수수료율': (Number(totalPrescriptionAmount.value.replace(/,/g, '')) > 0 ? (Number(totalPaymentAmount.value.replace(/,/g, '')) / Number(totalPrescriptionAmount.value.replace(/,/g, ''))) : 0),
       '지급액': Number(totalPaymentAmount.value.replace(/,/g, '')),
       '비고': '',

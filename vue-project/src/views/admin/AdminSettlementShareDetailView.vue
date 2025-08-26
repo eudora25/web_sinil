@@ -189,16 +189,7 @@ async function loadDetailData() {
       const price = row.products?.price ?? 0;
       const prescriptionAmount = Math.round(qty * price);
       const commissionRate = row.commission_rate ?? 0;
-      
-      // 수수료율이 퍼센트(%)인지 소수점인지 확인하여 계산 (관리자 페이지와 동일한 로직)
-      let paymentAmount;
-      if (commissionRate && commissionRate > 1) {
-        // 수수료율이 1보다 크면 퍼센트(%) 단위로 간주
-        paymentAmount = Math.round(prescriptionAmount * commissionRate / 100);
-      } else {
-        // 수수료율이 1 이하면 소수점 단위로 간주
-        paymentAmount = Math.round(prescriptionAmount * commissionRate);
-      }
+      const paymentAmount = Math.round(prescriptionAmount * commissionRate);
       
       return {
         ...row,

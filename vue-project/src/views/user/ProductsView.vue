@@ -89,6 +89,7 @@ import Column from 'primevue/column';
 import InputText from 'primevue/inputtext';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 
 const products = ref([]);

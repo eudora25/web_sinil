@@ -275,7 +275,7 @@
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { supabase } from '@/supabase';
-import ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
 
 // 반응형 데이터

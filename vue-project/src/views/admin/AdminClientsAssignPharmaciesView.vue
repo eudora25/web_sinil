@@ -272,7 +272,6 @@ import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
 import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
-import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 
 const router = useRouter()

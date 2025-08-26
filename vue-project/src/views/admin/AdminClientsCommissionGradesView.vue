@@ -201,7 +201,6 @@ import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
 import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
-import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 
 const router = useRouter()

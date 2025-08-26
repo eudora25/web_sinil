@@ -260,7 +260,6 @@ import InputText from 'primevue/inputtext'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
-import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 
 // 컬럼 너비 한 곳에서 관리

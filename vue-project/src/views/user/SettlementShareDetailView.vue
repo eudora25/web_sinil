@@ -173,6 +173,7 @@ import Column from 'primevue/column';
 import ColumnGroup from 'primevue/columngroup';
 import Row from 'primevue/row';
 import { supabase } from '@/supabase';
+import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { getNoticeModalHidePreference, setNoticeModalHidePreference } from '@/utils/userPreferences';
 
@@ -304,16 +305,7 @@ async function fetchAllDataForMonth() {
     const price = row.products?.price || 0;
     const qty = row.prescription_qty || 0;
     const prescriptionAmount = Math.round(qty * price);
-    
-    // 수수료율이 퍼센트(%)인지 소수점인지 확인하여 계산 (관리자 페이지와 동일한 로직)
-    let paymentAmount;
-    if (row.commission_rate && row.commission_rate > 1) {
-      // 수수료율이 1보다 크면 퍼센트(%) 단위로 간주
-      paymentAmount = Math.round(prescriptionAmount * (row.commission_rate || 0) / 100);
-    } else {
-      // 수수료율이 1 이하면 소수점 단위로 간주
-      paymentAmount = Math.round(prescriptionAmount * (row.commission_rate || 0));
-    }
+    const paymentAmount = Math.round(prescriptionAmount * (row.commission_rate || 0));
     
     return {
       ...row,

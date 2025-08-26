@@ -212,6 +212,7 @@ import Row from 'primevue/row';
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import { supabase } from '@/supabase'
+import * as XLSX from 'xlsx'
 import ExcelJS from 'exceljs'
 
 const columnWidths = {
