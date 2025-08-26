@@ -201,6 +201,7 @@ import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
 import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
+import { read, utils } from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 
 const router = useRouter()
@@ -416,9 +417,9 @@ const handleFileUpload = async (event) => {
 
   try {
     const data = await file.arrayBuffer()
-    const workbook = XLSX.read(data)
+    const workbook = read(data)
     const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-    const jsonData = XLSX.utils.sheet_to_json(worksheet)
+    const jsonData = utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
       alert('엑셀 파일에 데이터가 없습니다.')

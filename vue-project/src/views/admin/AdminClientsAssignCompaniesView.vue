@@ -280,6 +280,7 @@ import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
 import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
+import { read, utils } from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 
 const router = useRouter()
@@ -318,7 +319,6 @@ const fetchClients = async () => {
         `*, companies:client_company_assignments(created_at, company:companies(id, company_name, business_registration_number, company_group))`,
       )
       .eq('status', 'active')
-    console.log('clientsData:', clientsData, 'error:', error); // ← 추가
     if (!error && clientsData) {
       clients.value = clientsData.map((client) => {
         const companiesArr = client.companies.map((c) => ({
@@ -502,9 +502,9 @@ const handleFileUpload = async (event) => {
 
   try {
     const data = await file.arrayBuffer()
-    const workbook = XLSX.read(data)
+    const workbook = read(data)
     const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-    const jsonData = XLSX.utils.sheet_to_json(worksheet)
+    const jsonData = utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
       alert('엑셀 파일에 데이터가 없습니다.')

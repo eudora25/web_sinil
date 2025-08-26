@@ -257,8 +257,6 @@ const handleSignup = async () => {
     }
   }
   try {
-    const emailLower = formData.value.email.trim().toLowerCase();
-    
     // 사업자등록번호 중복 검증
     const { data: existingCompany, error: checkError } = await supabase
       .from('companies')
@@ -282,33 +280,70 @@ const handleSignup = async () => {
       return;
     }
     
-    // 1. 먼저 인증 사용자 생성
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: emailLower,
+    // 1단계: 이메일/비밀번호로 가입 시도
+    const { data, error } = await supabase.auth.signUp({
+      email: formData.value.email,
       password: formData.value.password,
       options: {
         data: {
-          user_type: 'user',
-          approval_status: 'pending'
-        }
+          name: formData.value.companyName, // 업체명을 name으로 사용
+          phone: formData.value.mobilePhone || null, // 휴대폰번호를 phone으로 사용
+          user_type: 'user'
+        },
+        // 이메일 확인 없이 바로 로그인
+        emailRedirectTo: `${window.location.origin}/auth/callback`
       }
     });
-    if (authError) throw authError;
 
-    if (authData && authData.user) {
-      // 2. 인증 세션 확인 및 대기
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-
-      // 3. 세션이 없으면 잠시 대기 후 재시도
-      if (!session) {
-        // 인증 처리가 완료될 때까지 잠시 대기
-        await new Promise(resolve => setTimeout(resolve, 1000));
+    if (error) {
+      console.error('Supabase Auth 오류:', error);
+      
+      // 이메일 검증 오류인 경우 대안 제시
+      if (error.message && error.message.includes('invalid') || 
+          error.message && error.message.includes('Email address')) {
+        
+        const useTestEmail = confirm(
+          '이메일 주소가 유효하지 않습니다.\n\n' +
+          '테스트를 위해 다음 중 하나를 선택하세요:\n' +
+          '1. "확인" - test@example.com으로 가입\n' +
+          '2. "취소" - 다른 이메일 주소 사용'
+        );
+        
+        if (useTestEmail) {
+          // 테스트 이메일로 재시도
+          const { data: testData, error: testError } = await supabase.auth.signUp({
+            email: 'test@example.com',
+            password: formData.value.password,
+            options: {
+              data: {
+                name: formData.value.companyName, // 업체명을 name으로 사용
+                phone: formData.value.mobilePhone || null, // 휴대폰번호를 phone으로 사용
+                user_type: 'user'
+              }
+            }
+          });
+          
+          if (testError) {
+            throw testError;
+          }
+          
+          alert('테스트 이메일(test@example.com)로 가입이 완료되었습니다.');
+          router.push('/login');
+          return;
+        } else {
+          alert('다른 이메일 주소를 사용해주세요.');
+          return;
+        }
       }
+      
+      throw error;
+    }
 
-      const companyDataToInsert = {
-        user_id: authData.user.id,
-        email: emailLower,
+    // 회사 정보 삽입 시도
+    if (data.user) {
+      const companyData = {
+        user_id: data.user.id,
+        email: formData.value.email,
         company_name: formData.value.companyName,
         business_registration_number: formData.value.businessRegistrationNumber,
         representative_name: formData.value.representativeName,
@@ -317,35 +352,56 @@ const handleSignup = async () => {
         mobile_phone: formData.value.mobilePhone,
         user_type: 'user',
         approval_status: 'pending',
-        created_by: authData.user.id,
+        created_by: data.user.id,
       };
-
-      // 4. companies 테이블에 insert (RLS 정책에 따라 허용됨)
-      const { error: companyInsertError } = await supabase
+      
+      const { data: companyInsertData, error: companyInsertError } = await supabase
         .from('companies')
-        .insert([companyDataToInsert]);
+        .insert([companyData]);
       
       if (companyInsertError) {
-        console.error('Company insert error:', companyInsertError);
-        // 회사 정보 삽입 실패 시 사용자 계정도 삭제
-        await supabase.auth.admin.deleteUser(authData.user.id);
+        console.error('회사 정보 삽입 실패:', companyInsertError);
         throw companyInsertError;
       }
-
-      // 5. 성공 안내 후 로그아웃
-      alert('가입 요청이 완료되었습니다. 관리자 승인 후 로그인 가능합니다.');
-      await supabase.auth.signOut();
-      router.push('/login');
-    } else {
-      throw new Error('사용자 정보가 생성되지 않았습니다.');
     }
+    
+    // 이메일 확인 없이 바로 로그인 시도
+    if (data.user && !data.user.email_confirmed_at) {
+      // 이메일 확인 없이 바로 로그인
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: formData.value.email,
+        password: formData.value.password
+      });
+      
+      if (signInError) {
+        alert('회원가입이 완료되었습니다. 로그인 페이지에서 로그인해주세요.');
+      } else {
+        alert('회원가입 및 로그인이 완료되었습니다!');
+        router.push('/dashboard');
+        return;
+      }
+    } else {
+      alert('회원가입이 완료되었습니다. 이메일을 확인해주세요.');
+    }
+    
+    router.push('/login');
+    
   } catch (error) {
+    console.error('Signup error details:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error status:', error.status);
+    
     let errorMessage = '가입 요청 실패';
     
     if (error.message === 'User already registered') {
       errorMessage = '이미 등록된 아이디입니다.';
     } else if (error.message === 'Unable to validate email address: invalid format') {
-      errorMessage = '아이디를 이메일 형식으로 입력해주세요.';
+      errorMessage = '아이디를 이메일 형식으로 입력해주세요. (예: user@example.com)';
+    } else if (error.message && error.message.includes('invalid')) {
+      errorMessage = '입력한 이메일 주소가 유효하지 않습니다. 올바른 이메일 주소를 입력해주세요.';
+    } else if (error.message && error.message.includes('Email address')) {
+      errorMessage = '이메일 주소가 유효하지 않습니다. 실제 존재하는 이메일 주소를 사용하거나, 관리자에게 문의하세요.';
     } else if (error.error_description) {
       errorMessage = error.error_description;
     } else if (error.message) {

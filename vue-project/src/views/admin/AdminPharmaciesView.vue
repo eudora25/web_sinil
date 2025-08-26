@@ -34,7 +34,7 @@
     <div class="data-card">
       <div class="data-card-header">
         <div class="total-count-display">
-          전체 {{ filteredPharmacies.length }} 건
+          전체 {{ totalCount }} 건
         </div>
         <div class="action-buttons-group">
           <button class="btn-excell-template" @click="downloadTemplate" style="margin-right: 1rem;">엑셀 템플릿</button>
@@ -238,6 +238,7 @@ import InputText from 'primevue/inputtext'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
+import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 
 // 컬럼 너비 한 곳에서 관리

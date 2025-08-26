@@ -260,6 +260,7 @@ import InputText from 'primevue/inputtext'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
+import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 
 // 컬럼 너비 한 곳에서 관리
@@ -453,22 +454,19 @@ const fetchAvailableMonths = () => {
 }
 
 // 페이지 변경 처리
-const onPageChange = async (event) => {
-  console.log('페이지 변경:', event)
+const onPageChange = (event) => {
   currentPage.value = event.page + 1
   currentPageFirstIndex.value = event.first
-  await fetchRevenues()
+  fetchRevenues()
 }
 
 // 필터 적용
 const applyFilters = async () => {
-  console.log('필터 적용 시작:', { fromMonth: fromMonth.value, toMonth: toMonth.value, searchInput: searchInput.value })
   currentPage.value = 1
   currentPageFirstIndex.value = 0
   loading.value = true
   try {
     await fetchSummary()
-    console.log('fetchSummary 완료:', { totalCount: totalCount.value, totalSalesAmount: totalSalesAmount.value })
     await fetchRevenues()
   } finally {
     loading.value = false

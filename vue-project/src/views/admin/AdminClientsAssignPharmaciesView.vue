@@ -272,6 +272,7 @@ import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
 import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
+import { read, utils } from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 
 const router = useRouter()
@@ -308,27 +309,21 @@ const fetchClients = async () => {
     const { data: clientsData, error } = await supabase
       .from('clients')
       .select(
-        `*, 
-        pharmacies:client_pharmacy_assignments(created_at, pharmacy:pharmacies(id, name, business_registration_number)),
-        companies:client_company_assignments(company:companies(id, company_name, company_group))`,
+        `*, pharmacies:client_pharmacy_assignments(created_at, pharmacy:pharmacies(id, name, business_registration_number))`,
       )
-      // .eq('status', 'active') // 조건 제거
-    console.log('clientsData:', clientsData, 'error:', error);
+      .eq('status', 'active')
     if (!error && clientsData) {
       clients.value = clientsData.map((client) => {
         const pharmaciesArr = client.pharmacies.map((p) => ({
           ...p.pharmacy,
           assignment_created_at: p.created_at
         }))
-        const companiesArr = client.companies.map((c) => c.company)
         return {
           ...client,
           pharmacies: pharmaciesArr,
-          companies: companiesArr,
         }
       })
-      applyFilters(); // 초기 필터 적용
-      console.log('filteredClients:', filteredClients.value);
+      filteredClients.value = clients.value;
     }
   } finally {
     loading.value = false;
@@ -429,12 +424,6 @@ async function assignPharmacies() {
       pharmacy_id: pharmacy.id,
     }))
   
-  console.log('=== 문전약국 지정 디버깅 정보 ===');
-  console.log('선택된 병의원:', selectedClient.value);
-  console.log('선택된 약국들:', selectedPharmacies.value);
-  console.log('요청 데이터:', assignments);
-  console.log('Supabase 클라이언트:', supabase);
-  
   try {
     // 상용서버와 동일한 방식으로 복원
     const { data, error } = await supabase
@@ -452,7 +441,6 @@ async function assignPharmacies() {
       throw error;
     }
     
-    console.log('성공 응답:', data);
   } catch (error) {
     console.error('문전약국 지정 실패:', error);
     alert('문전약국 지정 중 오류가 발생했습니다: ' + error.message);
@@ -557,9 +545,9 @@ const handleFileUpload = async (event) => {
 
   try {
     const data = await file.arrayBuffer()
-    const workbook = XLSX.read(data)
+    const workbook = read(data)
     const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-    const jsonData = XLSX.utils.sheet_to_json(worksheet)
+    const jsonData = utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
       alert('엑셀 파일에 데이터가 없습니다.')
@@ -626,10 +614,6 @@ const handleFileUpload = async (event) => {
     }
 
     if (assignmentsToUpload.length > 0) {
-      console.log('=== 엑셀 업로드 디버깅 정보 ===');
-      console.log('업로드할 데이터:', assignmentsToUpload);
-      console.log('데이터 개수:', assignmentsToUpload.length);
-      
       try {
         // 상용서버와 동일한 방식으로 복원
         const { data, error } = await supabase
@@ -819,26 +803,16 @@ const checkOverflow = (event) => {
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
   
-  console.log('병의원 문전약국 오버플로우 체크:', {
-    text: element.textContent,
-    textWidth,
-    availableWidth,
-    isOverflowed
-  });
-  
   if (isOverflowed) {
     element.classList.add('overflowed');
-    console.log('병의원 문전약국 오버플로우 클래스 추가됨');
   } else {
     element.classList.remove('overflowed'); // Ensure class is removed if not overflowed
-    console.log('병의원 문전약국 오버플로우 아님 - 클래스 제거됨');
   }
 }
 
 const removeOverflowClass = (event) => {
   const element = event.target;
   element.classList.remove('overflowed');
-  console.log('병의원 문전약국 오버플로우 클래스 제거됨');
 }
 
 // 병의원 상세 화면으로 이동
