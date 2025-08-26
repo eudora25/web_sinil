@@ -53,14 +53,18 @@
       </div>
       <DataTable
         :value="filteredPharmacies"
-        :loading="false"
+        :loading="loading"
         paginator
-        :rows="50"
+        :rows="pageSize"
+        :totalRecords="totalCount"
         :rowsPerPageOptions="[20, 50, 100]"
+        v-model:first="currentPageFirstIndex"
+        v-model:page="currentPage"
+        @page="onPageChange"
+        :lazy="true"
         scrollable
         scrollHeight="calc(100vh - 250px)"
         class="admin-pharmacies-table"
-        v-model:first="currentPageFirstIndex"
       >
         <template #empty>
           <div v-if="!loading">등록된 약국이 없습니다.</div>
@@ -263,6 +267,9 @@ const searchKeyword = ref('');
 const router = useRouter()
 const fileInput = ref(null)
 const currentPageFirstIndex = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(50)
+const totalCount = ref(0)
 
 function goCreate() {
   router.push('/admin/pharmacies/create')
@@ -271,30 +278,28 @@ function goToDetail(id) {
   router.push(`/admin/pharmacies/${id}`)
 }
 
-function doSearch() {
-  if (searchInput.value.length >= 2) {
-    searchKeyword.value = searchInput.value;
-    const keyword = searchKeyword.value.toLowerCase();
-    filteredPharmacies.value = pharmacies.value.filter(p =>
-      (p.name && p.name.toLowerCase().includes(keyword)) ||
-      (p.business_registration_number && p.business_registration_number.toLowerCase().includes(keyword)) ||
-      (p.pharmacy_code && p.pharmacy_code.toLowerCase().includes(keyword))
-    );
-  }
-}
-function clearSearch() {
-  searchInput.value = '';
-  searchKeyword.value = '';
-  filteredPharmacies.value = pharmacies.value;
-}
-
+// 서버 사이드 페이징으로 데이터 조회
 const fetchPharmacies = async () => {
   loading.value = true;
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('pharmacies')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('pharmacy_code', { ascending: true })
+
+    // 검색 조건 적용
+    if (searchKeyword.value.length >= 2) {
+      const keyword = searchKeyword.value.toLowerCase();
+      query = query.or(`name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%,pharmacy_code.ilike.%${keyword}%`)
+    }
+
+    // 페이징 적용
+    const from = (currentPage.value - 1) * pageSize.value
+    const to = from + pageSize.value - 1
+    query = query.range(from, to)
+
+    const { data, error, count } = await query
+
     if (!error && data) {
       pharmacies.value = data.map((item) => ({
         ...item,
@@ -302,10 +307,36 @@ const fetchPharmacies = async () => {
         originalData: { ...item },
       }))
       filteredPharmacies.value = pharmacies.value;
+      totalCount.value = count || 0;
     }
   } finally {
     loading.value = false;
   }
+}
+
+// 페이지 변경 처리
+const onPageChange = (event) => {
+  currentPage.value = event.page + 1
+  currentPageFirstIndex.value = event.first
+  fetchPharmacies()
+}
+
+// 검색 처리
+function doSearch() {
+  if (searchInput.value.length >= 2) {
+    searchKeyword.value = searchInput.value;
+    currentPage.value = 1
+    currentPageFirstIndex.value = 0
+    fetchPharmacies();
+  }
+}
+
+function clearSearch() {
+  searchInput.value = '';
+  searchKeyword.value = '';
+  currentPage.value = 1
+  currentPageFirstIndex.value = 0
+  fetchPharmacies();
 }
 
 // 수정 시작
