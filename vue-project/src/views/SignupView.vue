@@ -339,7 +339,7 @@ const handleSignup = async () => {
       throw error;
     }
 
-    // 회사 정보 삽입 시도
+    // 회사 정보 삽입 시도 (RLS 정책 문제 해결)
     if (data.user) {
       const companyData = {
         user_id: data.user.id,
@@ -355,12 +355,21 @@ const handleSignup = async () => {
         created_by: data.user.id,
       };
       
+      // 직접 삽입 시도
       const { data: companyInsertData, error: companyInsertError } = await supabase
         .from('companies')
         .insert([companyData]);
       
       if (companyInsertError) {
         console.error('회사 정보 삽입 실패:', companyInsertError);
+        
+        // RLS 정책 오류인 경우 특별 처리
+        if (companyInsertError.message.includes('row-level security policy')) {
+          alert('회원가입이 완료되었지만 회사 정보 등록에 실패했습니다. 관리자에게 문의해주세요.');
+          router.push('/login');
+          return;
+        }
+        
         throw companyInsertError;
       }
     }
