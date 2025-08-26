@@ -240,6 +240,20 @@ const handleSignup = async () => {
     return;
   }
   
+  // 이메일 형식 검증 (간단한 형식만 체크)
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(formData.value.email)) {
+    alert('이메일 형식이 올바르지 않습니다. (예: user@example.com)');
+    setTimeout(() => {
+      const emailInput = document.getElementById('email');
+      if (emailInput) {
+        emailInput.focus();
+        emailInput.select();
+      }
+    }, 100);
+    return;
+  }
+  
   // 휴대폰번호 형식 검증 (입력된 경우에만)
   if (formData.value.mobilePhone && formData.value.mobilePhone.trim() !== '') {
     const phoneNumber = formData.value.mobilePhone.replace(/[^0-9]/g, '');
@@ -280,7 +294,7 @@ const handleSignup = async () => {
       return;
     }
     
-    // 1단계: 이메일/비밀번호로 가입 시도
+    // 1단계: 이메일/비밀번호로 가입 시도 (이메일 검증 완화)
     const { data, error } = await supabase.auth.signUp({
       email: formData.value.email,
       password: formData.value.password,
@@ -299,8 +313,9 @@ const handleSignup = async () => {
       console.error('Supabase Auth 오류:', error);
       
       // 이메일 검증 오류인 경우 대안 제시
-      if (error.message && error.message.includes('invalid') || 
-          error.message && error.message.includes('Email address')) {
+      if (error.message && (error.message.includes('invalid') || 
+          error.message.includes('Email address') ||
+          error.message.includes('Unable to validate email'))) {
         
         const useTestEmail = confirm(
           '이메일 주소가 유효하지 않습니다.\n\n' +
@@ -324,7 +339,34 @@ const handleSignup = async () => {
           });
           
           if (testError) {
-            throw testError;
+            console.error('테스트 이메일 가입 실패:', testError);
+            alert('테스트 이메일 가입에도 실패했습니다. 관리자에게 문의해주세요.');
+            return;
+          }
+          
+          // 테스트 이메일로 회사 정보도 등록
+          if (testData.user) {
+            const companyData = {
+              user_id: testData.user.id,
+              email: 'test@example.com',
+              company_name: formData.value.companyName,
+              business_registration_number: formData.value.businessRegistrationNumber,
+              representative_name: formData.value.representativeName,
+              business_address: formData.value.businessAddress,
+              contact_person_name: formData.value.contactPersonName,
+              mobile_phone: formData.value.mobilePhone,
+              user_type: 'user',
+              approval_status: 'pending',
+              created_by: testData.user.id,
+            };
+            
+            const { error: companyInsertError } = await supabase
+              .from('companies')
+              .insert([companyData]);
+            
+            if (companyInsertError) {
+              console.error('테스트 회사 정보 삽입 실패:', companyInsertError);
+            }
           }
           
           alert('테스트 이메일(test@example.com)로 가입이 완료되었습니다.');

@@ -18,6 +18,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     flowType: 'pkce',
     // 이메일 검증 완화 옵션
-    emailRedirectTo: `${window.location.origin}/auth/callback`
+    emailRedirectTo: `${window.location.origin}/auth/callback`,
+    // 이메일 검증 완화 설정
+    emailConfirm: false, // 이메일 확인 비활성화
+    secureEmailChange: false // 이메일 변경 시 보안 검증 비활성화
   }
 })
