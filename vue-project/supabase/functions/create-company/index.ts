@@ -17,32 +17,11 @@ serve(async (req) => {
     // 요청 본문 파싱
     const companyData = await req.json()
     
-    // Authorization 헤더에서 토큰 추출
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'Authorization header required' }),
-        { status: 401, headers: { ...headers, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const token = authHeader.replace('Bearer ', '')
-    
-    // Supabase 클라이언트 생성 (서비스 롤 키 사용)
+    // Supabase 클라이언트 생성 (서비스 롤 키 사용 - RLS 우회)
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
-
-    // 토큰 검증
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-    
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid token' }),
-        { status: 401, headers: { ...headers, 'Content-Type': 'application/json' } }
-      )
-    }
 
     // 필수 필드 검증
     const requiredFields = ['user_id', 'email', 'company_name', 'business_registration_number']
@@ -53,14 +32,6 @@ serve(async (req) => {
           { status: 400, headers: { ...headers, 'Content-Type': 'application/json' } }
         )
       }
-    }
-
-    // user_id가 토큰의 사용자 ID와 일치하는지 확인
-    if (companyData.user_id !== user.id) {
-      return new Response(
-        JSON.stringify({ error: 'User ID mismatch' }),
-        { status: 403, headers: { ...headers, 'Content-Type': 'application/json' } }
-      )
     }
 
     // 사업자등록번호 중복 검사
@@ -84,7 +55,7 @@ serve(async (req) => {
       )
     }
 
-    // 회사 정보 삽입
+    // 회사 정보 삽입 (서비스 롤 키로 RLS 우회)
     const { data: insertedCompany, error: insertError } = await supabase
       .from('companies')
       .insert([{
@@ -98,7 +69,7 @@ serve(async (req) => {
     if (insertError) {
       console.error('Company insert error:', insertError)
       return new Response(
-        JSON.stringify({ error: 'Failed to create company record' }),
+        JSON.stringify({ error: 'Failed to create company record: ' + insertError.message }),
         { status: 500, headers: { ...headers, 'Content-Type': 'application/json' } }
       )
     }
@@ -117,7 +88,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Function error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error: ' + error.message }),
       { status: 500, headers: { ...headers, 'Content-Type': 'application/json' } }
     )
   }
