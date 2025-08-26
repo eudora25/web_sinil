@@ -294,151 +294,83 @@ const handleSignup = async () => {
       return;
     }
     
-    // 1단계: 이메일/비밀번호로 가입 시도 (이메일 검증 완화)
-    const { data, error } = await supabase.auth.signUp({
+    // 1단계: 서버리스 함수로 회원가입 처리 (이메일 검증 완전 우회)
+    const companyData = {
       email: formData.value.email,
-      password: formData.value.password,
-      options: {
-        data: {
-          name: formData.value.companyName, // 업체명을 name으로 사용
-          phone: formData.value.mobilePhone || null, // 휴대폰번호를 phone으로 사용
-          user_type: 'user'
+      company_name: formData.value.companyName,
+      business_registration_number: formData.value.businessRegistrationNumber,
+      representative_name: formData.value.representativeName,
+      business_address: formData.value.businessAddress,
+      contact_person_name: formData.value.contactPersonName,
+      mobile_phone: formData.value.mobilePhone,
+      user_type: 'user',
+      approval_status: 'pending',
+    };
+
+    try {
+      const response = await fetch('/api/signup-user', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json'
         },
-        // 이메일 확인 없이 바로 로그인
-        emailRedirectTo: `${window.location.origin}/auth/callback`
-      }
-    });
-
-    if (error) {
-      console.error('Supabase Auth 오류:', error);
+        body: JSON.stringify({
+          email: formData.value.email,
+          password: formData.value.password,
+          companyData: companyData
+        })
+      });
       
-      // 이메일 검증 오류인 경우 대안 제시
-      if (error.message && (error.message.includes('invalid') || 
-          error.message.includes('Email address') ||
-          error.message.includes('Unable to validate email'))) {
-        
-        const useTestEmail = confirm(
-          '이메일 주소가 유효하지 않습니다.\n\n' +
-          '테스트를 위해 다음 중 하나를 선택하세요:\n' +
-          '1. "확인" - test@example.com으로 가입\n' +
-          '2. "취소" - 다른 이메일 주소 사용'
-        );
-        
-        if (useTestEmail) {
-          // 테스트 이메일로 재시도
-          const { data: testData, error: testError } = await supabase.auth.signUp({
-            email: 'test@example.com',
-            password: formData.value.password,
-            options: {
-              data: {
-                name: formData.value.companyName, // 업체명을 name으로 사용
-                phone: formData.value.mobilePhone || null, // 휴대폰번호를 phone으로 사용
-                user_type: 'user'
-              }
-            }
-          });
-          
-          if (testError) {
-            console.error('테스트 이메일 가입 실패:', testError);
-            alert('테스트 이메일 가입에도 실패했습니다. 관리자에게 문의해주세요.');
-            return;
-          }
-          
-          // 테스트 이메일로 회사 정보도 등록
-          if (testData.user) {
-            const companyData = {
-              user_id: testData.user.id,
-              email: 'test@example.com',
-              company_name: formData.value.companyName,
-              business_registration_number: formData.value.businessRegistrationNumber,
-              representative_name: formData.value.representativeName,
-              business_address: formData.value.businessAddress,
-              contact_person_name: formData.value.contactPersonName,
-              mobile_phone: formData.value.mobilePhone,
-              user_type: 'user',
-              approval_status: 'pending',
-              created_by: testData.user.id,
-            };
-            
-            const { error: companyInsertError } = await supabase
-              .from('companies')
-              .insert([companyData]);
-            
-            if (companyInsertError) {
-              console.error('테스트 회사 정보 삽입 실패:', companyInsertError);
-            }
-          }
-          
-          alert('테스트 이메일(test@example.com)로 가입이 완료되었습니다.');
-          router.push('/login');
-          return;
-        } else {
-          alert('다른 이메일 주소를 사용해주세요.');
-          return;
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('서버리스 함수 호출 실패:', errorData);
+        throw new Error(errorData.error || '회원가입 실패');
       }
       
-      throw error;
-    }
-
-    // 회사 정보 삽입 시도 (RLS 정책 문제 해결)
-    if (data.user) {
-      const companyData = {
-        user_id: data.user.id,
+      const result = await response.json();
+      console.log('서버리스 함수로 회원가입 성공:', result);
+      
+      // 회원가입 성공 시 바로 로그인 시도
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: formData.value.email,
-        company_name: formData.value.companyName,
-        business_registration_number: formData.value.businessRegistrationNumber,
-        representative_name: formData.value.representativeName,
-        business_address: formData.value.businessAddress,
-        contact_person_name: formData.value.contactPersonName,
-        mobile_phone: formData.value.mobilePhone,
-        user_type: 'user',
-        approval_status: 'pending',
-        created_by: data.user.id,
-      };
+        password: formData.value.password
+      });
       
-      // RLS 정책 문제를 우회하기 위해 서버리스 함수 사용
-      try {
-        const response = await fetch('/api/create-company', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${data.session?.access_token}`
+      if (signInError) {
+        alert('회원가입이 완료되었습니다. 로그인 페이지에서 로그인해주세요.');
+      } else {
+        alert('회원가입 및 로그인이 완료되었습니다!');
+        router.push('/dashboard');
+        return;
+      }
+      
+      router.push('/login');
+      return;
+      
+    } catch (fetchError) {
+      console.error('서버리스 함수 호출 실패:', fetchError);
+      
+      // 서버리스 함수 실패 시 기존 방식으로 시도
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.value.email,
+        password: formData.value.password,
+        options: {
+          data: {
+            name: formData.value.companyName,
+            phone: formData.value.mobilePhone || null,
+            user_type: 'user'
           },
-          body: JSON.stringify(companyData)
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('서버리스 함수 호출 실패:', errorData);
-          throw new Error(errorData.error || '회사 정보 등록 실패');
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailConfirm: false
         }
-        
-        console.log('서버리스 함수로 회사 정보 등록 성공');
-      } catch (fetchError) {
-        console.error('서버리스 함수 호출 실패:', fetchError);
-        
-        // 서버리스 함수 실패 시 직접 삽입 시도
-        const { data: companyInsertData, error: companyInsertError } = await supabase
-          .from('companies')
-          .insert([companyData]);
-        
-        if (companyInsertError) {
-          console.error('회사 정보 삽입 실패:', companyInsertError);
-          
-          // RLS 정책 오류인 경우 특별 처리
-          if (companyInsertError.message.includes('row-level security policy')) {
-            // RLS 정책 오류 시 사용자에게 안내하고 계속 진행
-            console.warn('RLS 정책 오류 발생, 회원가입은 완료되었습니다.');
-            alert('회원가입이 완료되었습니다. 회사 정보는 관리자가 나중에 등록해드리겠습니다.');
-            router.push('/login');
-            return;
-          }
-          
-          throw companyInsertError;
-        }
+      });
+
+      if (error) {
+        console.error('Supabase Auth 오류:', error);
+        throw error;
       }
     }
+
+    // 서버리스 함수로 회원가입이 완료되었으므로 추가 처리 불필요
     
     // 이메일 확인 없이 바로 로그인 시도
     if (data.user && !data.user.email_confirmed_at) {
