@@ -588,7 +588,6 @@ async function loadAbsorptionAnalysisResults() {
     
     if (selectedCompanyId.value === 'ALL') {
       // === 전체 조회 시: 단일 쿼리로 모든 데이터 가져오기 (성능 최적화) ===
-      console.log('=== 전체 조회: 단일 쿼리로 모든 데이터 가져오기 ===');
       
       let query = supabase
         .from('performance_records_absorption')
@@ -631,22 +630,16 @@ async function loadAbsorptionAnalysisResults() {
         }
         
         from += batchSize;
-        console.log(`배치 처리 중: ${allData.length}건 로드됨`);
       }
-      
-      console.log(`전체 데이터 합계: ${allData.length}건`);
-      console.log('=== 단일 쿼리 완료 ===');
       
       // 데이터가 없으면 바로 로딩 멈춤
       if (allData.length === 0) {
-        console.log('performance_records_absorption에 데이터가 없습니다. 로딩을 멈춥니다.');
         loading.value = false;
         return;
       }
     
     } else {
       // === 개별 업체 조회 시: 기존 로직 ===
-      console.log('=== 개별 업체 조회 시작 ===');
       
       let query = supabase
         .from('performance_records_absorption')
@@ -692,27 +685,17 @@ async function loadAbsorptionAnalysisResults() {
         from += batchSize;
       }
       
-      console.log(`개별 업체 조회 완료: ${allData.length}건`);
-      
       // 데이터가 없으면 바로 로딩 멈춤
       if (allData.length === 0) {
-        console.log('performance_records_absorption에 데이터가 없습니다. 로딩을 멈춥니다.');
         loading.value = false;
         return;
       }
     }
 
-    console.log('=== 데이터 매핑 전 검증 ===');
-    console.log(`매핑 전 원본 데이터: ${allData.length}건`);
-    
     // NULL 값 체크
     const companyNullCount = allData.filter(row => !row.company).length;
     const clientNullCount = allData.filter(row => !row.client).length;
     const productNullCount = allData.filter(row => !row.product).length;
-    
-    console.log(`회사 정보 NULL: ${companyNullCount}건`);
-    console.log(`병원 정보 NULL: ${clientNullCount}건`);
-    console.log(`제품 정보 NULL: ${productNullCount}건`);
 
     // 사용자 ID를 업체명으로 변환하기 위한 매핑 생성 (성능 최적화)
     const userIds = [...new Set(allData.map(row => row.registered_by).filter(id => id && id !== null))];
@@ -721,8 +704,6 @@ async function loadAbsorptionAnalysisResults() {
     
     let userMap = new Map();
     if (userIds.length > 0) {
-      console.log('사용자 ID 목록:', userIds.length + '개');
-      
       // companies 테이블에서 user_id를 통해 업체명 가져오기 (배치 처리)
       const { data: companies, error: companyError } = await supabase
         .from('companies')
@@ -736,12 +717,9 @@ async function loadAbsorptionAnalysisResults() {
           }
         });
       }
-      
-      console.log('사용자 매핑 완료:', userMap.size + '개');
     }
 
     // 데이터 매핑 최적화 (배치 처리)
-    console.log('데이터 매핑 시작...');
     const mappedData = allData.map((row, i) => {
         try {
             // null 체크 및 기본값 설정
@@ -828,56 +806,27 @@ async function loadAbsorptionAnalysisResults() {
             };
         }
     });
-    
-    console.log(`매핑 후 데이터: ${mappedData.length}건`);
-    console.log('=== 데이터 매핑 완료 ===');
 
     // 정렬은 applySorting 함수에서 처리
     
     // 데이터 설정 전에 안전성 검증
     if (Array.isArray(mappedData) && mappedData.length > 0) {
-      console.log('데이터 설정 중...', mappedData.length + '건');
-      
       // 로딩 상태 해제
       loading.value = false;
       
       // 간단하게 데이터 설정
       displayRows.value = mappedData;
-      
-      console.log('데이터 설정 완료');
-      console.log('첫 번째 행 absorption_rate:', mappedData[0]?.absorption_rate);
-      console.log('첫 번째 행 타입:', typeof mappedData[0]?.absorption_rate);
     } else {
-      console.log('매핑된 데이터가 없거나 배열이 아닙니다:', mappedData);
       loading.value = false;
       displayRows.value = [];
     }
 
-    // === 업체별 개수 콘솔 로그 (성능 최적화) ===
-    console.log('=== 흡수율 분석 결과 업체별 개수 ===');
-    console.log(`전체 데이터: ${mappedData.length}건`);
-    console.log(`선택된 업체: ${selectedCompanyId.value === 'ALL' ? '전체' : companyOptions.value.find(c => c.id === selectedCompanyId.value)?.company_name || selectedCompanyId.value}`);
-    
     // 업체별 집계 (Map 사용으로 성능 향상)
     const companyCount = new Map();
     mappedData.forEach(row => {
       const companyName = row.company_name || 'N/A';
       companyCount.set(companyName, (companyCount.get(companyName) || 0) + 1);
     });
-    
-    // 업체별 개수 출력 (많은 순으로 정렬, 상위 10개만)
-    const sortedCompanies = Array.from(companyCount.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
-    
-    sortedCompanies.forEach(([company, count]) => {
-      console.log(`${company}: ${count}건`);
-    });
-    
-    if (companyCount.size > 10) {
-      console.log(`... 외 ${companyCount.size - 10}개 업체`);
-    }
-    console.log('=====================================');
 
   } catch (err) {
     console.error('분석 결과 데이터 로딩 오류:', err);
@@ -964,12 +913,10 @@ const calculateAbsorptionRates = async () => {
   }
 
   // 2번 모달 제거 - 바로 분석 시작
-  console.log(`'${selectedSettlementMonth.value}'월의 흡수율 분석을 시작합니다.`);
 
   loading.value = true;
   try {
     // 1단계: 필터 조건에 맞는 원본 데이터 복사
-    console.log(`1단계 시작: ${selectedSettlementMonth.value} 필터링된 데이터 복사`);
     
     // 먼저 기존 분석 데이터에서 해당 조건의 데이터 삭제
     let deleteQuery = supabase
@@ -1040,13 +987,9 @@ const calculateAbsorptionRates = async () => {
       return;
     }
 
-    console.log(`${allSourceData.length}건의 실적 데이터를 분석용 테이블로 복사`);
-
     // performance_records_absorption에 데이터 복사 (배치 처리 최적화)
     const insertBatchSize = 500; // 배치 크기를 줄여서 메모리 사용량 감소
     let insertedCount = 0;
-    
-    console.log(`총 ${allSourceData.length}건을 ${insertBatchSize}건씩 배치로 복사합니다.`);
     
     for (let i = 0; i < allSourceData.length; i += insertBatchSize) {
       const batchData = allSourceData.slice(i, i + insertBatchSize);
@@ -1083,18 +1026,12 @@ const calculateAbsorptionRates = async () => {
       if (insertError) throw insertError;
       
       insertedCount += batchData.length;
-      console.log(`배치 ${Math.floor(i/insertBatchSize) + 1}: ${insertedCount}/${allSourceData.length}건 복사 완료`);
       
       // 메모리 해제를 위한 짧은 지연
       await new Promise(resolve => setTimeout(resolve, 10));
     }
 
-    console.log('1단계 완료.');
-    // 3번 모달 제거 - 바로 2단계 시작
-    console.log('1단계(필터링된 데이터 복사)가 완료되었습니다. 2단계(흡수율 계산)를 시작합니다.');
-    
     // 2단계: 흡수율 계산 (복사된 데이터에 대해서만)
-    console.log(`2단계 시작: 복사된 ${insertedCount}건 데이터의 흡수율 계산`);
     const { error: step2Error } = await supabase.rpc('calculate_absorption_rates', {
       p_settlement_month: selectedSettlementMonth.value
     });
@@ -1102,7 +1039,6 @@ const calculateAbsorptionRates = async () => {
       console.error('2단계 오류:', step2Error);
       throw new Error(`2단계(흡수율 계산) 실패: ${step2Error.message}`);
     }
-    console.log('2단계 완료.');
 
     // 4번 모달: alert (확인만 필요, 취소 없음)
     alert(`흡수율 분석이 완료되었습니다. (${insertedCount}건 처리)`);
@@ -1581,13 +1517,9 @@ async function deleteFilteredAnalysisData() {
        return;
      }
 
-     console.log(`총 ${allIds.length}건의 데이터를 삭제합니다.`);
-
      // === 배치 단위로 삭제 (Supabase 삭제 제한 대응) ===
      const deleteBatchSize = 500; // 배치 크기를 줄여서 안정성 향상
      let deletedCount = 0;
-     
-     console.log(`총 ${allIds.length}건을 ${deleteBatchSize}건씩 배치로 삭제합니다.`);
      
      for (let i = 0; i < allIds.length; i += deleteBatchSize) {
        const batchIds = allIds.slice(i, i + deleteBatchSize);
@@ -1600,7 +1532,6 @@ async function deleteFilteredAnalysisData() {
        if (deleteError) throw deleteError;
        
        deletedCount += batchIds.length;
-       console.log(`배치 ${Math.floor(i/deleteBatchSize) + 1}: ${deletedCount}/${allIds.length}건 삭제 완료`);
        
        // 메모리 해제를 위한 짧은 지연
        await new Promise(resolve => setTimeout(resolve, 10));
@@ -1621,9 +1552,6 @@ async function checkReanalysisNeeded() {
   if (!selectedSettlementMonth.value) return;
 
   try {
-    console.log('=== 재분석 필요성 체크 시작 ===');
-    console.log('선택된 정산월:', selectedSettlementMonth.value);
-    
     // 1. performance_records_absorption에서 가장 최근 analysis_time 조회
     const { data: latestAnalysisData, error: analysisError } = await supabase
       .from('performance_records_absorption')
@@ -1635,12 +1563,8 @@ async function checkReanalysisNeeded() {
 
     if (analysisError) throw analysisError;
 
-    console.log('최근 분석 데이터:', latestAnalysisData);
-
     // 분석 데이터가 없으면 검수 완료한 실적 정보만 체크
     if (!latestAnalysisData || latestAnalysisData.length === 0) {
-      console.log('분석 데이터가 없습니다. 검수 완료한 실적 정보만 체크합니다.');
-      
       // 조건1: performance_records에서 해당 정산월, review_status 완료인 데이터
       const { data: performanceData, error: perfError } = await supabase
         .from('performance_records')
@@ -1650,24 +1574,16 @@ async function checkReanalysisNeeded() {
         .limit(1);
 
       if (perfError) throw perfError;
-      console.log('검수 완료 실적 데이터:', performanceData);
 
       if (performanceData && performanceData.length > 0) {
         const modalMessage = '검수 완료한 실적 정보가 있습니다.\n\n흡수율 분석을 실행하시겠습니까?';
-        console.log('모달 메시지:', modalMessage);
         const reanalyze = confirm(modalMessage);
         
         if (reanalyze) {
-          console.log('흡수율 분석 실행');
           await calculateAbsorptionRates();
-        } else {
-          console.log('흡수율 분석 취소');
         }
-      } else {
-        console.log('검수 완료한 실적 정보가 없습니다.');
       }
       
-      console.log('=== 재분석 필요성 체크 완료 ===');
       // return 제거 - loadAbsorptionAnalysisResults가 호출되도록 함
     }
 
@@ -1679,11 +1595,7 @@ async function checkReanalysisNeeded() {
       latestAnalysisDate = new Date(latestAnalysisData[0].analysis_time);
       
       latestAnalysisTime.value = latestAnalysisDate.toISOString();
-      console.log('최근 분석 시간 (analysis_time):', latestAnalysisData[0].analysis_time);
-      console.log('기준 시간:', latestAnalysisTime.value);
-      console.log('최근 분석 날짜 객체:', latestAnalysisDate);
     } else {
-      console.log('분석 데이터가 없어서 변경사항 체크를 건너뜁니다.');
       loading.value = false;
       return;
     }
@@ -1692,8 +1604,6 @@ async function checkReanalysisNeeded() {
     const messages = [];
 
     // 조건1: performance_records에서 해당 정산월, review_status 완료인 데이터의 review_completed_at 체크
-    console.log('조건1 체크 시작 - performance_records review_completed_at');
-    
     const { data: performanceCompleted, error: perfCompletedError } = await supabase
       .from('performance_records')
       .select('id, review_completed_at')
@@ -1704,39 +1614,24 @@ async function checkReanalysisNeeded() {
       .limit(5);
 
     if (perfCompletedError) throw perfCompletedError;
-    console.log('performance_records review_completed_at 체크 결과:', performanceCompleted);
 
     if (performanceCompleted && performanceCompleted.length > 0) {
       messages.push('분석 이후에 검수 완료된 실적이 있습니다.');
-      console.log('조건1 충족: 분석 이후 검수 완료 실적 발견');
     }
 
     // 조건2: 간단한 마스터 데이터 변경사항 체크 (선택사항)
-    console.log('조건2 체크 시작 - 간단한 마스터 데이터 체크');
-    
     // 실제로는 performance_records의 review_completed_at만 체크하면 충분
     // 마스터 데이터 변경은 흡수율 계산에 직접적인 영향을 주지 않음
-    console.log('마스터 데이터 변경사항 체크는 생략 (performance_records 체크로 충분)');
 
     // 3. 메시지가 있으면 모달 표시
-    console.log('수집된 메시지:', messages);
-    
     if (messages.length > 0) {
       const modalMessage = messages.join('\n') + '\n\n흡수율 분석을 다시 실행하시겠습니까?';
-      console.log('모달 메시지:', modalMessage);
       const reanalyze = confirm(modalMessage);
       
       if (reanalyze) {
-        console.log('재분석 실행');
         await calculateAbsorptionRates();
-      } else {
-        console.log('재분석 취소');
       }
-    } else {
-      console.log('변경사항이 없어서 모달을 표시하지 않습니다.');
     }
-    
-    console.log('=== 재분석 필요성 체크 완료 ===');
 
   } catch (err) {
     console.error('재분석 필요성 체크 중 오류:', err);
