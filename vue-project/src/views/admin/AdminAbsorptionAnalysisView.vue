@@ -1314,7 +1314,25 @@ async function downloadExcel() {
       '수정자': row.updated_by || ''
     }));
 
-    // 합계 행 추가
+    // 합계 행 추가 (삭제된 건 제외한 계산으로 통일)
+    const totalPrescriptionAmountForExcel = displayRows.value.reduce((sum, row) => {
+      // 삭제된 건은 처방액을 0으로 계산
+      if (row.review_action === '삭제') return sum;
+      return sum + (Number(String(row.prescription_amount).replace(/,/g, '')) || 0);
+    }, 0);
+    
+    const totalCombinedRevenueForExcel = displayRows.value.reduce((sum, row) => {
+      // 삭제된 건은 합산액을 0으로 계산
+      if (row.review_action === '삭제') return sum;
+      return sum + (row.total_revenue || 0);
+    }, 0);
+    
+    const totalPaymentAmountForExcel = displayRows.value.reduce((sum, row) => {
+      // 삭제된 건은 지급액을 0으로 계산
+      if (row.review_action === '삭제') return sum;
+      return sum + (Number(String(row.payment_amount).replace(/,/g, '')) || 0);
+    }, 0);
+    
     dataToExport.push({
       'No': '',
       '작업': '',
@@ -1326,14 +1344,14 @@ async function downloadExcel() {
       '보험코드': '',
       '약가': '합계',
       '수량': Number(totalQuantity.value.replace(/,/g, '')),
-      '처방액': Number(totalPrescriptionAmount.value.replace(/,/g, '')),
+      '처방액': totalPrescriptionAmountForExcel,
       '처방구분': '',
       '도매매출': Number(totalWholesaleRevenue.value.replace(/,/g, '')),
       '직거래매출': Number(totalDirectRevenue.value.replace(/,/g, '')),
-      '합산액': Number(totalCombinedRevenue.value.replace(/,/g, '')),
-      '흡수율': (Number(totalPrescriptionAmount.value.replace(/,/g, '')) > 0 ? (Number(totalCombinedRevenue.value.replace(/,/g, '')) / Number(totalPrescriptionAmount.value.replace(/,/g, '')) * 100) : 0),
-      '수수료율': (Number(totalPrescriptionAmount.value.replace(/,/g, '')) > 0 ? (Number(totalPaymentAmount.value.replace(/,/g, '')) / Number(totalPrescriptionAmount.value.replace(/,/g, ''))) : 0),
-      '지급액': Number(totalPaymentAmount.value.replace(/,/g, '')),
+      '합산액': totalCombinedRevenueForExcel,
+      '흡수율': (totalPrescriptionAmountForExcel > 0 ? (totalCombinedRevenueForExcel / totalPrescriptionAmountForExcel) : 0),
+      '수수료율': (totalPrescriptionAmountForExcel > 0 ? (totalPaymentAmountForExcel / totalPrescriptionAmountForExcel) : 0),
+      '지급액': totalPaymentAmountForExcel,
       '비고': '',
       '등록일시': '',
       '등록자': ''
