@@ -132,6 +132,7 @@ const route = useRoute()
 const loading = ref(false)
 const showPassword = ref(false)
 const showPassword2 = ref(false)
+const currentUser = ref(null)
 
 const commissionGradeOptions = [
   { label: 'A', value: 'A' },
@@ -155,6 +156,17 @@ const isFormValid = computed(() => {
          representative.value && representative.value.trim() !== '' &&
          password.value === confirmPassword.value;
 });
+
+// 현재 로그인된 사용자 정보 가져오기
+const getCurrentUser = async () => {
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (user) {
+    currentUser.value = user
+  }
+}
+
+// 컴포넌트 마운트 시 현재 사용자 정보 가져오기
+getCurrentUser()
 
 // 필드 검증 (focus 이벤트용)
 const checkValidations = (event) => {
@@ -509,7 +521,7 @@ const handleSubmit = async () => {
       user_type: 'user',
       status: 'active',
       created_at: new Date().toISOString(),
-      created_by: null, // 관리자가 등록한 업체는 created_by가 null
+      created_by: currentUser.value?.id || null, // 현재 로그인된 관리자의 ID
     };
     if (approvalStatus.value === '승인') {
       companyDataToInsert.approved_at = new Date().toISOString();
