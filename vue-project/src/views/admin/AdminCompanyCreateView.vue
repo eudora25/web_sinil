@@ -484,39 +484,9 @@ const handleSubmit = async () => {
       return;
     }
     
-    // 1. Supabase Auth로 사용자 생성
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: email.value,
-      password: password.value,
-      user_metadata: {
-        name: companyName.value,
-        user_type: 'user'
-      },
-      email_confirm: true
-    });
-    
-    if (authError) {
-      let errorMessage = '사용자 계정 생성에 실패했습니다.';
-      
-      if (authError.message.includes('already registered')) {
-        errorMessage = '이미 등록된 이메일 주소입니다.';
-      } else if (authError.message.includes('invalid')) {
-        errorMessage = '이메일 주소 형식이 올바르지 않습니다.';
-      } else if (authError.message.includes('password')) {
-        errorMessage = '비밀번호가 요구사항을 충족하지 않습니다. (최소 6자 이상)';
-      } else if (authError.message) {
-        errorMessage = `사용자 계정 생성 실패: ${authError.message}`;
-      }
-      
-      alert(errorMessage);
-      return;
-    }
-    
-    const userId = authData.user?.id;
-    if (!userId) {
-      alert('사용자 계정 생성 실패: 사용자 ID를 가져올 수 없습니다.');
-      return;
-    }
+    // 1. 관리자가 업체 등록 시에는 사용자 인증 없이 바로 companies 테이블에 저장
+    // 사용자는 나중에 이메일/비밀번호로 로그인할 때 계정을 생성할 수 있음
+    const userId = null; // 사용자 인증 없이 등록
 
     // 2. companies 테이블에 데이터 저장
     const companyDataToInsert = {
@@ -535,11 +505,11 @@ const handleSubmit = async () => {
       assigned_pharmacist_contact: manager.value,
       approval_status: approvalStatus.value === '승인' ? 'approved' : 'pending',
       remarks: remarks.value,
-      user_id: userId,
+      user_id: null, // 관리자가 등록한 업체는 user_id가 null
       user_type: 'user',
       status: 'active',
       created_at: new Date().toISOString(),
-      created_by: userId,
+      created_by: null, // 관리자가 등록한 업체는 created_by가 null
     };
     if (approvalStatus.value === '승인') {
       companyDataToInsert.approved_at = new Date().toISOString();
