@@ -495,38 +495,38 @@ const handleSubmit = async () => {
       return;
     }
 
-    // 1. 서버리스 함수로 사용자 계정 생성
-    const response = await fetch('/api/create-user', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: email.value,
-        password: password.value,
-        company_name: companyName.value,
-      }),
-    });
-    
-    const result = await response.json();
-    if (!response.ok) {
-      let errorMessage = '사용자 계정 생성에 실패했습니다.';
-      
-      if (result.error === 'auth') {
-        errorMessage = '사용자 계정 생성에 실패했습니다. 이메일 주소를 확인해주세요.';
-      } else if (result.error === 'company') {
-        errorMessage = '회사 정보 등록에 실패했습니다. 입력 정보를 확인해주세요.';
-      } else if (result.message) {
-        errorMessage = `사용자 계정 생성 실패: ${result.message}`;
-      }
-      
-      alert(errorMessage);
-      return;
-    }
-    
-    const userId = result.user?.id;
-    if (!userId) {
-      alert('사용자 계정 생성 실패: 사용자 ID를 가져올 수 없습니다.');
-      return;
-    }
+            // 1. 서버리스 함수로 사용자 계정 생성
+        const response = await fetch('http://localhost:3001/api/create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email.value,
+            password: password.value,
+            company_name: companyName.value,
+          }),
+        });
+        
+        const result = await response.json();
+        if (!response.ok) {
+          let errorMessage = '사용자 계정 생성에 실패했습니다.';
+          
+          if (result.error === 'auth') {
+            errorMessage = '사용자 계정 생성에 실패했습니다. 이메일 주소를 확인해주세요.';
+          } else if (result.error === 'company') {
+            errorMessage = '회사 정보 등록에 실패했습니다. 입력 정보를 확인해주세요.';
+          } else if (result.message) {
+            errorMessage = `사용자 계정 생성 실패: ${result.message}`;
+          }
+          
+          alert(errorMessage);
+          return;
+        }
+        
+        const userId = result.user?.id;
+        if (!userId) {
+          alert('사용자 계정 생성 실패: 사용자 ID를 가져올 수 없습니다.');
+          return;
+        }
 
     // 2. companies 테이블에 데이터 저장
     const companyDataToInsert = {

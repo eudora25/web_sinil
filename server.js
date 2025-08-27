@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // 미들웨어 설정
 app.use(cors());
@@ -16,9 +16,41 @@ app.get('/api/health', (req, res) => {
 });
 
 // create-user API
-app.post('/api/create-user', (req, res) => {
-  // create-user.js 로직을 여기에 통합하거나 require로 불러올 수 있습니다
-  res.json({ message: 'User creation endpoint' });
+app.post('/api/create-user', async (req, res) => {
+  const { createClient } = require('@supabase/supabase-js');
+  
+  const supabase = createClient(
+    'https://vbmmfuraxvxlfpewqrsm.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZibW1mdXJheHZ4bGZwZXdxcnNtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjE3MDg4MCwiZXhwIjoyMDcxNzQ2ODgwfQ._M_g1QCYnBzHxpIGBSIVKgVpaYCm1-S4YPOHjCHvXRI'
+  );
+
+  const { email, password, company_name } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    // Supabase Auth에 사용자 생성 (admin 권한)
+    const { data, error } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { company_name }
+    });
+
+    if (error) {
+      console.error('Supabase auth error:', error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    // 생성된 사용자 정보 반환
+    console.log('User created successfully:', data.user.id);
+    return res.status(200).json({ user: data.user });
+  } catch (err) {
+    console.error('Server error:', err);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // 정적 파일 서빙
