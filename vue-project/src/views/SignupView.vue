@@ -414,26 +414,50 @@ const handleSignup = async () => {
         if (companyInsertError) {
           console.error('회사 정보 삽입 실패:', companyInsertError);
           
-          // RLS 정책 오류인 경우 사용자에게 안내
+          let errorMessage = '회사 정보 등록에 실패했습니다.';
+          
+          // 구체적인 오류 메시지 처리
           if (companyInsertError.message.includes('row-level security policy')) {
-            console.warn('RLS 정책 오류 발생, 회원가입은 완료되었습니다.');
-            alert('회원가입이 완료되었습니다. 회사 정보는 관리자가 나중에 등록해드리겠습니다.');
-            router.push('/login');
-            return;
+            errorMessage = '보안 정책으로 인해 회사 정보 등록이 제한되었습니다. 관리자에게 문의해주세요.';
+          } else if (companyInsertError.message.includes('duplicate key')) {
+            errorMessage = '이미 등록된 사업자등록번호입니다. 다른 사업자등록번호를 사용해주세요.';
+          } else if (companyInsertError.message.includes('foreign key')) {
+            errorMessage = '사용자 정보와 연결할 수 없습니다. 다시 시도해주세요.';
+          } else if (companyInsertError.message.includes('not null')) {
+            errorMessage = '필수 정보가 누락되었습니다. 모든 필수 항목을 입력해주세요.';
+          } else if (companyInsertError.message.includes('unique')) {
+            errorMessage = '중복된 정보가 있습니다. 다른 정보를 입력해주세요.';
+          } else if (companyInsertError.code) {
+            errorMessage = `회사 정보 등록 실패 (오류 코드: ${companyInsertError.code})`;
+          } else if (companyInsertError.message) {
+            errorMessage = `회사 정보 등록 실패: ${companyInsertError.message}`;
           }
           
-          // 기타 오류인 경우도 사용자에게 안내
-          console.warn('회사 정보 등록 실패, 회원가입은 완료되었습니다.');
-          alert('회원가입이 완료되었습니다. 회사 정보는 관리자가 나중에 등록해드리겠습니다.');
-          router.push('/login');
+          alert(errorMessage);
+          console.error('상세 오류 정보:', {
+            message: companyInsertError.message,
+            code: companyInsertError.code,
+            details: companyInsertError.details,
+            hint: companyInsertError.hint
+          });
           return;
         }
         
         console.log('회사 정보 등록 성공');
       } catch (error) {
         console.error('회사 정보 등록 중 오류:', error);
-        alert('회원가입이 완료되었습니다. 회사 정보는 관리자가 나중에 등록해드리겠습니다.');
-        router.push('/login');
+        
+        let errorMessage = '회사 정보 등록 중 오류가 발생했습니다.';
+        
+        if (error.message) {
+          errorMessage = `회사 정보 등록 실패: ${error.message}`;
+        }
+        
+        alert(errorMessage);
+        console.error('상세 오류 정보:', {
+          message: error.message,
+          stack: error.stack
+        });
         return;
       }
     }
@@ -465,7 +489,7 @@ const handleSignup = async () => {
     console.error('Error code:', error.code);
     console.error('Error status:', error.status);
     
-    let errorMessage = '가입 요청 실패';
+    let errorMessage = '회원가입에 실패했습니다.';
     
     if (error.message === 'User already registered') {
       errorMessage = '이미 등록된 아이디입니다.';
@@ -475,10 +499,14 @@ const handleSignup = async () => {
       errorMessage = '입력한 이메일 주소가 유효하지 않습니다. 올바른 이메일 주소를 입력해주세요.';
     } else if (error.message && error.message.includes('Email address')) {
       errorMessage = '이메일 주소가 유효하지 않습니다. 실제 존재하는 이메일 주소를 사용하거나, 관리자에게 문의하세요.';
+    } else if (error.message && error.message.includes('password')) {
+      errorMessage = '비밀번호가 요구사항을 충족하지 않습니다. (최소 6자 이상)';
+    } else if (error.message && error.message.includes('network')) {
+      errorMessage = '네트워크 연결을 확인해주세요.';
     } else if (error.error_description) {
       errorMessage = error.error_description;
     } else if (error.message) {
-      errorMessage = error.message;
+      errorMessage = `회원가입 실패: ${error.message}`;
     }
     
     alert(errorMessage);
