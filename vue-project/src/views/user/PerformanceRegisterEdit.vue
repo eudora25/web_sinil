@@ -859,6 +859,19 @@ function handleProductNameFocus(rowIdx) {
   
   currentCell.value = { row: rowIdx, col: 'product_name' };
   productSearchForRow.value.activeRowIndex = rowIdx;
+  
+  // 포커스 시 해당 월의 제품 목록이 로드되어 있지 않으면 로드
+  const month = inputRows.value[rowIdx].prescription_month;
+  if (!productsByMonth.value[month]) {
+    fetchProductsForMonth(month);
+  }
+  
+  // 포커스 시 드롭다운 표시 (제품이 있는 경우)
+  if (productsByMonth.value[month] && productsByMonth.value[month].length > 0) {
+    productSearchForRow.value.results = productsByMonth.value[month];
+    productSearchForRow.value.selectedIndex = -1;
+    productSearchForRow.value.show = true;
+  }
 }
 
 // 일반 필드 포커스 핸들러
