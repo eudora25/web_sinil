@@ -496,7 +496,7 @@ const handleSubmit = async () => {
     }
 
             // 1. 서버리스 함수로 사용자 계정 생성
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const response = await fetch(`${apiUrl}/api/create-user`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
