@@ -232,18 +232,7 @@ const handleSubmit = async () => {
     return;
   }
 
-  // 표준코드 형식 검증 (13자리 숫자)
-  if (standardCode.value.toString().length !== 13 || !/^\d{13}$/.test(standardCode.value.toString())) {
-    alert('표준코드는 13자리 숫자여야 합니다.');
-    setTimeout(() => {
-      const standardCodeInput = document.getElementById('standardCode');
-      if (standardCodeInput) {
-        standardCodeInput.focus();
-        standardCodeInput.select();
-      }
-    }, 100);
-    return;
-  }
+
 
   // 약가 형식 검증 (0 이상의 숫자)
   if (price.value && (isNaN(Number(price.value)) || Number(price.value) < 0)) {

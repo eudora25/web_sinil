@@ -86,7 +86,6 @@ const router = useRouter();
 // 필수 필드 검증
 const isFormValid = computed(() => {
   return businessNumber.value && businessNumber.value.trim() !== '' && 
-         standardCode.value && standardCode.value.trim() !== '' && 
          salesAmount.value && salesAmount.value.trim() !== '' && 
          salesDate.value && salesDate.value.trim() !== '';
 });
@@ -172,17 +171,7 @@ const handleSubmit = async () => {
     return;
   }
 
-  if (!standardCode.value || standardCode.value.trim() === '') {
-    alert('표준코드는 필수 입력 항목입니다.');
-    setTimeout(() => {
-      const standardCodeInput = document.getElementById('standardCode');
-      if (standardCodeInput) {
-        standardCodeInput.focus();
-        standardCodeInput.select();
-      }
-    }, 100);
-    return;
-  }
+
 
   if (!salesAmount.value || salesAmount.value.trim() === '') {
     alert('매출액은 필수 입력 항목입니다.');
@@ -222,18 +211,7 @@ const handleSubmit = async () => {
     return;
   }
 
-  // 표준코드 형식 검증 (13자리 숫자)
-  if (standardCode.value.length !== 13 || !/^\d{13}$/.test(standardCode.value)) {
-    alert('표준코드는 13자리 숫자여야 합니다.');
-    setTimeout(() => {
-      const standardCodeInput = document.getElementById('standardCode');
-      if (standardCodeInput) {
-        standardCodeInput.focus();
-        standardCodeInput.select();
-      }
-    }, 100);
-    return;
-  }
+
 
   // 매출액 형식 검증 (숫자, 마이너스 허용)
   if (isNaN(Number(salesAmount.value))) {
@@ -269,7 +247,6 @@ const handleSubmit = async () => {
     pharmacy_name: pharmacyName.value,
     business_registration_number: businessNumber.value,
     address: address.value,
-    standard_code: standardCode.value,
     product_name: productName.value,
     sales_amount: salesAmount.value === '' ? null : Number(salesAmount.value),
     sales_date: salesDate.value,
