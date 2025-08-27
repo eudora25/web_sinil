@@ -484,34 +484,37 @@ const handleSubmit = async () => {
       return;
     }
     
-    // 1. 서버리스 함수로 회원가입 (자동 로그인 없음)
-    const response = await fetch('/api/create-user', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: email.value,
-        password: password.value,
-        company_name: companyName.value,
-      }),
+    // 1. Supabase Auth로 사용자 생성
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email: email.value,
+      password: password.value,
+      user_metadata: {
+        name: companyName.value,
+        user_type: 'user'
+      },
+      email_confirm: true
     });
-    const result = await response.json();
-    if (!response.ok) {
-      let errorMessage = '회원가입에 실패했습니다.';
+    
+    if (authError) {
+      let errorMessage = '사용자 계정 생성에 실패했습니다.';
       
-      if (result.error === 'auth') {
-        errorMessage = '사용자 계정 생성에 실패했습니다. 이메일 주소를 확인해주세요.';
-      } else if (result.error === 'company') {
-        errorMessage = '회사 정보 등록에 실패했습니다. 입력 정보를 확인해주세요.';
-      } else if (result.message) {
-        errorMessage = `회원가입 실패: ${result.message}`;
+      if (authError.message.includes('already registered')) {
+        errorMessage = '이미 등록된 이메일 주소입니다.';
+      } else if (authError.message.includes('invalid')) {
+        errorMessage = '이메일 주소 형식이 올바르지 않습니다.';
+      } else if (authError.message.includes('password')) {
+        errorMessage = '비밀번호가 요구사항을 충족하지 않습니다. (최소 6자 이상)';
+      } else if (authError.message) {
+        errorMessage = `사용자 계정 생성 실패: ${authError.message}`;
       }
       
       alert(errorMessage);
       return;
     }
-    const userId = result.user?.id;
+    
+    const userId = authData.user?.id;
     if (!userId) {
-      alert('회원가입 실패: 사용자 ID를 가져올 수 없습니다.');
+      alert('사용자 계정 생성 실패: 사용자 ID를 가져올 수 없습니다.');
       return;
     }
 
