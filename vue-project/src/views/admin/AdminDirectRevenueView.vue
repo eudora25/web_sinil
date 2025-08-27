@@ -454,19 +454,22 @@ const fetchAvailableMonths = () => {
 }
 
 // 페이지 변경 처리
-const onPageChange = (event) => {
+const onPageChange = async (event) => {
+  console.log('페이지 변경:', event)
   currentPage.value = event.page + 1
   currentPageFirstIndex.value = event.first
-  fetchRevenues()
+  await fetchRevenues()
 }
 
 // 필터 적용
 const applyFilters = async () => {
+  console.log('필터 적용 시작:', { fromMonth: fromMonth.value, toMonth: toMonth.value, searchInput: searchInput.value })
   currentPage.value = 1
   currentPageFirstIndex.value = 0
   loading.value = true
   try {
     await fetchSummary()
+    console.log('fetchSummary 완료:', { totalCount: totalCount.value, totalSalesAmount: totalSalesAmount.value })
     await fetchRevenues()
   } finally {
     loading.value = false
