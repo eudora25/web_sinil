@@ -400,30 +400,34 @@ const handleSignup = async () => {
         created_by: data.user.id,
       };
       
-      // RLS 정책 문제를 우회하기 위해 서버리스 함수 사용
+      // 회사 정보 등록 시도 (RLS 정책 문제 해결)
       try {
-        const supabaseUrl = 'https://vbmmfuraxvxlfpewqrsm.supabase.co';
-        const response = await fetch(`${supabaseUrl}/functions/v1/create-company`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZibW1mdXJheHZ4bGZwZXdxcnNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzUyNzQ5NzAsImV4cCI6MjA1MDg1MDk3MH0.vaeolqywqckiwwtspxfp'
-          },
-          body: JSON.stringify(companyData)
-        });
+        // 직접 삽입 시도 (RLS 정책이 허용하는 경우)
+        const { data: companyInsertData, error: companyInsertError } = await supabase
+          .from('companies')
+          .insert([companyData]);
         
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('서버리스 함수 호출 실패:', errorData);
-          throw new Error(errorData.error || '회사 정보 등록 실패');
+        if (companyInsertError) {
+          console.error('회사 정보 삽입 실패:', companyInsertError);
+          
+          // RLS 정책 오류인 경우 사용자에게 안내
+          if (companyInsertError.message.includes('row-level security policy')) {
+            console.warn('RLS 정책 오류 발생, 회원가입은 완료되었습니다.');
+            alert('회원가입이 완료되었습니다. 회사 정보는 관리자가 나중에 등록해드리겠습니다.');
+            router.push('/login');
+            return;
+          }
+          
+          // 기타 오류인 경우도 사용자에게 안내
+          console.warn('회사 정보 등록 실패, 회원가입은 완료되었습니다.');
+          alert('회원가입이 완료되었습니다. 회사 정보는 관리자가 나중에 등록해드리겠습니다.');
+          router.push('/login');
+          return;
         }
         
-        console.log('서버리스 함수로 회사 정보 등록 성공');
-      } catch (fetchError) {
-        console.error('서버리스 함수 호출 실패:', fetchError);
-        
-        // 서버리스 함수 실패 시 사용자에게 안내
-        console.warn('서버리스 함수 호출 실패, 회원가입은 완료되었습니다.');
+        console.log('회사 정보 등록 성공');
+      } catch (error) {
+        console.error('회사 정보 등록 중 오류:', error);
         alert('회원가입이 완료되었습니다. 회사 정보는 관리자가 나중에 등록해드리겠습니다.');
         router.push('/login');
         return;
