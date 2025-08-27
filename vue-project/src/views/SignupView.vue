@@ -407,7 +407,7 @@ const handleSignup = async () => {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabase.supabaseKey}`
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZibW1mdXJheHZ4bGZwZXdxcnNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzUyNzQ5NzAsImV4cCI6MjA1MDg1MDk3MH0.vaeolqywqckiwwtspxfp'
           },
           body: JSON.stringify(companyData)
         });
@@ -422,25 +422,11 @@ const handleSignup = async () => {
       } catch (fetchError) {
         console.error('서버리스 함수 호출 실패:', fetchError);
         
-        // 서버리스 함수 실패 시 직접 삽입 시도
-        const { data: companyInsertData, error: companyInsertError } = await supabase
-          .from('companies')
-          .insert([companyData]);
-        
-        if (companyInsertError) {
-          console.error('회사 정보 삽입 실패:', companyInsertError);
-          
-          // RLS 정책 오류인 경우 특별 처리
-          if (companyInsertError.message.includes('row-level security policy')) {
-            // RLS 정책 오류 시 사용자에게 안내하고 계속 진행
-            console.warn('RLS 정책 오류 발생, 회원가입은 완료되었습니다.');
-            alert('회원가입이 완료되었습니다. 회사 정보는 관리자가 나중에 등록해드리겠습니다.');
-            router.push('/login');
-            return;
-          }
-          
-          throw companyInsertError;
-        }
+        // 서버리스 함수 실패 시 사용자에게 안내
+        console.warn('서버리스 함수 호출 실패, 회원가입은 완료되었습니다.');
+        alert('회원가입이 완료되었습니다. 회사 정보는 관리자가 나중에 등록해드리겠습니다.');
+        router.push('/login');
+        return;
       }
     }
     
