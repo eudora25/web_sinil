@@ -168,29 +168,23 @@ const handlePasswordReset = async () => {
   }
   
   loading.value = true;
-  console.log('비밀번호 재설정 요청:', resetEmail.value);
   
   try {
     const { data, error } = await supabase.auth.resetPasswordForEmail(resetEmail.value, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     
-    console.log('비밀번호 재설정 응답:', { data, error });
-    
     if (error) {
-      console.error('비밀번호 재설정 오류:', error);
       if (error.message.includes('not found')) {
         alert('가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해주세요.');
       } else {
         alert(`오류가 발생했습니다: ${error.message}`);
       }
     } else {
-      console.log('비밀번호 재설정 이메일 발송 성공');
       closePasswordResetModal();
       isConfirmationModalOpen.value = true;
     }
   } catch (err) {
-    console.error('비밀번호 재설정 예외:', err);
     alert('예기치 않은 오류가 발생했습니다.');
   } finally {
     loading.value = false;
