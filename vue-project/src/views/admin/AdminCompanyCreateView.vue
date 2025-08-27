@@ -496,7 +496,17 @@ const handleSubmit = async () => {
     });
     const result = await response.json();
     if (!response.ok) {
-      alert('회원가입 실패: ' + (result.error || '알 수 없는 오류'));
+      let errorMessage = '회원가입에 실패했습니다.';
+      
+      if (result.error === 'auth') {
+        errorMessage = '사용자 계정 생성에 실패했습니다. 이메일 주소를 확인해주세요.';
+      } else if (result.error === 'company') {
+        errorMessage = '회사 정보 등록에 실패했습니다. 입력 정보를 확인해주세요.';
+      } else if (result.message) {
+        errorMessage = `회원가입 실패: ${result.message}`;
+      }
+      
+      alert(errorMessage);
       return;
     }
     const userId = result.user?.id;
@@ -533,15 +543,46 @@ const handleSubmit = async () => {
     }
     const { error: insertError } = await supabase.from('companies').insert(companyDataToInsert);
     if (insertError) {
-      alert('업체 등록 실패: ' + insertError.message);
+      let errorMessage = '업체 등록에 실패했습니다.';
+      
+      // 구체적인 오류 메시지 처리
+      if (insertError.message.includes('duplicate key')) {
+        errorMessage = '이미 등록된 사업자등록번호입니다. 다른 사업자등록번호를 사용해주세요.';
+      } else if (insertError.message.includes('foreign key')) {
+        errorMessage = '사용자 정보와 연결할 수 없습니다. 다시 시도해주세요.';
+      } else if (insertError.message.includes('not null')) {
+        errorMessage = '필수 정보가 누락되었습니다. 모든 필수 항목을 입력해주세요.';
+      } else if (insertError.message.includes('unique')) {
+        errorMessage = '중복된 정보가 있습니다. 다른 정보를 입력해주세요.';
+      } else if (insertError.message.includes('row-level security policy')) {
+        errorMessage = '보안 정책으로 인해 업체 등록이 제한되었습니다. 관리자 권한을 확인해주세요.';
+      } else if (insertError.code) {
+        errorMessage = `업체 등록 실패 (오류 코드: ${insertError.code})`;
+      } else if (insertError.message) {
+        errorMessage = `업체 등록 실패: ${insertError.message}`;
+      }
+      
+      alert(errorMessage);
       return;
     }
     alert('등록되었습니다.');
     const from = route.query.from === 'pending' ? 'pending' : 'approved';
     router.push(`/admin/companies/${from}`);
   } catch (err) {
-    console.error('업체 등록 중 오류가 발생했습니다.', err);
-    alert('업체 등록에 실패했습니다.');
+    let errorMessage = '업체 등록 중 오류가 발생했습니다.';
+    
+    // 구체적인 오류 메시지 처리
+    if (err.message && err.message.includes('fetch')) {
+      errorMessage = '서버 연결에 실패했습니다. 네트워크 연결을 확인해주세요.';
+    } else if (err.message && err.message.includes('JSON')) {
+      errorMessage = '서버 응답을 처리할 수 없습니다. 다시 시도해주세요.';
+    } else if (err.message && err.message.includes('timeout')) {
+      errorMessage = '요청 시간이 초과되었습니다. 다시 시도해주세요.';
+    } else if (err.message) {
+      errorMessage = `업체 등록 실패: ${err.message}`;
+    }
+    
+    alert(errorMessage);
   } finally {
     loading.value = false;
   }
