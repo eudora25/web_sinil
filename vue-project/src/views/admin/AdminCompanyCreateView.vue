@@ -474,17 +474,16 @@ const handleSubmit = async () => {
   loading.value = true;
   try {
     // 사업자등록번호 중복 검증
-    const { data: existingCompany, error: checkError } = await supabase
+    const { data: existingCompanies, error: checkError } = await supabase
       .from('companies')
-      .select('id')
-      .eq('business_registration_number', businessNumber.value)
-      .single();
+      .select('id, business_registration_number')
+      .eq('business_registration_number', businessNumber.value);
     
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116는 결과가 없는 경우
+    if (checkError) {
       throw checkError;
     }
     
-    if (existingCompany) {
+    if (existingCompanies && existingCompanies.length > 0) {
       alert('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
       setTimeout(() => {
         const businessNumberInput = document.getElementById('businessNumber');
@@ -495,10 +494,6 @@ const handleSubmit = async () => {
       }, 100);
       return;
     }
-    
-    // 1. 관리자가 업체 등록 시에는 사용자 인증 없이 바로 companies 테이블에 저장
-    // 사용자는 나중에 이메일/비밀번호로 로그인할 때 계정을 생성할 수 있음
-    const userId = null; // 사용자 인증 없이 등록
 
     // 2. companies 테이블에 데이터 저장
     const companyDataToInsert = {
