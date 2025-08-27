@@ -251,7 +251,7 @@ const router = createRouter({
       path: '/admin/settlement-month',
       name: 'admin-settlement-month',
       component: AdminSettlementMonthsView,
-      meta: { requiresAuth: true, role: 'admin' }
+      meta: { requiresAuth: true, isAdmin: true }
     },
     {
       path: '/admin/performance/register',
@@ -275,7 +275,7 @@ const router = createRouter({
       path: '/admin/performance-list',
       name: 'AdminPerformanceRegisterList',
       component: () => import('../views/admin/AdminPerformanceRegisterList.vue'),
-      meta: { requiresAuth: true, role: 'admin' },
+      meta: { requiresAuth: true, isAdmin: true },
       redirect: '/admin/performance/whole'
     },
     {
@@ -487,20 +487,33 @@ router.beforeEach(async (to, from, next) => {
     const userRole = session.user?.user_metadata?.user_type;
     console.log(`[Router Guard] User role from session: ${userRole}`);
 
-    const requiredRole = to.meta.role; // 가장 일치하는 라우트의 role을 직접 사용
-    console.log(`[Router Guard] Required role for route: ${requiredRole}`);
+    // 관리자 권한이 필요한 페이지인지 확인
+    const requiresAdmin = to.meta.isAdmin;
+    const requiredRole = to.meta.role;
+    console.log(`[Router Guard] Route requiresAdmin: ${requiresAdmin}, requiredRole: ${requiredRole}`);
 
-    if (requiredRole) {
+    if (requiresAdmin) {
+      // 관리자 권한이 필요한 페이지
+      if (userRole === 'admin') {
+        console.log('[Router Guard] Admin access granted. Proceeding.');
+        return next();
+      } else {
+        console.log(`[Router Guard] Admin access denied. User role: ${userRole}. Redirecting to home.`);
+        alert('관리자 권한이 필요한 페이지입니다.');
+        return next({ name: 'home' });
+      }
+    } else if (requiredRole) {
+      // 특정 역할이 필요한 페이지
       if (userRole === requiredRole) {
         console.log('[Router Guard] Role matched. Proceeding.');
         return next();
       } else {
         console.log(`[Router Guard] Role mismatch. User role: ${userRole}, Required: ${requiredRole}. Redirecting to home.`);
         alert('접근 권한이 없습니다. (역할 불일치)');
-        return next({ name: 'home' }); // 또는 사용자의 기본 대시보드나 로그인 페이지
+        return next({ name: 'home' });
       }
     } else {
-      // requiresAuth는 true이지만, 특정 role이 명시되지 않은 경우 (예: 로그인한 모든 사용자 접근 가능)
+      // requiresAuth는 true이지만, 특정 권한이 명시되지 않은 경우 (일반 사용자 접근 가능)
       console.log('[Router Guard] Auth required, no specific role. Session exists. Proceeding.');
       return next();
     }
