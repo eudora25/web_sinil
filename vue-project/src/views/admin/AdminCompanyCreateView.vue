@@ -512,7 +512,7 @@ const handleSubmit = async () => {
       assigned_pharmacist_contact: manager.value,
       approval_status: approvalStatus.value === '승인' ? 'approved' : 'pending',
       remarks: remarks.value,
-      user_id: currentUser.value?.id || null, // 현재 로그인된 관리자의 ID
+      user_id: null, // 관리자가 등록한 업체는 user_id를 null로 설정 (unique 제약 조건 위반 방지)
       user_type: 'user',
       status: 'active',
       created_at: new Date().toISOString(),
