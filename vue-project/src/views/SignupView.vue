@@ -240,6 +240,32 @@ const handleSignup = async () => {
     return;
   }
   
+  // 사업자등록번호 형식 검증
+  const businessNumber = formData.value.businessRegistrationNumber.replace(/-/g, '');
+  if (businessNumber.length !== 10) {
+    alert('사업자등록번호는 10자리 숫자여야 합니다.');
+    setTimeout(() => {
+      const businessNumberInput = document.getElementById('businessRegistrationNumber');
+      if (businessNumberInput) {
+        businessNumberInput.focus();
+        businessNumberInput.select();
+      }
+    }, 100);
+    return;
+  }
+  
+  if (!/^\d{10}$/.test(businessNumber)) {
+    alert('사업자등록번호는 숫자만 입력 가능합니다.');
+    setTimeout(() => {
+      const businessNumberInput = document.getElementById('businessRegistrationNumber');
+      if (businessNumberInput) {
+        businessNumberInput.focus();
+        businessNumberInput.select();
+      }
+    }, 100);
+    return;
+  }
+  
   // 이메일 형식 검증 (간단한 형식만 체크)
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(formData.value.email)) {
@@ -369,15 +395,19 @@ const handleSignup = async () => {
     // 2단계: 사업자등록번호 중복 검증 (인증 후)
     if (data.user) {
       try {
+        // 사업자등록번호에서 하이픈 제거하여 검색
+        const cleanBusinessNumber = formData.value.businessRegistrationNumber.replace(/-/g, '');
+        
         const { data: existingCompany, error: checkError } = await supabase
           .from('companies')
           .select('id')
-          .eq('business_registration_number', formData.value.businessRegistrationNumber)
+          .eq('business_registration_number', cleanBusinessNumber)
           .single();
         
         if (checkError && checkError.code !== 'PGRST116') { // PGRST116는 결과가 없는 경우
-          console.warn('사업자등록번호 중복 검사 실패:', checkError);
-          // 중복 검사 실패 시에도 계속 진행
+          console.error('사업자등록번호 중복 검사 실패:', checkError);
+          alert('사업자등록번호 중복 검사 중 오류가 발생했습니다. 다시 시도해주세요.');
+          return;
         } else if (existingCompany) {
           alert('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
           setTimeout(() => {
@@ -390,8 +420,9 @@ const handleSignup = async () => {
           return;
         }
       } catch (duplicateCheckError) {
-        console.warn('사업자등록번호 중복 검사 중 오류 발생:', duplicateCheckError);
-        // 중복 검사 실패 시에도 계속 진행
+        console.error('사업자등록번호 중복 검사 중 오류 발생:', duplicateCheckError);
+        alert('사업자등록번호 중복 검사 중 오류가 발생했습니다. 다시 시도해주세요.');
+        return;
       }
       
       // 3단계: 회사 정보 등록
@@ -399,7 +430,7 @@ const handleSignup = async () => {
         user_id: data.user.id,
         email: formData.value.email,
         company_name: formData.value.companyName,
-        business_registration_number: formData.value.businessRegistrationNumber,
+        business_registration_number: formData.value.businessRegistrationNumber.replace(/-/g, ''),
         representative_name: formData.value.representativeName,
         business_address: formData.value.businessAddress,
         contact_person_name: formData.value.contactPersonName,
