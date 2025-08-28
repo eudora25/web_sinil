@@ -450,10 +450,10 @@ const fetchCompanyList = async () => {
       return
     }
 
-    // 2-1. 실적 데이터 조회 (배치 크기 증가)
+    // 2-1. 실적 데이터 조회 (배치 크기 대폭 증가)
     let allPerformanceData = []
     let from = 0
-    const batchSize = 3000 // 배치 크기 증가
+    const batchSize = 5000 // 배치 크기 대폭 증가
     
     while (true) {
       const { data: performanceData, error: performanceError } = await supabase
