@@ -298,39 +298,29 @@ const handleSignup = async () => {
       // 중복 검사 실패 시에도 계속 진행
     }
     
-    // 1단계: API 서버를 통해 사용자 계정 생성
-    // 배포 환경에서는 현재 도메인 사용, 개발환경에서는 환경 변수 또는 localhost 사용
-    const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? window.location.origin : 'http://localhost:3001');
-    const response = await fetch(`${apiUrl}/api/create-user`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: formData.value.email,
-        password: formData.value.password,
-        company_name: formData.value.companyName,
-        business_registration_number: formData.value.businessRegistrationNumber,
-        representative_name: formData.value.representativeName,
-        business_address: formData.value.businessAddress,
-        contact_person_name: formData.value.contactPersonName,
-        mobile_phone: formData.value.mobilePhone,
-      }),
+    // 1단계: Supabase Auth로 직접 사용자 계정 생성
+    const { data, error } = await supabase.auth.signUp({
+      email: formData.value.email,
+      password: formData.value.password,
+      options: {
+        data: {
+          name: formData.value.companyName,
+          phone: formData.value.mobilePhone || null,
+          user_type: 'user'
+        },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailConfirm: false
+      }
     });
 
-    if (!response.ok) {
-      let errorData;
-      try {
-        errorData = await response.json();
-      } catch (jsonError) {
-        console.error('JSON 파싱 오류:', jsonError);
-        errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
-      }
-      console.error('API 서버 오류:', errorData);
+    if (error) {
+      console.error('Supabase Auth 오류:', error);
       
       // 이메일 검증 오류인 경우 대안 제시
-      if (errorData.error && (errorData.error.includes('invalid') || 
-          errorData.error.includes('Email address') ||
-          errorData.error.includes('Unable to validate email') ||
-          errorData.error.includes('유효하지 않'))) {
+      if (error.message && (error.message.includes('invalid') || 
+          error.message.includes('Email address') ||
+          error.message.includes('Unable to validate email') ||
+          error.message.includes('유효하지 않'))) {
         
         const useTestEmail = confirm(
           '이메일 주소가 유효하지 않습니다.\n\n' +
@@ -341,50 +331,56 @@ const handleSignup = async () => {
         
         if (useTestEmail) {
           // 테스트 이메일로 재시도
-          const testResponse = await fetch(`${apiUrl}/api/create-user`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: 'test@example.com',
-              password: formData.value.password,
-              company_name: formData.value.companyName,
-              business_registration_number: formData.value.businessRegistrationNumber,
-              representative_name: formData.value.representativeName,
-              business_address: formData.value.businessAddress,
-              contact_person_name: formData.value.contactPersonName,
-              mobile_phone: formData.value.mobilePhone,
-            }),
+          const { data: testData, error: testError } = await supabase.auth.signUp({
+            email: 'test@example.com',
+            password: formData.value.password,
+            options: {
+              data: {
+                name: formData.value.companyName,
+                phone: formData.value.mobilePhone || null,
+                user_type: 'user'
+              },
+              emailRedirectTo: `${window.location.origin}/auth/callback`,
+              emailConfirm: false
+            }
           });
           
-          if (!testResponse.ok) {
-            let testErrorData;
-            try {
-              testErrorData = await testResponse.json();
-            } catch (jsonError) {
-              console.error('테스트 이메일 JSON 파싱 오류:', jsonError);
-              testErrorData = { error: `HTTP ${testResponse.status}: ${testResponse.statusText}` };
-            }
-            console.error('테스트 이메일 가입 실패:', testErrorData);
+          if (testError) {
+            console.error('테스트 이메일 가입 실패:', testError);
             alert('테스트 이메일 가입에도 실패했습니다. 관리자에게 문의해주세요.');
             return;
           }
           
-          let testResult;
-          try {
-            testResult = await testResponse.json();
-          } catch (jsonError) {
-            console.error('테스트 이메일 결과 JSON 파싱 오류:', jsonError);
-            alert('테스트 이메일 가입 결과를 처리할 수 없습니다. 관리자에게 문의해주세요.');
-            return;
-          }
-          const userId = testResult.user?.id;
-          
-          if (!userId) {
+          if (!testData.user) {
             alert('사용자 ID를 가져올 수 없습니다. 관리자에게 문의해주세요.');
             return;
           }
           
-          // API 서버에서 사용자와 회사 정보를 모두 생성했으므로 추가 처리 불필요
+          // 테스트 이메일로 회사 정보 등록
+          const companyData = {
+            user_id: testData.user.id,
+            email: 'test@example.com',
+            company_name: formData.value.companyName,
+            business_registration_number: formData.value.businessRegistrationNumber,
+            representative_name: formData.value.representativeName,
+            business_address: formData.value.businessAddress,
+            contact_person_name: formData.value.contactPersonName,
+            mobile_phone: formData.value.mobilePhone,
+            user_type: 'user',
+            approval_status: 'pending',
+            created_by: testData.user.id,
+          };
+          
+          const { error: companyInsertError } = await supabase
+            .from('companies')
+            .insert([companyData]);
+          
+          if (companyInsertError) {
+            console.error('테스트 회사 정보 삽입 실패:', companyInsertError);
+            alert('회사 정보 등록에 실패했습니다. 관리자에게 문의해주세요.');
+            return;
+          }
+          
           alert('테스트 이메일(test@example.com)로 가입이 완료되었습니다.');
           router.push('/login');
           return;
@@ -394,25 +390,63 @@ const handleSignup = async () => {
         }
       }
       
-      throw new Error(errorData.error || '사용자 생성에 실패했습니다.');
+      throw error;
     }
 
-    let result;
-    try {
-      result = await response.json();
-    } catch (jsonError) {
-      console.error('응답 JSON 파싱 오류:', jsonError);
-      alert('서버 응답을 처리할 수 없습니다. 관리자에게 문의해주세요.');
-      return;
+    // 2단계: 회사 정보 등록
+    if (data.user) {
+      const companyData = {
+        user_id: data.user.id,
+        email: formData.value.email,
+        company_name: formData.value.companyName,
+        business_registration_number: formData.value.businessRegistrationNumber,
+        representative_name: formData.value.representativeName,
+        business_address: formData.value.businessAddress,
+        contact_person_name: formData.value.contactPersonName,
+        mobile_phone: formData.value.mobilePhone,
+        user_type: 'user',
+        approval_status: 'pending',
+        created_by: data.user.id,
+      };
+      
+      const { error: companyInsertError } = await supabase
+        .from('companies')
+        .insert([companyData]);
+      
+      if (companyInsertError) {
+        console.error('회사 정보 삽입 실패:', companyInsertError);
+        
+        let errorMessage = '회사 정보 등록에 실패했습니다.';
+        
+        // 구체적인 오류 메시지 처리
+        if (companyInsertError.message.includes('row-level security policy')) {
+          errorMessage = '보안 정책으로 인해 회사 정보 등록이 제한되었습니다. 관리자에게 문의해주세요.';
+        } else if (companyInsertError.message.includes('duplicate key')) {
+          errorMessage = '이미 등록된 사업자등록번호입니다. 다른 사업자등록번호를 사용해주세요.';
+        } else if (companyInsertError.message.includes('foreign key')) {
+          errorMessage = '사용자 정보와 연결할 수 없습니다. 다시 시도해주세요.';
+        } else if (companyInsertError.message.includes('not null')) {
+          errorMessage = '필수 정보가 누락되었습니다. 모든 필수 항목을 입력해주세요.';
+        } else if (companyInsertError.message.includes('unique')) {
+          errorMessage = '중복된 정보가 있습니다. 다른 정보를 입력해주세요.';
+        } else if (companyInsertError.code) {
+          errorMessage = `회사 정보 등록 실패 (오류 코드: ${companyInsertError.code})`;
+        } else if (companyInsertError.message) {
+          errorMessage = `회사 정보 등록 실패: ${companyInsertError.message}`;
+        }
+        
+        alert(errorMessage);
+        console.error('상세 오류 정보:', {
+          message: companyInsertError.message,
+          code: companyInsertError.code,
+          details: companyInsertError.details,
+          hint: companyInsertError.hint
+        });
+        return;
+      }
+      
+      console.log('회사 정보 등록 성공');
     }
-    const userId = result.user?.id;
-    
-    if (!userId) {
-      alert('사용자 ID를 가져올 수 없습니다. 관리자에게 문의해주세요.');
-      return;
-    }
-
-    // API 서버에서 사용자와 회사 정보를 모두 생성했으므로 추가 처리 불필요
     
     // 회원가입 완료
     alert('회원가입이 완료되었습니다. 로그인 페이지에서 로그인해주세요.');
