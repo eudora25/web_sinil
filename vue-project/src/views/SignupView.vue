@@ -299,7 +299,8 @@ const handleSignup = async () => {
     }
     
     // 1단계: API 서버를 통해 사용자 계정 생성
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    // 배포 환경에서는 현재 도메인 사용, 개발환경에서는 환경 변수 또는 localhost 사용
+    const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? window.location.origin : 'http://localhost:3001');
     const response = await fetch(`${apiUrl}/api/create-user`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -12,7 +12,16 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { email, password, company_name } = req.body;
+  const { 
+    email, 
+    password, 
+    company_name,
+    business_registration_number,
+    representative_name,
+    business_address,
+    contact_person_name,
+    mobile_phone
+  } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
@@ -31,7 +40,45 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: error.message });
     }
 
-    // 생성된 사용자 정보 반환
+    // 2단계: 회사 정보 등록 (admin 권한으로 RLS 우회)
+    if (data.user && business_registration_number) {
+      const companyData = {
+        user_id: data.user.id,
+        email: email,
+        company_name: company_name || '미입력',
+        business_registration_number: business_registration_number,
+        representative_name: representative_name || '미입력',
+        business_address: business_address || null,
+        contact_person_name: contact_person_name || null,
+        mobile_phone: mobile_phone || null,
+        user_type: 'user',
+        approval_status: 'pending',
+        created_by: data.user.id,
+      };
+
+      const { data: companyInsertData, error: companyInsertError } = await supabase
+        .from('companies')
+        .insert([companyData]);
+
+      if (companyInsertError) {
+        console.error('Company insert error:', companyInsertError);
+        // 사용자는 생성되었지만 회사 정보 등록 실패
+        return res.status(200).json({ 
+          user: data.user, 
+          warning: '사용자는 생성되었지만 회사 정보 등록에 실패했습니다.',
+          companyError: companyInsertError.message 
+        });
+      }
+
+      console.log('User and company created successfully:', data.user.id);
+      return res.status(200).json({ 
+        user: data.user, 
+        company: companyInsertData 
+      });
+    }
+
+    // 회사 정보 없이 사용자만 생성
+    console.log('User created successfully:', data.user.id);
     return res.status(200).json({ user: data.user });
   } catch (err) {
     return res.status(500).json({ error: err.message });
