@@ -271,9 +271,6 @@ const handleSignup = async () => {
     }
   }
   try {
-    // 사업자등록번호 중복 검증 제거 (인증 전에는 접근 불가)
-    console.log('사업자등록번호 중복 검증 건너뛰기 - 인증 후 처리');
-    
     // 1단계: Supabase Auth로 직접 사용자 계정 생성
     const { data, error } = await supabase.auth.signUp({
       email: formData.value.email,
@@ -369,8 +366,35 @@ const handleSignup = async () => {
       throw error;
     }
 
-    // 2단계: 회사 정보 등록
+    // 2단계: 사업자등록번호 중복 검증 (인증 후)
     if (data.user) {
+      try {
+        const { data: existingCompany, error: checkError } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('business_registration_number', formData.value.businessRegistrationNumber)
+          .single();
+        
+        if (checkError && checkError.code !== 'PGRST116') { // PGRST116는 결과가 없는 경우
+          console.warn('사업자등록번호 중복 검사 실패:', checkError);
+          // 중복 검사 실패 시에도 계속 진행
+        } else if (existingCompany) {
+          alert('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
+          setTimeout(() => {
+            const businessNumberInput = document.getElementById('businessRegistrationNumber');
+            if (businessNumberInput) {
+              businessNumberInput.focus();
+              businessNumberInput.select();
+            }
+          }, 100);
+          return;
+        }
+      } catch (duplicateCheckError) {
+        console.warn('사업자등록번호 중복 검사 중 오류 발생:', duplicateCheckError);
+        // 중복 검사 실패 시에도 계속 진행
+      }
+      
+      // 3단계: 회사 정보 등록
       const companyData = {
         user_id: data.user.id,
         email: formData.value.email,
