@@ -145,3 +145,13 @@ check_*.py
 debug_*.py
 signup_test_screenshot_*.png
 *_screenshot_*.png
+
+# Organized folders to ignore
+test-py/
+backups/
+scripts/
+sql-scripts/
+docs/
+admin-scripts/
+test-data/
+test-scripts/
