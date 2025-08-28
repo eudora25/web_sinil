@@ -410,9 +410,8 @@ const fetchAvailableMonths = async () => {
     }
 
     // 데이터베이스 테이블 구조 확인
-    console.log('=== 데이터베이스 확인 완료 ===')
   } catch (err) {
-    console.error('정산월 조회 오류:', err)
+    // 에러 처리
   }
 }
 
@@ -435,32 +434,23 @@ const fetchCompanyList = async () => {
       .eq('status', 'active')
       .eq('user_type', 'user')
 
-    console.log('Companies query result:', companiesData?.length || 0, 'companies')
-    console.log('Companies error:', companiesError)
-    console.log('Sample company:', companiesData?.[0])
-
     if (companiesError) {
-      console.error('Companies 조회 오류:', companiesError)
       loading.value = false
       return
     }
 
     if (!companiesData || companiesData.length === 0) {
-      console.log('승인된 업체가 없습니다. 전체 업체 상태 확인...')
-
       // 전체 업체 상태 확인
       const { data: allCompanies, error: allError } = await supabase
         .from('companies')
         .select('id, company_name, status')
         .order('company_name', { ascending: true })
 
-      console.log('전체 업체 목록:', allCompanies)
       loading.value = false
       return
     }
 
     // 2. 실적 데이터 조회
-    console.log('=== 실적 데이터 조회 시작 ===')
     
     // === 1,000행 제한 해결: 전체 데이터 가져오기 ===
     let allPerformanceData = [];
@@ -485,10 +475,7 @@ const fetchCompanyList = async () => {
         .range(from, from + batchSize - 1)
         .order('created_at', { ascending: false });
 
-      console.log(`배치 ${Math.floor(from/batchSize) + 1}: ${performanceData?.length || 0}건 조회`);
-
     if (performanceError) {
-      console.error('실적 데이터 조회 오류:', performanceError)
       loading.value = false
       return
     }
@@ -507,20 +494,12 @@ const fetchCompanyList = async () => {
       from += batchSize;
     }
 
-    console.log({
-      settlement_month: selectedSettlementMonth.value,
-      total_records: allPerformanceData?.length || 0,
-      sample_record: allPerformanceData?.[0],
-    })
 
-    console.log('Available companies data:', companiesData.length)
-    console.log('Performance data:', allPerformanceData?.length || 0)
 
     // 3. 각 업체별로 데이터 집계
     const companyResults = []
 
     for (const company of companiesData) {
-      console.log('Processing company:', company.company_name, company.id)
 
       // 총 병의원 수 조회 (client_company_assignments에서) - 두 가지 방법으로 시도
       try {
@@ -530,22 +509,9 @@ const fetchCompanyList = async () => {
           .select('*', { count: 'exact', head: true })
           .eq('company_id', company.id)
 
-        console.log(
-          `Company ${company.company_name} - Total clients (count):`,
-          totalClientCount,
-          'Error:',
-          clientCountError,
-        )
-
         // 해당 업체의 실적 데이터 필터링
         const companyPerformances =
           allPerformanceData?.filter((p) => p.company_id === company.id) || []
-
-        console.log(
-          `Company ${company.company_name} - Performance records:`,
-          companyPerformances.length,
-        )
-        console.log(`Company ${company.company_name} - Sample performance:`, companyPerformances[0])
 
         // 제출 병의원 수 (중복 제거)
         const submittedClientIds = new Set(
@@ -572,52 +538,23 @@ const fetchCompanyList = async () => {
           { completed: 0, inProgress: 0, pending: 0 },
         );
 
-        console.log(`Company ${company.company_name} - Calculated Review Status:`, statusCounts);
-
-        console.log(`Company ${company.company_name} - Calculated:`, {
-          submitted_clients: submittedClients,
-          prescription_count: prescriptionCount,
-          prescription_amount: prescriptionAmount,
-        })
-
         // 증빙 파일 개수 조회
-        console.log(`=== 증빙 파일 조회 시작 ===`)
-        console.log(`Company: ${company.company_name}`)
-        console.log(`Company ID: ${company.id}`)
-        console.log(`Settlement month: ${selectedSettlementMonth.value}`)
-
         let evidenceFileCount = 0
         try {
           // 현재 사용자 정보 확인
-          console.log(`=== 현재 사용자 정보 확인 ===`)
           const { data: currentUser } = await supabase.auth.getUser()
-          console.log('현재 사용자:', currentUser?.user?.email)
-          console.log('사용자 메타데이터:', currentUser?.user?.user_metadata)
-          console.log('JWT 토큰 존재:', !!currentUser?.user)
 
           // 테이블 전체 접근 테스트 (RLS 우회 확인)
-          console.log(`=== 테이블 접근 테스트 ===`)
           const { data: tableTest, error: tableTestError } = await supabase
             .from('performance_evidence_files')
             .select('id, company_id, settlement_month')
             .limit(3)
 
-          console.log('테이블 접근 테스트:', tableTest?.length || 0, '개')
-          console.log('테이블 접근 오류:', tableTestError)
-
           // 실제 문제 진단을 위한 간단한 확인
           if (tableTestError) {
-            console.error(`❌ 기본 테이블 접근 실패:`, tableTestError.message)
-            console.log(`📋 RLS 정책을 확인해주세요.`)
-            console.log(
-              `📋 Supabase 대시보드에서 performance_evidence_files 테이블에 실제 데이터가 있는지 확인해주세요.`,
-            )
-          } else if (tableTest && tableTest.length > 0) {
-            console.log(`✅ 테이블 접근 성공! 데이터가 존재합니다.`)
-          } else {
-            console.log(`⚠️ 테이블 접근은 성공했지만 데이터가 없습니다.`)
+            // 테이블 접근 오류 처리
           }
-
+          
           // 특정 업체 파일 조회 시도
           const { data: companyFiles, error: companyFilesError } = await supabase
             .from('performance_evidence_files')
@@ -625,30 +562,15 @@ const fetchCompanyList = async () => {
             .eq('company_id', company.id)
             .eq('settlement_month', selectedSettlementMonth.value)
 
-          console.log(
-            `Company ${company.company_name} - 증빙 파일 조회 결과:`,
-            companyFiles?.length || 0,
-          )
-          console.log(`Company ${company.company_name} - 조회 오류:`, companyFilesError)
-
           if (companyFilesError) {
-            console.error(`❌ 업체별 파일 조회 실패:`, companyFilesError.message)
             evidenceFileCount = 0
           } else {
             // 정상 조회 성공
             evidenceFileCount = companyFiles?.length || 0
-            if (evidenceFileCount > 0) {
-              console.log(`✅ 정상 조회 성공: ${evidenceFileCount}개`)
-            } else {
-              console.log(`📝 조회 성공, 하지만 데이터 없음: ${evidenceFileCount}개`)
-            }
           }
         } catch (err) {
-          console.error('증빙 파일 조회 예외:', err)
           evidenceFileCount = 0
         }
-
-        console.log(`Company ${company.company_name} - 최종 증빙 파일 개수: ${evidenceFileCount}`)
 
         // 최종 등록일시 조회
         let lastRegisteredAt = '-'
@@ -660,10 +582,7 @@ const fetchCompanyList = async () => {
             return dateB - dateA
           })
 
-          console.log(
-            `Company ${company.company_name} - Latest performance:`,
-            sortedPerformances[0],
-          )
+          
 
           const latestRecord = sortedPerformances[0]
           const latestDate = latestRecord?.created_at || latestRecord?.created_date
@@ -682,27 +601,12 @@ const fetchCompanyList = async () => {
                 lastRegisteredAt = `${year}-${month}-${day} ${hours}:${minutes}`
               }
             } catch (dateError) {
-              console.error(
-                `Date parsing error for ${company.company_name}:`,
-                dateError,
-                latestDate,
-              )
+              // 날짜 파싱 오류 처리
             }
           }
         }
 
-        console.log(`Company ${company.company_name} - Last registered at:`, lastRegisteredAt)
-        console.log(`Company ${company.company_name} results:`, {
-          total_clients: totalClientCount || 0,
-          submitted_clients: submittedClients,
-          prescription_count: prescriptionCount,
-          review_completed: statusCounts.completed,
-          review_in_progress: statusCounts.inProgress,
-          review_pending: statusCounts.pending,
-          prescription_amount: prescriptionAmount,
-          evidence_files: evidenceFileCount || 0,
-          last_registered_at: lastRegisteredAt,
-        })
+
 
         companyResults.push({
           id: company.id,
@@ -722,7 +626,6 @@ const fetchCompanyList = async () => {
           last_registered_at: lastRegisteredAt,
         })
       } catch (err) {
-        console.error(`Error processing company ${company.company_name}:`, err)
         // 오류 발생 시 기본값으로 추가
         companyResults.push({
           id: company.id,
@@ -744,7 +647,7 @@ const fetchCompanyList = async () => {
       }
     }
 
-    console.log('Final company results before sorting:', companyResults)
+
 
     // 업체 정렬: 1)신규 많은 순 → 2)검수중 많은 순 → 3)검수완료 많은 순 → 4)업체명 가나다 순
     companyResults.sort((a, b) => {
@@ -764,11 +667,11 @@ const fetchCompanyList = async () => {
       return a.company_name.localeCompare(b.company_name, 'ko');
     });
 
-    console.log('Final company results after sorting:', companyResults)
+
 
     companyList.value = companyResults
   } catch (err) {
-    console.error('업체별 실적 집계 오류:', err)
+    // 에러 처리
   } finally {
     loading.value = false
   }
@@ -988,10 +891,6 @@ const fetchCompanyFiles = async (company) => {
   companyFiles.value = []
 
   try {
-    console.log('=== 파일 모달 조회 시작 ===')
-    console.log('Company:', company.company_name, 'ID:', company.id)
-    console.log('Settlement month:', selectedSettlementMonth.value)
-
     // 정상적인 데이터베이스 조회 시도
     const { data: realFiles, error: realError } = await supabase
       .from('performance_evidence_files')
@@ -1000,10 +899,7 @@ const fetchCompanyFiles = async (company) => {
       .eq('settlement_month', selectedSettlementMonth.value)
       .order('created_at', { ascending: false })
 
-    console.log('파일 조회 결과:', realFiles?.length || 0, 'Error:', realError)
-
     if (realError) {
-      console.error('❌ 파일 조회 오류:', realError.message)
 
       // RLS 정책 오류인 경우에만 mock 데이터 사용
       if (
@@ -1011,7 +907,7 @@ const fetchCompanyFiles = async (company) => {
         realError.message.includes('policy') ||
         realError.message.includes('permission')
       ) {
-        console.log('🔧 RLS 정책 오류로 mock 데이터 사용')
+
 
         // Mock 데이터 생성
         const mockFiles = []
@@ -1059,7 +955,6 @@ const fetchCompanyFiles = async (company) => {
         }
 
         companyFiles.value = mockFiles
-        console.log('Mock 데이터 사용:', mockFiles.length, '개')
       } else {
         companyFiles.value = []
       }
@@ -1067,12 +962,9 @@ const fetchCompanyFiles = async (company) => {
     }
 
     if (!realFiles || realFiles.length === 0) {
-      console.log('조회된 파일이 없습니다.')
       companyFiles.value = []
       return
     }
-
-    console.log(`✅ 정상 조회 성공: ${realFiles.length}개 파일`)
 
     // 병의원 정보를 별도로 조회
     const clientIds = [...new Set(realFiles.map((f) => f.client_id).filter(Boolean))]
@@ -1080,19 +972,16 @@ const fetchCompanyFiles = async (company) => {
 
     if (clientIds.length > 0) {
       try {
-        console.log('병의원 정보 조회:', clientIds)
         const { data: clientsData, error: clientsError } = await supabase
           .from('clients')
           .select('id, name')
           .in('id', clientIds)
 
-        console.log('병의원 조회 결과:', clientsData?.length || 0, 'Error:', clientsError)
-
         if (clientsData && !clientsError) {
           clientsMap = Object.fromEntries(clientsData.map((c) => [c.id, c]))
         }
       } catch (clientErr) {
-        console.error('병의원 조회 오류:', clientErr)
+        // 병의원 조회 오류 처리
       }
     }
 
@@ -1109,9 +998,8 @@ const fetchCompanyFiles = async (company) => {
       uploaded_at: file.uploaded_at || file.created_at,
     }))
 
-    console.log('최종 처리된 파일:', companyFiles.value.length, '개')
   } catch (err) {
-    console.error('전체 파일 조회 오류:', err)
+    // 전체 파일 조회 오류 처리
     companyFiles.value = []
   } finally {
     fileLoading.value = false

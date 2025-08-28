@@ -396,16 +396,12 @@ watch(selectedHospitalId, () => {
 
 // 데이터 fetch 함수들
 async function fetchCompanies() {
-  console.log('fetchCompanies called with:', selectedSettlementMonth.value, prescriptionMonth.value, prescriptionOffset.value);
-  
   if (!selectedSettlementMonth.value) {
-    console.log('fetchCompanies: missing settlement month');
     companies.value = [];
     return;
   }
   
   try {
-    console.log('fetchCompanies: querying database...');
     // 선택된 정산월에 실적을 제출한 업체들만 조회
     let query = supabase
       .from('performance_records')
@@ -423,14 +419,7 @@ async function fetchCompanies() {
     const { data, error } = await query;
       
     if (error) {
-      console.error('업체 조회 오류:', error);
       return;
-    }
-    
-    console.log('fetchCompanies: raw data from database:', data);
-    if (data && data.length > 0) {
-      console.log('First company record:', data[0].companies);
-      console.log('Company fields:', Object.keys(data[0].companies));
     }
     
     // 중복 제거하여 고유한 업체들만 추출
@@ -451,24 +440,18 @@ async function fetchCompanies() {
     
     // 업체명으로 정렬
     companies.value = uniqueCompanies.sort((a, b) => a.company_name.localeCompare(b.company_name));
-    console.log('fetchCompanies result:', companies.value);
   } catch (err) {
-    console.error('업체 조회 예외:', err);
+    // 에러 처리
   }
 }
 
 async function fetchHospitals() {
-  console.log('fetchHospitals called with:', selectedSettlementMonth.value, prescriptionMonth.value, prescriptionOffset.value, selectedCompanyId.value);
-  
   if (!selectedSettlementMonth.value) {
-    console.log('fetchHospitals: missing settlement month');
     hospitals.value = [];
     return;
   }
   
   try {
-    console.log('fetchHospitals: querying database...');
-    
     let query = supabase
       .from('performance_records')
       .select(`
@@ -490,14 +473,7 @@ async function fetchHospitals() {
     const { data, error } = await query;
       
     if (error) {
-      console.error('거래처 조회 오류:', error);
       return;
-    }
-    
-    console.log('fetchHospitals: raw data from database:', data);
-    if (data && data.length > 0) {
-      console.log('First hospital record:', data[0].clients);
-      console.log('Hospital fields:', Object.keys(data[0].clients));
     }
     
     // 중복 제거하여 고유한 거래처들만 추출
@@ -519,9 +495,8 @@ async function fetchHospitals() {
     
     // 거래처명으로 정렬
     hospitals.value = uniqueHospitals.sort((a, b) => a.name.localeCompare(b.name));
-    console.log('fetchHospitals result:', hospitals.value);
   } catch (err) {
-    console.error('거래처 조회 예외:', err);
+    // 에러 처리
   }
 }
 
@@ -535,7 +510,6 @@ async function setDefaultSettlementMonth() {
       selectedSettlementMonth.value = availableMonths.value[0].settlement_month;
     }
   } catch (err) {
-    console.error('기본 정산월 설정 오류:', err);
     // 오류 시 첫 번째 사용 가능한 월로 설정
     if (availableMonths.value.length > 0) {
       selectedSettlementMonth.value = availableMonths.value[0].settlement_month;

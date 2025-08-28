@@ -500,9 +500,6 @@ const fetchAvailableCompanies = async () => {
     .order('company_name', { ascending: true })
   if (!error && data) {
     availableCompanies.value = data
-    console.log('업체 목록 로드됨:', data.length, '개')
-  } else {
-    console.error('업체 목록 로드 실패:', error)
   }
 }
 
@@ -731,7 +728,6 @@ function formatDate(dateString) {
 }
 
 async function openDetailModal(client) {
-  console.log('모달 오픈', client) // 디버깅용
   selectedClient.value = client
   detailModalVisible.value = false // 강제 반응성 트리거
   await nextTick()
