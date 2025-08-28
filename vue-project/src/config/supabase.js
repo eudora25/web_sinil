@@ -6,16 +6,16 @@ const getSupabaseConfig = () => {
   // 로컬 개발 환경 (localhost:5173)
   if (isDevelopment && isLocalhost) {
     return {
-      url: 'http://localhost:54321',
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0',
+      url: import.meta.env.VITE_SUPABASE_URL_LOCAL,
+      anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY_LOCAL,
       environment: 'local'
     }
   }
   
   // 프로덕션 환경 (배포된 사이트)
   return {
-    url: 'https://vbmmfuraxvxlfpewqrsm.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZibW1mdXJheHZ4bGZwZXdxcnNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxNzA4ODAsImV4cCI6MjA3MTc0Njg4MH0.Vm_hl7IdeRMNtbm155fk7l_UUbQj6o9_BLV0NTMHbxc',
+    url: import.meta.env.VITE_SUPABASE_URL,
+    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
     environment: 'production'
   }
 }
@@ -25,7 +25,7 @@ const config = getSupabaseConfig()
 console.log('=== Supabase Configuration ===')
 console.log('Environment:', config.environment)
 console.log('URL:', config.url)
-console.log('Anon Key (first 20 chars):', config.anonKey.substring(0, 20) + '...')
+console.log('Anon Key (first 20 chars):', config.anonKey?.substring(0, 20) + '...')
 console.log('Current URL:', window.location.href)
 console.log('================================')
 
