@@ -135,3 +135,13 @@ BACKUP_*.md
 db_cluster-*.backup
 *.sql
 .vercel
+
+# Test files
+test_*.py
+check_*.py
+*_test.py
+*_selenium.py
+*_process.py
+debug_*.py
+signup_test_screenshot_*.png
+*_screenshot_*.png
