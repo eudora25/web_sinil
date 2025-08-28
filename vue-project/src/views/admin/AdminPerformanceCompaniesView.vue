@@ -362,6 +362,11 @@ const selectedSettlementMonth = ref('')
 const companyList = ref([])
 const loading = ref(true)
 
+// 성능 최적화를 위한 캐시
+const dataCache = ref(new Map()) // 정산월별 데이터 캐시
+const lastFetchTime = ref(0) // 마지막 조회 시간
+const CACHE_DURATION = 5 * 60 * 1000 // 5분 캐시
+
 // 파일 모달 관련
 const showFileModal = ref(false)
 const selectedCompany = ref(null)
@@ -415,12 +420,23 @@ const fetchAvailableMonths = async () => {
   }
 }
 
-// 업체별 실적 집계 fetch
+// 업체별 실적 집계 fetch (성능 최적화 버전)
 const fetchCompanyList = async () => {
   loading.value = true
   companyList.value = []
 
   if (!selectedSettlementMonth.value) {
+    loading.value = false
+    return
+  }
+
+  // 캐시된 데이터가 있고 캐시 유효 시간이 지나지 않았다면 캐시에서 로드
+  const cacheKey = `companyList_${selectedSettlementMonth.value}`
+  const cachedData = dataCache.value.get(cacheKey)
+  const now = Date.now()
+
+  if (cachedData && now - lastFetchTime.value < CACHE_DURATION) {
+    companyList.value = cachedData
     loading.value = false
     return
   }
@@ -440,22 +456,17 @@ const fetchCompanyList = async () => {
     }
 
     if (!companiesData || companiesData.length === 0) {
-      // 전체 업체 상태 확인
-      const { data: allCompanies, error: allError } = await supabase
-        .from('companies')
-        .select('id, company_name, status')
-        .order('company_name', { ascending: true })
-
       loading.value = false
       return
     }
 
-    // 2. 실적 데이터 조회
+    // 2. 병렬로 여러 데이터 조회 (성능 개선)
+    const companyIds = companiesData.map(c => c.id)
     
-    // === 1,000행 제한 해결: 전체 데이터 가져오기 ===
-    let allPerformanceData = [];
-    let from = 0;
-    const batchSize = 1000;
+    // 2-1. 실적 데이터 조회 (배치 크기 증가)
+    let allPerformanceData = []
+    let from = 0
+    const batchSize = 2000 // 배치 크기 증가
     
     while (true) {
     const { data: performanceData, error: performanceError } = await supabase
@@ -491,160 +502,115 @@ const fetchCompanyList = async () => {
         break;
       }
 
-      from += batchSize;
+            from += batchSize
     }
 
+    // 2-2. 병의원 할당 데이터 일괄 조회 (N+1 문제 해결)
+    const { data: clientAssignments, error: clientAssignmentsError } = await supabase
+      .from('client_company_assignments')
+      .select('company_id, client_id')
+      .in('company_id', companyIds)
 
+    if (clientAssignmentsError) {
+      console.error('병의원 할당 데이터 조회 오류:', clientAssignmentsError)
+    }
 
-    // 3. 각 업체별로 데이터 집계
+    // 2-3. 증빙 파일 데이터 일괄 조회 (N+1 문제 해결)
+    const { data: evidenceFiles, error: evidenceFilesError } = await supabase
+      .from('performance_evidence_files')
+      .select('company_id, id')
+      .in('company_id', companyIds)
+      .eq('settlement_month', selectedSettlementMonth.value)
+
+    if (evidenceFilesError) {
+      console.error('증빙 파일 데이터 조회 오류:', evidenceFilesError)
+    }
+
+    // 3. 메모리에서 데이터 집계 (성능 개선)
     const companyResults = []
 
     for (const company of companiesData) {
+      // 총 병의원 수 계산 (메모리에서)
+      const totalClientCount = clientAssignments?.filter(ca => ca.company_id === company.id).length || 0
 
-      // 총 병의원 수 조회 (client_company_assignments에서) - 두 가지 방법으로 시도
-      try {
-        // 방법 1: count로 조회
-        const { count: totalClientCount, error: clientCountError } = await supabase
-          .from('client_company_assignments')
-          .select('*', { count: 'exact', head: true })
-          .eq('company_id', company.id)
+      // 해당 업체의 실적 데이터 필터링
+      const companyPerformances = allPerformanceData?.filter(p => p.company_id === company.id) || []
 
-        // 해당 업체의 실적 데이터 필터링
-        const companyPerformances =
-          allPerformanceData?.filter((p) => p.company_id === company.id) || []
+      // 제출 병의원 수 (중복 제거)
+      const submittedClientIds = new Set(
+        companyPerformances.map(p => p.client_id).filter(id => id)
+      )
+      const submittedClients = submittedClientIds.size
 
-        // 제출 병의원 수 (중복 제거)
-        const submittedClientIds = new Set(
-          companyPerformances.map((p) => p.client_id).filter((id) => id),
-        )
-        const submittedClients = submittedClientIds.size
+      // 처방건수, 처방액 계산
+      const prescriptionCount = companyPerformances.length
+      const prescriptionAmount = companyPerformances.reduce(
+        (sum, p) => sum + (p.prescription_qty || 0) * (p.products?.price || 0),
+        0
+      )
 
-        // 처방건수, 처방액 계산
-        const prescriptionCount = companyPerformances.length
-        const prescriptionAmount = companyPerformances.reduce(
-          (sum, p) => sum + (p.prescription_qty || 0) * (p.products?.price || 0),
-          0,
-        )
+      // 검수 상태별 건수 계산
+      const statusCounts = companyPerformances.reduce(
+        (acc, record) => {
+          const status = record.review_status || '대기'
+          if (status === '완료') acc.completed++
+          else if (status === '검수중') acc.inProgress++
+          else if (status === '대기') acc.pending++
+          return acc
+        },
+        { completed: 0, inProgress: 0, pending: 0 }
+      )
 
-        // 검수 상태별 건수 조회
-        const statusCounts = companyPerformances.reduce(
-          (acc, record) => {
-            const status = record.review_status || '대기';
-            if (status === '완료') acc.completed++;
-            else if (status === '검수중') acc.inProgress++;
-            else if (status === '대기') acc.pending++;
-            return acc;
-          },
-          { completed: 0, inProgress: 0, pending: 0 },
-        );
+      // 증빙 파일 개수 계산 (메모리에서)
+      const evidenceFileCount = evidenceFiles?.filter(ef => ef.company_id === company.id).length || 0
 
-        // 증빙 파일 개수 조회
-        let evidenceFileCount = 0
-        try {
-          // 현재 사용자 정보 확인
-          const { data: currentUser } = await supabase.auth.getUser()
+      // 최종 등록일시 조회
+      let lastRegisteredAt = '-'
+      if (companyPerformances.length > 0) {
+        const sortedPerformances = [...companyPerformances].sort((a, b) => {
+          const dateA = new Date(a.created_at || a.created_date || 0)
+          const dateB = new Date(b.created_at || b.created_date || 0)
+          return dateB - dateA
+        })
 
-          // 테이블 전체 접근 테스트 (RLS 우회 확인)
-          const { data: tableTest, error: tableTestError } = await supabase
-            .from('performance_evidence_files')
-            .select('id, company_id, settlement_month')
-            .limit(3)
+        const latestRecord = sortedPerformances[0]
+        const latestDate = latestRecord?.created_at || latestRecord?.created_date
 
-          // 실제 문제 진단을 위한 간단한 확인
-          if (tableTestError) {
-            // 테이블 접근 오류 처리
-          }
-          
-          // 특정 업체 파일 조회 시도
-          const { data: companyFiles, error: companyFilesError } = await supabase
-            .from('performance_evidence_files')
-            .select('id')
-            .eq('company_id', company.id)
-            .eq('settlement_month', selectedSettlementMonth.value)
+        if (latestDate) {
+          try {
+            const date = new Date(latestDate)
+            if (!isNaN(date.getTime())) {
+              const year = date.getFullYear()
+              const month = String(date.getMonth() + 1).padStart(2, '0')
+              const day = String(date.getDate()).padStart(2, '0')
+              const hours = String(date.getHours()).padStart(2, '0')
+              const minutes = String(date.getMinutes()).padStart(2, '0')
 
-          if (companyFilesError) {
-            evidenceFileCount = 0
-          } else {
-            // 정상 조회 성공
-            evidenceFileCount = companyFiles?.length || 0
-          }
-        } catch (err) {
-          evidenceFileCount = 0
-        }
-
-        // 최종 등록일시 조회
-        let lastRegisteredAt = '-'
-        if (companyPerformances.length > 0) {
-          // created_at 필드로 정렬하여 가장 최신 등록일시 찾기
-          const sortedPerformances = [...companyPerformances].sort((a, b) => {
-            const dateA = new Date(a.created_at || a.created_date || 0)
-            const dateB = new Date(b.created_at || b.created_date || 0)
-            return dateB - dateA
-          })
-
-          
-
-          const latestRecord = sortedPerformances[0]
-          const latestDate = latestRecord?.created_at || latestRecord?.created_date
-
-          if (latestDate) {
-            try {
-              const date = new Date(latestDate)
-              if (!isNaN(date.getTime())) {
-                // YYYY-MM-DD HH:MM 형식으로 직접 포맷팅
-                const year = date.getFullYear()
-                const month = String(date.getMonth() + 1).padStart(2, '0')
-                const day = String(date.getDate()).padStart(2, '0')
-                const hours = String(date.getHours()).padStart(2, '0')
-                const minutes = String(date.getMinutes()).padStart(2, '0')
-
-                lastRegisteredAt = `${year}-${month}-${day} ${hours}:${minutes}`
-              }
-            } catch (dateError) {
-              // 날짜 파싱 오류 처리
+              lastRegisteredAt = `${year}-${month}-${day} ${hours}:${minutes}`
             }
+          } catch (dateError) {
+            // 날짜 파싱 오류 처리
           }
         }
-
-
-
-        companyResults.push({
-          id: company.id,
-          company_name: company.company_name,
-          business_registration_number: company.business_registration_number,
-          representative_name: company.representative_name,
-          company_group: company.company_group,
-          assigned_pharmacist_contact: company.assigned_pharmacist_contact,
-          total_clients: totalClientCount || 0,
-          submitted_clients: submittedClients,
-          prescription_count: prescriptionCount,
-          review_completed: statusCounts.completed,
-          review_in_progress: statusCounts.inProgress,
-          review_pending: statusCounts.pending,
-          prescription_amount: prescriptionAmount,
-          evidence_files: evidenceFileCount || 0,
-          last_registered_at: lastRegisteredAt,
-        })
-      } catch (err) {
-        // 오류 발생 시 기본값으로 추가
-        companyResults.push({
-          id: company.id,
-          company_name: company.company_name,
-          business_registration_number: company.business_registration_number,
-          representative_name: company.representative_name,
-          company_group: company.company_group,
-          assigned_pharmacist_contact: company.assigned_pharmacist_contact,
-          total_clients: 0,
-          submitted_clients: 0,
-          prescription_count: 0,
-          review_completed: 0,
-          review_in_progress: 0,
-          review_pending: 0,
-          prescription_amount: 0,
-          evidence_files: 0,
-          last_registered_at: '-',
-        })
       }
+
+      companyResults.push({
+        id: company.id,
+        company_name: company.company_name,
+        business_registration_number: company.business_registration_number,
+        representative_name: company.representative_name,
+        company_group: company.company_group,
+        assigned_pharmacist_contact: company.assigned_pharmacist_contact,
+        total_clients: totalClientCount,
+        submitted_clients: submittedClients,
+        prescription_count: prescriptionCount,
+        review_completed: statusCounts.completed,
+        review_in_progress: statusCounts.inProgress,
+        review_pending: statusCounts.pending,
+        prescription_amount: prescriptionAmount,
+        evidence_files: evidenceFileCount,
+        last_registered_at: lastRegisteredAt,
+      })
     }
 
 
@@ -670,6 +636,8 @@ const fetchCompanyList = async () => {
 
 
     companyList.value = companyResults
+    dataCache.value.set(cacheKey, companyResults) // 캐시에 데이터 저장
+    lastFetchTime.value = now // 마지막 조회 시간 업데이트
   } catch (err) {
     // 에러 처리
   } finally {
@@ -890,6 +858,17 @@ const fetchCompanyFiles = async (company) => {
   fileLoading.value = true
   companyFiles.value = []
 
+  // 캐시된 데이터가 있고 캐시 유효 시간이 지나지 않았다면 캐시에서 로드
+  const cacheKey = `companyFiles_${company.id}_${selectedSettlementMonth.value}`
+  const cachedData = dataCache.value.get(cacheKey)
+  const now = Date.now()
+
+  if (cachedData && now - lastFetchTime.value < CACHE_DURATION) {
+    companyFiles.value = cachedData
+    fileLoading.value = false
+    return
+  }
+
   try {
     // 정상적인 데이터베이스 조회 시도
     const { data: realFiles, error: realError } = await supabase
@@ -997,6 +976,8 @@ const fetchCompanyFiles = async (company) => {
       },
       uploaded_at: file.uploaded_at || file.created_at,
     }))
+    dataCache.value.set(cacheKey, companyFiles.value) // 캐시에 데이터 저장
+    lastFetchTime.value = now // 마지막 조회 시간 업데이트
 
   } catch (err) {
     // 전체 파일 조회 오류 처리
