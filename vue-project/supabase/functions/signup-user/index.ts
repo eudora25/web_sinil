@@ -5,7 +5,7 @@ serve(async (req) => {
   // CORS 헤더 설정
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    ㅡ'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   }
 
   // OPTIONS 요청 처리 (CORS preflight)
