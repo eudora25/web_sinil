@@ -450,10 +450,12 @@ const fetchCompanyList = async () => {
       return
     }
 
-    // 2-1. 실적 데이터 조회 (배치 크기 대폭 증가)
+    // 2-1. 실적 데이터 조회 (배치 크기 최적화)
     let allPerformanceData = []
     let from = 0
-    const batchSize = 5000 // 배치 크기 대폭 증가
+    const batchSize = 1000 // Supabase 기본 제한에 맞춤
+    
+    console.log('실적 데이터 조회 시작:', selectedSettlementMonth.value)
     
     while (true) {
       const { data: performanceData, error: performanceError } = await supabase
@@ -472,9 +474,12 @@ const fetchCompanyList = async () => {
         .order('created_at', { ascending: false })
 
       if (performanceError) {
+        console.error('실적 데이터 조회 오류:', performanceError)
         loading.value = false
         return
       }
+
+      console.log(`배치 ${Math.floor(from/batchSize) + 1}: ${performanceData?.length || 0}건 조회`)
 
       if (!performanceData || performanceData.length === 0) {
         break
@@ -488,6 +493,8 @@ const fetchCompanyList = async () => {
 
       from += batchSize
     }
+    
+    console.log('전체 실적 데이터:', allPerformanceData.length, '건')
 
 
     // 3. 각 업체별로 데이터 집계
