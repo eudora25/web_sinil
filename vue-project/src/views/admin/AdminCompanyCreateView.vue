@@ -495,16 +495,28 @@ const handleSubmit = async () => {
       return;
     }
 
-            // 1. Supabase Auth로 직접 사용자 계정 생성
-            const { data, error } = await supabase.auth.admin.createUser({
-              email: email.value,
-              password: password.value,
-              email_confirm: true,
-              user_metadata: {
-                name: companyName.value,
-                user_type: 'user'
-              }
-            });
+                        // 1. Edge Function을 통해 관리자 권한으로 사용자 계정과 회사 정보 생성
+            const { data, error } = await supabase.functions.invoke('admin-create-company', {
+              body: {
+                 email: email.value,
+                 password: password.value,
+                 company_name: companyName.value,
+                 business_registration_number: businessNumber.value,
+                 representative_name: representative.value,
+                 business_address: address.value,
+                 landline_phone: landline.value,
+                 contact_person_name: contactPerson.value,
+                 mobile_phone: mobile.value,
+                 mobile_phone_2: mobile2.value,
+                 receive_email: receiveEmail.value,
+                 company_group: companyGroup.value,
+                 default_commission_grade: commissionGrade.value,
+                 assigned_pharmacist_contact: manager.value,
+                 approval_status: approvalStatus.value,
+                 remarks: remarks.value,
+                 created_by: currentUser.value?.id || null
+               }
+             });
             
             if (error) {
               let errorMessage = '사용자 계정 생성에 실패했습니다.';
@@ -521,63 +533,14 @@ const handleSubmit = async () => {
               return;
             }
             
-            if (!data.user) {
-              alert('사용자 계정 생성 실패: 사용자 ID를 가져올 수 없습니다.');
+            if (!data.user || !data.company) {
+              alert('사용자 계정 또는 회사 정보 생성에 실패했습니다.');
               return;
             }
             
-            const userId = data.user.id;
-
-    // 2. companies 테이블에 데이터 저장
-    const companyDataToInsert = {
-      email: email.value,
-      company_name: companyName.value,
-      business_registration_number: businessNumber.value,
-      representative_name: representative.value,
-      business_address: address.value,
-      landline_phone: landline.value,
-      contact_person_name: contactPerson.value,
-      mobile_phone: mobile.value,
-      mobile_phone_2: mobile2.value,
-      receive_email: receiveEmail.value,
-      company_group: companyGroup.value,
-      default_commission_grade: commissionGrade.value,
-      assigned_pharmacist_contact: manager.value,
-      approval_status: approvalStatus.value === '승인' ? 'approved' : 'pending',
-      remarks: remarks.value,
-      user_id: userId, // 생성된 사용자 ID 연결
-      user_type: 'user',
-      status: 'active',
-      created_at: new Date().toISOString(),
-      created_by: currentUser.value?.id || null, // 현재 로그인된 관리자의 ID
-    };
-    if (approvalStatus.value === '승인') {
-      companyDataToInsert.approved_at = new Date().toISOString();
-    }
-    const { error: insertError } = await supabase.from('companies').insert(companyDataToInsert);
-    if (insertError) {
-      let errorMessage = '업체 등록에 실패했습니다.';
-      
-      // 구체적인 오류 메시지 처리
-      if (insertError.message.includes('duplicate key')) {
-        errorMessage = '이미 등록된 사업자등록번호입니다. 다른 사업자등록번호를 사용해주세요.';
-      } else if (insertError.message.includes('foreign key')) {
-        errorMessage = '사용자 정보와 연결할 수 없습니다. 다시 시도해주세요.';
-      } else if (insertError.message.includes('not null')) {
-        errorMessage = '필수 정보가 누락되었습니다. 모든 필수 항목을 입력해주세요.';
-      } else if (insertError.message.includes('unique')) {
-        errorMessage = '중복된 정보가 있습니다. 다른 정보를 입력해주세요.';
-      } else if (insertError.message.includes('row-level security policy')) {
-        errorMessage = '보안 정책으로 인해 업체 등록이 제한되었습니다. 관리자 권한을 확인해주세요.';
-      } else if (insertError.code) {
-        errorMessage = `업체 등록 실패 (오류 코드: ${insertError.code})`;
-      } else if (insertError.message) {
-        errorMessage = `업체 등록 실패: ${insertError.message}`;
-      }
-      
-      alert(errorMessage);
-      return;
-    }
+            console.log('✅ 사용자 계정 생성됨:', data.user.id);
+            console.log('✅ 회사 정보 생성됨:', data.company.id);
+    
     alert('등록되었습니다.');
     const from = route.query.from === 'pending' ? 'pending' : 'approved';
     router.push(`/admin/companies/${from}`);

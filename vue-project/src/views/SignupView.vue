@@ -366,9 +366,9 @@ const handleSignup = async () => {
             contact_person_name: formData.value.contactPersonName,
             mobile_phone: formData.value.mobilePhone,
             user_type: 'user',
-            approval_status: 'pending',
-            created_by: testData.user.id,
-          };
+                    approval_status: 'pending',
+        created_by: testData.user.id,
+      };
           
           const { error: companyInsertError } = await supabase
             .from('companies')

@@ -118,7 +118,22 @@ const handleLogin = async () => {
       password: password.value,
     });
     if (authError) {
-      alert('비밀번호가 일치하지 않습니다. 다시 확인해주세요.');
+      console.error('Auth 오류:', authError);
+      
+      // 더 구체적인 오류 메시지 처리
+      if (authError.message && authError.message.includes('Invalid login credentials')) {
+        alert('비밀번호가 일치하지 않습니다. 다시 확인해주세요.');
+      } else if (authError.message && authError.message.includes('User not found')) {
+        alert('등록되지 않은 이메일입니다. 다시 확인해주세요.');
+      } else if (authError.message && authError.message.includes('Email not confirmed')) {
+        // 이메일 미확인 오류는 무시하고 로그인 허용
+        console.log('이메일 미확인 상태이지만 로그인 허용');
+        // 오류를 무시하고 계속 진행
+      } else {
+        alert(`로그인 오류: ${authError.message || '알 수 없는 오류가 발생했습니다.'}`);
+        loading.value = false;
+        return;
+      }
       loading.value = false;
       return;
     }
