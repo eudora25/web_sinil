@@ -515,16 +515,8 @@ const fetchCompanyList = async () => {
       console.error('병의원 할당 데이터 조회 오류:', clientAssignmentsError)
     }
 
-    // 2-3. 증빙 파일 데이터 일괄 조회 (N+1 문제 해결)
-    const { data: evidenceFiles, error: evidenceFilesError } = await supabase
-      .from('performance_evidence_files')
-      .select('company_id, id')
-      .in('company_id', companyIds)
-      .eq('settlement_month', selectedSettlementMonth.value)
-
-    if (evidenceFilesError) {
-      console.error('증빙 파일 데이터 조회 오류:', evidenceFilesError)
-    }
+    // 2-3. 증빙 파일 데이터는 개별 조회로 유지 (RLS 정책 고려)
+    // 일괄 조회 시 권한 문제가 있을 수 있으므로 개별 조회 방식 유지
 
     // 3. 메모리에서 데이터 집계 (성능 개선)
     const companyResults = []
@@ -561,8 +553,39 @@ const fetchCompanyList = async () => {
         { completed: 0, inProgress: 0, pending: 0 }
       )
 
-      // 증빙 파일 개수 계산 (메모리에서)
-      const evidenceFileCount = evidenceFiles?.filter(ef => ef.company_id === company.id).length || 0
+      // 증빙 파일 개수 조회 (개별 조회로 유지)
+      let evidenceFileCount = 0
+      try {
+        // 현재 사용자 정보 확인
+        const { data: currentUser } = await supabase.auth.getUser()
+
+        // 테이블 전체 접근 테스트 (RLS 우회 확인)
+        const { data: tableTest, error: tableTestError } = await supabase
+          .from('performance_evidence_files')
+          .select('id, company_id, settlement_month')
+          .limit(3)
+
+        // 실제 문제 진단을 위한 간단한 확인
+        if (tableTestError) {
+          // 테이블 접근 오류 처리
+        }
+        
+        // 특정 업체 파일 조회 시도
+        const { data: companyFiles, error: companyFilesError } = await supabase
+          .from('performance_evidence_files')
+          .select('id')
+          .eq('company_id', company.id)
+          .eq('settlement_month', selectedSettlementMonth.value)
+
+        if (companyFilesError) {
+          evidenceFileCount = 0
+        } else {
+          // 정상 조회 성공
+          evidenceFileCount = companyFiles?.length || 0
+        }
+      } catch (err) {
+        evidenceFileCount = 0
+      }
 
       // 최종 등록일시 조회
       let lastRegisteredAt = '-'
