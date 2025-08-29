@@ -164,6 +164,8 @@ const handleSubmit = async () => {
     alert('내용은 필수 입력 항목입니다.');
     return;
   }
+
+  // 1단계: 새 파일 업로드
   let fileUrls = files.value.map(f => f.url || '');
   for (const f of files.value) {
     if (!f.url) {
@@ -182,17 +184,21 @@ const handleSubmit = async () => {
       fileUrls.push(url);
     }
   }
-  const { error: updateError } = await supabase
-    .from('notices')
-    .update({
+
+  // 2단계: Edge Function을 통해 공지사항 수정 (RLS 우회)
+  const { data, error } = await supabase.functions.invoke('update-notice', {
+    body: {
+      id: route.params.id,
       title: title.value,
       content: content.value,
-      is_pinned: isPinned.value,
-      file_url: fileUrls
-    })
-    .eq('id', route.params.id);
-  if (updateError) {
-    alert('수정 실패: ' + updateError.message);
+      isPinned: isPinned.value,
+      fileUrls: fileUrls
+    }
+  });
+
+  if (error) {
+    console.error('Edge function error:', error);
+    alert('수정 실패: ' + error.message);
   } else {
     alert('수정되었습니다.');
     router.push('/admin/notices');
