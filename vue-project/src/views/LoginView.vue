@@ -103,20 +103,40 @@ const handleLogin = async () => {
   if (!canLogin.value) return;
   loading.value = true;
   try {
-    const { data: companyRow } = await supabase
+    // 1단계: 미등록 회원 확인 (companies 테이블에서 이메일 검색)
+    const { data: companyRow, error: companyError } = await supabase
       .from('companies')
       .select('id, approval_status, user_type')
       .eq('email', email.value.trim().toLowerCase())
       .maybeSingle();
-    if (!companyRow) {
-      alert('아이디(이메일) 정보가 없습니다. 다시 확인해주세요.');
+    
+    if (companyError) {
+      console.error('회사 정보 조회 오류:', companyError);
+      alert('로그인 중 오류가 발생했습니다. 다시 시도해주세요.');
       loading.value = false;
       return;
     }
+    
+    // 미등록 회원인 경우 로그인 차단
+    if (!companyRow) {
+      alert('미등록 회원입니다. 회원가입을 먼저 진행해주세요.');
+      loading.value = false;
+      return;
+    }
+    
+    // 2단계: 승인 상태 확인
+    if (companyRow.approval_status !== 'approved') {
+      alert('미승인 회원입니다. 관리자에게 승인을 요청해주세요.');
+      loading.value = false;
+      return;
+    }
+    
+    // 3단계: 인증 로그인 시도
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: email.value,
       password: password.value,
     });
+    
     if (authError) {
       console.error('Auth 오류:', authError);
       
@@ -124,7 +144,7 @@ const handleLogin = async () => {
       if (authError.message && authError.message.includes('Invalid login credentials')) {
         alert('비밀번호가 일치하지 않습니다. 다시 확인해주세요.');
       } else if (authError.message && authError.message.includes('User not found')) {
-        alert('등록되지 않은 이메일입니다. 다시 확인해주세요.');
+        alert('등록되지 않은 이메일입니다. 회원가입을 먼저 진행해주세요.');
       } else if (authError.message && authError.message.includes('Email not confirmed')) {
         // 이메일 미확인 오류는 무시하고 로그인 허용
         console.log('이메일 미확인 상태이지만 로그인 허용');
@@ -137,19 +157,16 @@ const handleLogin = async () => {
       loading.value = false;
       return;
     }
-    if (companyRow.approval_status !== 'approved') {
-      alert('미승인 회원입니다. 관리자에게 승인을 요청해주세요.');
-      await supabase.auth.signOut();
-      loading.value = false;
-      return;
-    }
+    
+    // 4단계: 로그인 성공 시 페이지 이동
     if (companyRow.user_type === 'admin') {
       router.push('/admin/notices');
     } else {
       router.push('/notices');
     }
   } catch (error) {
-    alert('로그인 중 오류가 발생했습니다.');
+    console.error('로그인 처리 중 오류:', error);
+    alert('로그인 중 오류가 발생했습니다. 다시 시도해주세요.');
   } finally {
     loading.value = false;
   }
