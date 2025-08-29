@@ -114,7 +114,7 @@
               v-model="slotProps.data.business_registration_number"
               class="inline-edit-input"
               :id="`business_registration_number_${slotProps.data.id}`"
-              @input="formatBusinessNumber"
+              @input="formatBusinessNumberInput"
               @keypress="allowOnlyNumbers"
               @keydown="handleBackspace"
             />
@@ -962,8 +962,8 @@ const allowOnlyNumbers = (event) => {
   }
 };
 
-// 사업자등록번호 형식 변환
-const formatBusinessNumber = (event) => {
+// 사업자등록번호 형식 변환 (입력용)
+const formatBusinessNumberInput = (event) => {
   const target = event.target;
   let value = target.value.replace(/[^0-9]/g, ''); // 숫자만 추출
   
