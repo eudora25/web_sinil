@@ -82,51 +82,54 @@ function removeFile(idx) {
   files.value.splice(idx, 1);
 }
 
-const handleSubmit = async () => {
-  // 현재 사용자 정보 가져오기
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
-    return;
-  }
-
-  // 1단계: 파일 업로드
-  let fileUrls = [];
-  for (const f of files.value) {
-    const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const filePath = `attachments/${Date.now()}_${safeName}`;
-    const { data, error } = await supabase.storage
-      .from('notices')
-      .upload(filePath, f);
-    if (error) {
-      alert('파일 업로드 실패: ' + error.message);
+  const handleSubmit = async () => {
+    // 현재 사용자 정보 가져오기
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
       return;
     }
-    const url = data?.path
-      ? supabase.storage.from('notices').getPublicUrl(data.path).data.publicUrl
-      : null;
-    fileUrls.push(url);
-  }
 
-  // 2단계: Edge Function을 통해 공지사항 생성 (RLS 우회)
-  const { data, error } = await supabase.functions.invoke('create-notice', {
-    body: {
-      title: title.value,
-      content: content.value,
-      isPinned: isPinned.value,
-      fileUrls: fileUrls,
-      userId: user.id
+    // 1단계: 파일 업로드
+    let fileUrls = [];
+    for (const f of files.value) {
+      const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `attachments/${Date.now()}_${safeName}`;
+      const { data, error } = await supabase.storage
+        .from('notices')
+        .upload(filePath, f);
+      if (error) {
+        alert('파일 업로드 실패: ' + error.message);
+        return;
+      }
+      const url = data?.path
+        ? supabase.storage.from('notices').getPublicUrl(data.path).data.publicUrl
+        : null;
+      fileUrls.push(url);
     }
-  });
 
-  if (error) {
-    console.error('Edge function error:', error);
-    alert('등록 실패: ' + error.message);
-  } else {
-    alert('등록되었습니다.');
-    router.push('/admin/notices');
-  }
-};
+    // 2단계: 공지사항 생성 (RLS 정책 수정 후 직접 접근)
+    const { error: insertError } = await supabase
+      .from('notices')
+      .insert([{
+        title: title.value,
+        content: content.value,
+        is_pinned: isPinned.value,
+        view_count: 0,
+        file_url: fileUrls,
+        created_by: user.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }]);
+
+    if (insertError) {
+      console.error('Insert error:', insertError);
+      alert('등록 실패: ' + insertError.message);
+    } else {
+      alert('등록되었습니다.');
+      router.push('/admin/notices');
+    }
+  };
 
 function goList() {
   router.push('/admin/notices');

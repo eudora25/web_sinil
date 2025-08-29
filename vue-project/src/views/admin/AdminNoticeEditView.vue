@@ -185,20 +185,21 @@ const handleSubmit = async () => {
     }
   }
 
-  // 2단계: Edge Function을 통해 공지사항 수정 (RLS 우회)
-  const { data, error } = await supabase.functions.invoke('update-notice', {
-    body: {
-      id: route.params.id,
+  // 2단계: 공지사항 수정 (RLS 정책 수정 후 직접 접근)
+  const { error: updateError } = await supabase
+    .from('notices')
+    .update({
       title: title.value,
       content: content.value,
-      isPinned: isPinned.value,
-      fileUrls: fileUrls
-    }
-  });
+      is_pinned: isPinned.value,
+      file_url: fileUrls,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', route.params.id);
 
-  if (error) {
-    console.error('Edge function error:', error);
-    alert('수정 실패: ' + error.message);
+  if (updateError) {
+    console.error('Update error:', updateError);
+    alert('수정 실패: ' + updateError.message);
   } else {
     alert('수정되었습니다.');
     router.push('/admin/notices');
