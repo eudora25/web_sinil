@@ -297,7 +297,39 @@ const handleSignup = async () => {
     }
   }
   try {
-    // 1단계: Supabase Auth로 직접 사용자 계정 생성 (자동 로그인 비활성화)
+    // 1단계: 사업자등록번호 중복 검증 (인증 전)
+    try {
+      // 사업자등록번호에서 하이픈 제거하여 검색
+      const cleanBusinessNumber = formData.value.businessRegistrationNumber.replace(/-/g, '');
+      
+      const { data: existingCompany, error: checkError } = await supabase
+        .from('companies')
+        .select('id')
+        .eq('business_registration_number', cleanBusinessNumber)
+        .single();
+      
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116는 결과가 없는 경우
+        console.error('사업자등록번호 중복 검사 실패:', checkError);
+        alert('사업자등록번호 중복 검사 중 오류가 발생했습니다. 다시 시도해주세요.');
+        return;
+      } else if (existingCompany) {
+        alert('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
+        setTimeout(() => {
+          const businessNumberInput = document.getElementById('businessRegistrationNumber');
+          if (businessNumberInput) {
+            businessNumberInput.focus();
+            businessNumberInput.select();
+          }
+        }, 100);
+        return;
+      }
+    } catch (duplicateCheckError) {
+      console.error('사업자등록번호 중복 검사 중 오류 발생:', duplicateCheckError);
+      alert('사업자등록번호 중복 검사 중 오류가 발생했습니다. 다시 시도해주세요.');
+      return;
+    }
+
+    // 2단계: Supabase Auth로 직접 사용자 계정 생성 (자동 로그인 비활성화)
     const { data, error } = await supabase.auth.signUp({
       email: formData.value.email,
       password: formData.value.password,
@@ -414,38 +446,8 @@ const handleSignup = async () => {
       throw error;
     }
 
-    // 2단계: 사업자등록번호 중복 검증 (인증 후)
+    // 3단계: 회사 정보 등록
     if (data.user) {
-      try {
-        // 사업자등록번호에서 하이픈 제거하여 검색
-        const cleanBusinessNumber = formData.value.businessRegistrationNumber.replace(/-/g, '');
-        
-        const { data: existingCompany, error: checkError } = await supabase
-          .from('companies')
-          .select('id')
-          .eq('business_registration_number', cleanBusinessNumber)
-          .single();
-        
-        if (checkError && checkError.code !== 'PGRST116') { // PGRST116는 결과가 없는 경우
-          console.error('사업자등록번호 중복 검사 실패:', checkError);
-          alert('사업자등록번호 중복 검사 중 오류가 발생했습니다. 다시 시도해주세요.');
-          return;
-        } else if (existingCompany) {
-          alert('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
-          setTimeout(() => {
-            const businessNumberInput = document.getElementById('businessRegistrationNumber');
-            if (businessNumberInput) {
-              businessNumberInput.focus();
-              businessNumberInput.select();
-            }
-          }, 100);
-          return;
-        }
-      } catch (duplicateCheckError) {
-        console.error('사업자등록번호 중복 검사 중 오류 발생:', duplicateCheckError);
-        alert('사업자등록번호 중복 검사 중 오류가 발생했습니다. 다시 시도해주세요.');
-        return;
-      }
       
       // 3단계: 회사 정보 등록
       const companyData = {
