@@ -18,4 +18,16 @@ export default defineConfig({
   optimizeDeps: {
     include: ['primevue/api', 'jszip'],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['vue', 'vue-router'],
+          primevue: ['primevue'],
+          utils: ['xlsx', 'jszip']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000
+  }
 })
