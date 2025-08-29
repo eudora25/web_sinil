@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd vue-project && npm ci && npm run build",
+  "buildCommand": "cd vue-project && npm install && npm run build",
   "outputDirectory": "vue-project/dist",
   "rewrites": [
     {
@@ -17,15 +17,5 @@
         }
       ]
     }
-  ],
-  "functions": {
-    "vue-project/dist/**/*.js": {
-      "maxDuration": 30
-    }
-  },
-  "build": {
-    "env": {
-      "NODE_VERSION": "18"
-    }
-  }
+  ]
 }
