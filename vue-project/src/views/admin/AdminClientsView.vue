@@ -714,9 +714,20 @@ const handleFileUpload = async (event) => {
               console.error('약국 할당 데이터 삭제 오류:', pharmacyAssignmentError);
               // 약국 할당 데이터 삭제 실패해도 계속 진행
             }
+            
+            // 6. performance_evidence_files에서 해당 병의원들을 참조하는 데이터 삭제
+            const { error: evidenceFilesError } = await supabase
+              .from('performance_evidence_files')
+              .delete()
+              .in('client_id', clientIds);
+            
+            if (evidenceFilesError) {
+              console.error('증빙 파일 데이터 삭제 오류:', evidenceFilesError);
+              // 증빙 파일 데이터 삭제 실패해도 계속 진행
+            }
           }
           
-          // 6. 마지막으로 병의원들 삭제
+          // 7. 마지막으로 병의원들 삭제
           const { error: deleteError } = await supabase
             .from('clients')
             .delete()
