@@ -29,9 +29,6 @@ export default defineConfig({
         }
       }
     },
-    chunkSizeWarningLimit: 1000,
-    target: 'es2015',
-    minify: 'terser',
-    sourcemap: false
+    chunkSizeWarningLimit: 1000
   }
 })
