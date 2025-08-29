@@ -312,8 +312,14 @@ const handleSignup = async () => {
       }
     });
 
-    // 회원가입 후 자동 로그인 방지 - 세션 제거
+    // 회원가입 후 자동 로그인 방지 - 세션 강제 제거
     if (data.session) {
+      await supabase.auth.signOut();
+    }
+    
+    // 추가로 현재 세션 상태 확인 및 제거
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    if (currentSession) {
       await supabase.auth.signOut();
     }
 
@@ -375,8 +381,14 @@ const handleSignup = async () => {
             created_by: testData.user.id,
           };
 
-          // 테스트 이메일 회원가입 후 자동 로그인 방지 - 세션 제거
+          // 테스트 이메일 회원가입 후 자동 로그인 방지 - 세션 강제 제거
           if (testData.session) {
+            await supabase.auth.signOut();
+          }
+          
+          // 추가로 현재 세션 상태 확인 및 제거
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession) {
             await supabase.auth.signOut();
           }
           
@@ -489,7 +501,12 @@ const handleSignup = async () => {
       console.log('회사 정보 등록 성공');
     }
     
-    // 회원가입 완료
+    // 회원가입 완료 - 최종 세션 확인 및 제거
+    const { data: { session: finalSession } } = await supabase.auth.getSession();
+    if (finalSession) {
+      await supabase.auth.signOut();
+    }
+    
     alert('회원가입이 완료되었습니다. 로그인 페이지에서 로그인해주세요.');
     router.push('/login');
     

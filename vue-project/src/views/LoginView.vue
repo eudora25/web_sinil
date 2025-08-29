@@ -202,6 +202,32 @@ const handlePasswordReset = async () => {
   loading.value = true;
   
   try {
+    // 1단계: 해당 이메일이 실제로 등록되어 있는지 확인
+    const { data: companyData, error: companyError } = await supabase
+      .from('companies')
+      .select('id, email, approval_status')
+      .eq('email', resetEmail.value.trim().toLowerCase())
+      .maybeSingle();
+    
+    if (companyError) {
+      console.error('회사 정보 조회 오류:', companyError);
+      alert('이메일 확인 중 오류가 발생했습니다. 다시 시도해주세요.');
+      return;
+    }
+    
+    // 2단계: 등록되지 않은 이메일인 경우
+    if (!companyData) {
+      alert('가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해주세요.');
+      return;
+    }
+    
+    // 3단계: 승인되지 않은 계정인 경우
+    if (companyData.approval_status !== 'approved') {
+      alert('미승인 계정입니다. 관리자에게 승인을 요청해주세요.');
+      return;
+    }
+    
+    // 4단계: 비밀번호 재설정 메일 발송
     const { data, error } = await supabase.auth.resetPasswordForEmail(resetEmail.value, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
@@ -217,6 +243,7 @@ const handlePasswordReset = async () => {
       isConfirmationModalOpen.value = true;
     }
   } catch (err) {
+    console.error('비밀번호 재설정 오류:', err);
     alert('예기치 않은 오류가 발생했습니다.');
   } finally {
     loading.value = false;
