@@ -94,7 +94,11 @@
             field="business_registration_number"
             header="사업자등록번호"
             :headerStyle="{ width: columnWidths.business_registration_number, textAlign: 'center' }"
-          />
+          >
+            <template #body="slotProps">
+              {{ formatBusinessNumber(slotProps.data.business_registration_number) }}
+            </template>
+          </Column>
           <Column header="주소" :headerStyle="{ width: columnWidths.address, textAlign: 'center' }">
             <template #body="slotProps">
               <span
@@ -1220,6 +1224,20 @@ async function closeNoticeModal() {
   showNoticeModal.value = false;
   noticeContent.value = '';
   hideNoticeModal.value = false; // 체크박스 초기화
+}
+
+// 사업자번호 형식 변환 함수
+function formatBusinessNumber(businessNumber) {
+  if (!businessNumber) return '-';
+  
+  // 숫자만 추출
+  const numbers = businessNumber.replace(/[^0-9]/g, '');
+  
+  // 10자리가 아니면 원본 반환
+  if (numbers.length !== 10) return businessNumber;
+  
+  // 형식 변환: ###-##-#####
+  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
 }
 </script>
 

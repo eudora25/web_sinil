@@ -67,7 +67,11 @@
             <a href="#" class="text-link" @click.prevent="goToDetail(slotProps.data.id)">{{ slotProps.data.company_name }}</a>
           </template>
         </Column>
-        <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: columnWidths.business_registration_number }" :sortable="true" :editor="getTextEditor"></Column>
+        <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: columnWidths.business_registration_number }" :sortable="true" :editor="getTextEditor">
+          <template #body="slotProps">
+            {{ formatBusinessNumber(slotProps.data.business_registration_number) }}
+          </template>
+        </Column>
         <Column field="representative_name" header="대표자" :headerStyle="{ width: columnWidths.representative_name }" :sortable="true" :editor="getTextEditor"></Column>
         <Column field="business_address" header="사업장소재지" :headerStyle="{ width: columnWidths.business_address }" :sortable="true" :editor="getTextEditor">
           <template #body="slotProps">
@@ -621,6 +625,20 @@ async function openClientModal(company) {
 function closeClientModal() {
   clientModalVisible.value = false;
   clientModalData.value = [];
+}
+
+// 사업자번호 형식 변환 함수
+function formatBusinessNumber(businessNumber) {
+  if (!businessNumber) return '-';
+  
+  // 숫자만 추출
+  const numbers = businessNumber.replace(/[^0-9]/g, '');
+  
+  // 10자리가 아니면 원본 반환
+  if (numbers.length !== 10) return businessNumber;
+  
+  // 형식 변환: ###-##-#####
+  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
 }
 
 </script>

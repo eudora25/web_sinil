@@ -50,7 +50,11 @@
             <a href="#" class="text-link ellipsis-cell" :title="slotProps.data.name" @click.prevent="goToDetail(slotProps.data.id)" @mouseenter="checkOverflow" @mouseleave="removeOverflowClass">{{ slotProps.data.name }}</a>
           </template>
         </Column>
-        <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: columnWidths.business_registration_number }" :sortable="true" />
+        <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: columnWidths.business_registration_number }" :sortable="true">
+          <template #body="slotProps">
+            {{ formatBusinessNumber(slotProps.data.business_registration_number) }}
+          </template>
+        </Column>
         <Column field="owner_name" header="원장명" :headerStyle="{ width: columnWidths.owner_name }" :sortable="true" />
         <Column field="address" header="주소" :headerStyle="{ width: columnWidths.address }" :sortable="true">
           <template #body="slotProps">
@@ -302,6 +306,20 @@ const removeOverflowClass = (event) => {
   const element = event.target;
   element.classList.remove('overflowed');
   console.log('이용자 병의원 오버플로우 클래스 제거됨');
+}
+
+// 사업자번호 형식 변환 함수
+function formatBusinessNumber(businessNumber) {
+  if (!businessNumber) return '-';
+  
+  // 숫자만 추출
+  const numbers = businessNumber.replace(/[^0-9]/g, '');
+  
+  // 10자리가 아니면 원본 반환
+  if (numbers.length !== 10) return businessNumber;
+  
+  // 형식 변환: ###-##-#####
+  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
 }
 
 onMounted(() => {

@@ -118,7 +118,7 @@
               @keypress="allowOnlyNumbers"
               @keydown="handleBackspace"
             />
-            <span v-else>{{ slotProps.data.business_registration_number }}</span>
+            <span v-else>{{ formatBusinessNumber(slotProps.data.business_registration_number) }}</span>
           </template>
         </Column>
         <Column
@@ -1207,6 +1207,20 @@ function showUploadChoiceModal() {
       }
     })
   })
+}
+
+// 사업자번호 형식 변환 함수 (표시용)
+function formatBusinessNumber(businessNumber) {
+  if (!businessNumber) return '-';
+  
+  // 숫자만 추출
+  const numbers = businessNumber.replace(/[^0-9]/g, '');
+  
+  // 10자리가 아니면 원본 반환
+  if (numbers.length !== 10) return businessNumber;
+  
+  // 형식 변환: ###-##-#####
+  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
 }
 
 onMounted(() => {

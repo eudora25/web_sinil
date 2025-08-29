@@ -12,7 +12,7 @@
       </div>
       <div class="form-group">
         <label>사업자등록번호</label>
-        <input :value="client.business_registration_number || '-'" readonly disabled />
+        <input :value="formatBusinessNumber(client.business_registration_number)" readonly disabled />
       </div>
       <div class="form-group">
         <label>원장명</label>
@@ -60,5 +60,19 @@ function goList() {
   } else {
     router.push('/clients');
   }
+}
+
+// 사업자번호 형식 변환 함수
+function formatBusinessNumber(businessNumber) {
+  if (!businessNumber) return '-';
+  
+  // 숫자만 추출
+  const numbers = businessNumber.replace(/[^0-9]/g, '');
+  
+  // 10자리가 아니면 원본 반환
+  if (numbers.length !== 10) return businessNumber;
+  
+  // 형식 변환: ###-##-#####
+  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
 }
 </script>
