@@ -96,11 +96,11 @@ const originalData = ref({
 // 필수 필드 검증 및 변경값 감지
 const isFormValid = computed(() => {
   // 필수값 검증
-  const hasRequiredFields = baseMonth.value && baseMonth.value.trim() !== '' && 
-                           productName.value && productName.value.trim() !== '' && 
-                           insuranceCode.value && insuranceCode.value.toString().trim() !== '' && 
+  const hasRequiredFields = baseMonth.value && baseMonth.value.trim() !== '' &&
+                           productName.value && productName.value.trim() !== '' &&
+                           insuranceCode.value && insuranceCode.value.toString().trim() !== '' &&
                            price.value && price.value.toString().trim() !== '';
-  
+
   // 변경값 감지
   const hasChanges = baseMonth.value !== originalData.value.baseMonth ||
                     productName.value !== originalData.value.productName ||
@@ -113,7 +113,7 @@ const isFormValid = computed(() => {
                     commissionE.value !== originalData.value.commissionE ||
                     status.value !== originalData.value.status ||
                     remarks.value !== originalData.value.remarks;
-  
+
   return hasRequiredFields && hasChanges;
 });
 
@@ -136,7 +136,7 @@ onMounted(async () => {
 
     status.value = data.status;
     remarks.value = data.remarks;
-    
+
     // 원본 데이터 저장
     originalData.value.baseMonth = data.base_month;
     originalData.value.productName = data.product_name;
@@ -203,12 +203,10 @@ const handleSubmit = async () => {
     return;
   }
 
-
-
   // 기준월 형식 검증 (YYYY-MM)
-  const monthRegex = /^\d{4}-\d{2}$/;
+  const monthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
   if (!monthRegex.test(baseMonth.value)) {
-    alert('기준월은 YYYY-MM 형식으로 입력해주세요.');
+    alert('기준월은 YYYY-MM 형식의 유효한 연월이어야 합니다.');
     setTimeout(() => {
       const baseMonthInput = document.getElementById('baseMonth');
       if (baseMonthInput) {
@@ -350,7 +348,7 @@ const handleSubmit = async () => {
     status: status.value,
     remarks: remarks.value
   };
-  
+
   const { error } = await supabase
     .from('products')
     .update(dataToUpdate)
