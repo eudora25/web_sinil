@@ -134,57 +134,104 @@ function go(item) {
   if (item.path) router.push(item.path);
 }
 function isActive(item) {
-  // 정확한 경로 매칭
+  // 정확한 경로 매칭 (가장 우선순위)
   if (route.path === item.path) {
     return true;
   }
   
-  // 하위 경로 매칭 (예: /admin/companies/123 -> /admin/companies/approved 메뉴 활성화)
-  if (item.path.includes('/admin/companies/') && route.path.startsWith('/admin/companies/')) {
+  // 특정 경로에 대한 정확한 매칭
+  const currentPath = route.path;
+  const itemPath = item.path;
+  
+  // /admin/companies/approved 또는 /admin/companies/pending과 같은 정확한 매칭
+  if (itemPath === '/admin/companies/approved' && currentPath.startsWith('/admin/companies/approved')) {
+    return true;
+  }
+  if (itemPath === '/admin/companies/pending' && currentPath.startsWith('/admin/companies/pending')) {
     return true;
   }
   
-  if (item.path.includes('/admin/clients/') && route.path.startsWith('/admin/clients/')) {
+  // /admin/clients/assign-companies, /admin/clients/commission-grades, /admin/clients/assign-pharmacies
+  if (itemPath === '/admin/clients/assign-companies' && currentPath.startsWith('/admin/clients/assign-companies')) {
+    return true;
+  }
+  if (itemPath === '/admin/clients/commission-grades' && currentPath.startsWith('/admin/clients/commission-grades')) {
+    return true;
+  }
+  if (itemPath === '/admin/clients/assign-pharmacies' && currentPath.startsWith('/admin/clients/assign-pharmacies')) {
     return true;
   }
   
-  if (item.path.includes('/admin/products/') && route.path.startsWith('/admin/products/')) {
+  // /admin/products/standard-code
+  if (itemPath === '/admin/products-standard-code' && currentPath.startsWith('/admin/products-standard-code')) {
     return true;
   }
   
-  if (item.path.includes('/admin/pharmacies/') && route.path.startsWith('/admin/pharmacies/')) {
+  // /admin/performance/register, /admin/performance/companies, /admin/performance/whole, /admin/performance/review
+  if (itemPath === '/admin/performance/register' && currentPath.startsWith('/admin/performance/register')) {
+    return true;
+  }
+  if (itemPath === '/admin/performance/companies' && currentPath.startsWith('/admin/performance/companies')) {
+    return true;
+  }
+  if (itemPath === '/admin/performance/whole' && currentPath.startsWith('/admin/performance/whole')) {
+    return true;
+  }
+  if (itemPath === '/admin/performance/review' && currentPath.startsWith('/admin/performance/review')) {
     return true;
   }
   
-  if (item.path.includes('/admin/performance/') && route.path.startsWith('/admin/performance/')) {
+  // /admin/wholesale-revenue, /admin/direct-revenue
+  if (itemPath === '/admin/wholesale-revenue' && currentPath.startsWith('/admin/wholesale-revenue')) {
+    return true;
+  }
+  if (itemPath === '/admin/direct-revenue' && currentPath.startsWith('/admin/direct-revenue')) {
     return true;
   }
   
-  if (item.path.includes('/admin/wholesale-revenue') && route.path.startsWith('/admin/wholesale-revenue')) {
+  // 일반적인 목록 페이지들 (정확한 매칭만)
+  if (itemPath === '/admin/notices' && currentPath === '/admin/notices') {
+    return true;
+  }
+  if (itemPath === '/admin/clients' && currentPath === '/admin/clients') {
+    return true;
+  }
+  if (itemPath === '/admin/products' && currentPath === '/admin/products') {
+    return true;
+  }
+  if (itemPath === '/admin/pharmacies' && currentPath === '/admin/pharmacies') {
+    return true;
+  }
+  if (itemPath === '/admin/settlement-months' && currentPath === '/admin/settlement-months') {
+    return true;
+  }
+  if (itemPath === '/admin/absorption-analysis' && currentPath === '/admin/absorption-analysis') {
+    return true;
+  }
+  if (itemPath === '/admin/settlement-share' && currentPath === '/admin/settlement-share') {
     return true;
   }
   
-  if (item.path.includes('/admin/direct-revenue') && route.path.startsWith('/admin/direct-revenue')) {
+  // 사용자 메뉴들
+  if (itemPath === '/notices' && currentPath === '/notices') {
     return true;
   }
-  
-  if (item.path.includes('/notices/') && route.path.startsWith('/notices/')) {
+  if (itemPath === '/products' && currentPath === '/products') {
     return true;
   }
-  
-  if (item.path.includes('/products/') && route.path.startsWith('/products/')) {
+  if (itemPath === '/clients' && currentPath === '/clients') {
     return true;
   }
-  
-  if (item.path.includes('/clients/') && route.path.startsWith('/clients/')) {
+  if (itemPath === '/performance/register' && currentPath === '/performance/register') {
     return true;
   }
-  
-  if (item.path.includes('/performance/') && route.path.startsWith('/performance/')) {
+  if (itemPath === '/performance/list' && currentPath === '/performance/list') {
     return true;
   }
-  
-  if (item.path.includes('/settlements/') && route.path.startsWith('/settlements/')) {
+  if (itemPath === '/settlements' && currentPath === '/settlements') {
+    return true;
+  }
+  if (itemPath === '/my-info' && currentPath === '/my-info') {
     return true;
   }
   
