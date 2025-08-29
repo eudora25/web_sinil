@@ -76,18 +76,18 @@
           :headerStyle="{ width: columnWidths.client_code }"
           :sortable="true"
         />
-        <Column 
-          field="name" 
-          header="병의원명" 
-          :headerStyle="{ width: columnWidths.name }" 
-          :style="{ fontWeight: '500 !important' }"  
-          :sortable="true" 
+        <Column
+          field="name"
+          header="병의원명"
+          :headerStyle="{ width: columnWidths.name }"
+          :style="{ fontWeight: '500 !important' }"
+          :sortable="true"
         >
           <template #body="slotProps">
-            <span 
-              class="ellipsis-cell text-link" 
-              :title="slotProps.data.name" 
-              @mouseenter="checkOverflow" 
+            <span
+              class="ellipsis-cell text-link"
+              :title="slotProps.data.name"
+              @mouseenter="checkOverflow"
               @mouseleave="removeOverflowClass"
               @click="goToClientDetail(slotProps.data.id)"
             >
@@ -126,6 +126,7 @@
             <div v-else style="min-height: 32px">-</div>
           </template>
         </Column>
+
         <Column header="업체명" :headerStyle="{ width: columnWidths.company_name }">
           <template #body="slotProps">
             <div v-if="slotProps.data.companies && slotProps.data.companies.length > 0">
@@ -134,8 +135,8 @@
                 :key="company.id"
                 style="min-height: 32px; display: flex; align-items: center !important; font-weight: 500 !important;"
               >
-                <span 
-                  class="text-link" 
+                <span
+                  class="text-link"
                   @click="goToCompanyDetail(company.id)"
                   style="cursor: pointer;"
                 >
@@ -146,6 +147,7 @@
             <div v-else style="min-height: 32px">-</div>
           </template>
         </Column>
+
         <Column header="약국명" :headerStyle="{ width: columnWidths.pharmacy_name }">
           <template #body="slotProps">
             <div v-if="slotProps.data.pharmacies && slotProps.data.pharmacies.length > 0">
@@ -154,8 +156,8 @@
                 :key="pharmacy.id"
                 style="min-height: 32px; display: flex; align-items: center !important; font-weight: 500 !important;"
               >
-                <span 
-                  class="text-link" 
+                <span
+                  class="text-link"
                   @click="goToPharmacyDetail(pharmacy.id)"
                   style="cursor: pointer;"
                 >
@@ -236,7 +238,7 @@
           <Column field="address" header="주소" :headerStyle="{ width: '50%' }" :sortable="true" />
         </DataTable>
       </div>
-      
+
       <template #footer>
         <div class="btn-row">
           <button class="btn-cancel" @click="closeAssignModal">취소</button>
@@ -309,7 +311,7 @@ const fetchClients = async () => {
     const { data: clientsData, error } = await supabase
       .from('clients')
       .select(
-        `*, pharmacies:client_pharmacy_assignments(created_at, pharmacy:pharmacies(id, name, business_registration_number))`,
+        `*, pharmacies:client_pharmacy_assignments(created_at, pharmacy:pharmacies(id, name, business_registration_number)),companies:client_company_assignments(created_at,company:companies(id,company_name,business_registration_number,company_group))`,
       )
       .eq('status', 'active')
     if (!error && clientsData) {
@@ -318,9 +320,14 @@ const fetchClients = async () => {
           ...p.pharmacy,
           assignment_created_at: p.created_at
         }))
+        const companiesArr = client.companies.map((c) => ({
+          ...c.company,
+          assignment_created_at: c.created_at
+        }))
         return {
           ...client,
           pharmacies: pharmaciesArr,
+          companies: companiesArr,
         }
       })
       filteredClients.value = clients.value;
@@ -366,14 +373,14 @@ function applyHospitalFilter() {
 // 통합 필터 적용 함수
 function applyFilters() {
   let filtered = clients.value;
-  
+
   // 병원 필터 적용
   if (hospitalFilter.value === 'assigned') {
-    filtered = filtered.filter(client => 
+    filtered = filtered.filter(client =>
       client.companies && client.companies.length > 0
     );
   }
-  
+
   // 검색 필터 적용
   if (searchKeyword.value && searchKeyword.value.length >= 2) {
     const keyword = searchKeyword.value.toLowerCase();
@@ -383,16 +390,16 @@ function applyFilters() {
       (c.client_code && c.client_code.toLowerCase().includes(keyword)) ||
       (c.owner_name && c.owner_name.toLowerCase().includes(keyword)) ||
       (c.address && c.address.toLowerCase().includes(keyword)) ||
-      (c.pharmacies && c.pharmacies.some(pharmacy => 
+      (c.pharmacies && c.pharmacies.some(pharmacy =>
         pharmacy.name && pharmacy.name.toLowerCase().includes(keyword)
       )) ||
-      (c.companies && c.companies.some(company => 
+      (c.companies && c.companies.some(company =>
         (company.company_group && company.company_group.toLowerCase().includes(keyword)) ||
         (company.company_name && company.company_name.toLowerCase().includes(keyword))
       ))
     );
   }
-  
+
   filteredClients.value = filtered;
 }
 
@@ -417,19 +424,19 @@ function closeAssignModal() {
 }
 async function assignPharmacies() {
   if (!selectedClient.value || selectedPharmacies.value.length === 0) return
-  
+
       const assignments = selectedPharmacies.value.map((pharmacy) => ({
       // id는 자동 생성되도록 제거 (auto-increment)
       client_id: selectedClient.value.id,
       pharmacy_id: pharmacy.id,
     }))
-  
+
   try {
     // 상용서버와 동일한 방식으로 복원
     const { data, error } = await supabase
       .from('client_pharmacy_assignments')
       .upsert(assignments, { onConflict: 'client_id,pharmacy_id' });
-    
+
     if (error) {
       console.error('=== 상세 오류 정보 ===');
       console.error('오류 객체:', error);
@@ -440,13 +447,13 @@ async function assignPharmacies() {
       console.error('전체 오류:', JSON.stringify(error, null, 2));
       throw error;
     }
-    
+
   } catch (error) {
     console.error('문전약국 지정 실패:', error);
     alert('문전약국 지정 중 오류가 발생했습니다: ' + error.message);
     return;
   }
-  
+
   closeAssignModal()
   await fetchClients()
 }
@@ -482,7 +489,7 @@ const downloadTemplate = async () => {
   // 데이터 추가
   templateData.forEach((row) => {
     const dataRow = worksheet.addRow(Object.values(row))
-    
+
     // 데이터 행 스타일 설정
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
@@ -511,9 +518,9 @@ const downloadTemplate = async () => {
 
   // 헤더행 고정 및 눈금선 숨기기
   worksheet.views = [
-    { 
-      state: 'frozen', 
-      xSplit: 0, 
+    {
+      state: 'frozen',
+      xSplit: 0,
       ySplit: 1,
       showGridLines: false
     }
@@ -600,10 +607,10 @@ const handleFileUpload = async (event) => {
       }
 
       if (clientId && pharmacyId) {
-        assignmentsToUpload.push({ 
+        assignmentsToUpload.push({
           // id는 자동 생성되도록 제거 (auto-increment)
-          client_id: clientId, 
-          pharmacy_id: pharmacyId 
+          client_id: clientId,
+          pharmacy_id: pharmacyId
         })
       }
     }
@@ -619,7 +626,7 @@ const handleFileUpload = async (event) => {
         const { data, error } = await supabase
           .from('client_pharmacy_assignments')
           .upsert(assignmentsToUpload, { onConflict: 'client_id,pharmacy_id' });
-        
+
         if (error) {
           console.error('=== 엑셀 업로드 상세 오류 정보 ===');
           console.error('오류 객체:', error);
@@ -704,17 +711,17 @@ const downloadExcel = async () => {
   // 데이터 추가
   excelData.forEach((row) => {
     const dataRow = worksheet.addRow(Object.values(row))
-    
+
     // 데이터 행 스타일 설정
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
-      
+
       // 가운데 정렬할 컬럼 지정 (병의원코드, 원장명, 약국 사업자번호, 지정일시)
       if ([1, 3,4, 7, 8].includes(colNumber)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
-      
+
       // 사업자등록번호 컬럼은 텍스트 형식으로 설정
       if (colNumber === 4) {
         cell.numFmt = '@'
@@ -748,9 +755,9 @@ const downloadExcel = async () => {
 
   // 헤더행 고정 및 눈금선 숨기기
   worksheet.views = [
-    { 
-      state: 'frozen', 
-      xSplit: 0, 
+    {
+      state: 'frozen',
+      xSplit: 0,
       ySplit: 1,
       showGridLines: false
     }
@@ -781,28 +788,28 @@ async function deleteAllAssignments() {
 // 오버플로우 감지 및 툴팁 제어 함수들
 const checkOverflow = (event) => {
   const element = event.target;
-  
+
   // 실제 오버플로우 감지
   const rect = element.getBoundingClientRect();
   const computedStyle = window.getComputedStyle(element);
   const fontSize = parseFloat(computedStyle.fontSize);
   const fontFamily = computedStyle.fontFamily;
-  
+
   // 임시 캔버스를 만들어서 텍스트의 실제 너비 측정
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   context.font = `${fontSize}px ${fontFamily}`;
   const textWidth = context.measureText(element.textContent).width;
-  
+
   // 패딩과 보더 고려
   const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
   const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
   const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
   const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
-  
+
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
-  
+
   if (isOverflowed) {
     element.classList.add('overflowed');
   } else {
