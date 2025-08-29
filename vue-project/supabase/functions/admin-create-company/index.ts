@@ -34,11 +34,14 @@ serve(async (req) => {
       }
     }
 
-    // 사업자등록번호 중복 검사
+    // 사업자등록번호에서 특수문자 제거
+    const cleanBusinessNumber = companyData.business_registration_number.replace(/[^0-9]/g, '');
+    
+    // 사업자등록번호 중복 검사 (특수문자 제거된 값으로 검색)
     const { data: existingCompany, error: checkError } = await supabase
       .from('companies')
       .select('id')
-      .eq('business_registration_number', companyData.business_registration_number)
+      .eq('business_registration_number', cleanBusinessNumber)
       .single()
 
     if (checkError && checkError.code !== 'PGRST116') {
@@ -88,7 +91,7 @@ serve(async (req) => {
     const companyRecord = {
       email: companyData.email,
       company_name: companyData.company_name,
-      business_registration_number: companyData.business_registration_number,
+      business_registration_number: cleanBusinessNumber,
       representative_name: companyData.representative_name,
       business_address: companyData.business_address,
       landline_phone: companyData.landline_phone,
