@@ -297,7 +297,7 @@ const handleSignup = async () => {
     }
   }
   try {
-    // 1단계: Supabase Auth로 직접 사용자 계정 생성
+    // 1단계: Supabase Auth로 직접 사용자 계정 생성 (자동 로그인 비활성화)
     const { data, error } = await supabase.auth.signUp({
       email: formData.value.email,
       password: formData.value.password,
@@ -311,6 +311,11 @@ const handleSignup = async () => {
         emailConfirm: false
       }
     });
+
+    // 회원가입 후 자동 로그인 방지 - 세션 제거
+    if (data.session) {
+      await supabase.auth.signOut();
+    }
 
     if (error) {
       console.error('Supabase Auth 오류:', error);
@@ -366,9 +371,14 @@ const handleSignup = async () => {
             contact_person_name: formData.value.contactPersonName,
             mobile_phone: formData.value.mobilePhone,
             user_type: 'user',
-                    approval_status: 'pending',
-        created_by: testData.user.id,
-      };
+            approval_status: 'pending',
+            created_by: testData.user.id,
+          };
+
+          // 테스트 이메일 회원가입 후 자동 로그인 방지 - 세션 제거
+          if (testData.session) {
+            await supabase.auth.signOut();
+          }
           
           const { error: companyInsertError } = await supabase
             .from('companies')
