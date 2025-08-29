@@ -1405,20 +1405,70 @@ async function deleteAllProducts() {
     return;
   }
   
-  const confirmMessage = `정말 ${selectedMonth.value} 기준월의 모든 제품을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`;
+  const confirmMessage = `정말 ${selectedMonth.value} 기준월의 모든 제품을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.\n\n주의: 이 제품을 참조하는 실적 데이터도 함께 삭제됩니다.`;
   if (!confirm(confirmMessage)) return;
   
-  // 선택된 기준월에 해당하는 제품만 삭제
-  const { error } = await supabase.from('products').delete().eq('base_month', selectedMonth.value);
-  if (error) {
+  try {
+    // 1. 먼저 해당 기준월의 제품 ID들을 조회
+    const { data: productsToDelete, error: fetchError } = await supabase
+      .from('products')
+      .select('id')
+      .eq('base_month', selectedMonth.value);
+    
+    if (fetchError) {
+      alert('제품 조회 중 오류가 발생했습니다: ' + fetchError.message);
+      return;
+    }
+    
+    if (!productsToDelete || productsToDelete.length === 0) {
+      alert('삭제할 제품이 없습니다.');
+      return;
+    }
+    
+    const productIds = productsToDelete.map(p => p.id);
+    
+    // 2. performance_records_absorption에서 해당 제품들을 참조하는 데이터 삭제
+    const { error: absorptionError } = await supabase
+      .from('performance_records_absorption')
+      .delete()
+      .in('product_id', productIds);
+    
+    if (absorptionError) {
+      console.error('실적 데이터 삭제 오류:', absorptionError);
+      // 실적 데이터 삭제 실패해도 계속 진행
+    }
+    
+    // 3. performance_records에서 해당 제품들을 참조하는 데이터 삭제
+    const { error: recordsError } = await supabase
+      .from('performance_records')
+      .delete()
+      .in('product_id', productIds);
+    
+    if (recordsError) {
+      console.error('실적 기록 삭제 오류:', recordsError);
+      // 실적 기록 삭제 실패해도 계속 진행
+    }
+    
+    // 4. 마지막으로 제품들 삭제
+    const { error: deleteError } = await supabase
+      .from('products')
+      .delete()
+      .eq('base_month', selectedMonth.value);
+    
+    if (deleteError) {
+      alert('제품 삭제 중 오류가 발생했습니다: ' + deleteError.message);
+      return;
+    }
+    
+    // 5. 로컬 데이터에서도 해당 기준월 제품 제거
+    products.value = products.value.filter(p => p.base_month !== selectedMonth.value);
+    
+    alert(`${selectedMonth.value} 기준월의 모든 제품이 삭제되었습니다.`);
+    
+  } catch (error) {
+    console.error('삭제 중 예외 발생:', error);
     alert('삭제 중 오류가 발생했습니다: ' + error.message);
-    return;
   }
-  
-  // 로컬 데이터에서도 해당 기준월 제품 제거
-  products.value = products.value.filter(p => p.base_month !== selectedMonth.value);
-  
-  alert(`${selectedMonth.value} 기준월의 모든 제품이 삭제되었습니다.`);
 }
 
 // 제품명 오버플로우 감지 함수
