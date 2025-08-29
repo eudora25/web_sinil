@@ -89,6 +89,20 @@ function removeFile(idx) {
       alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
       return;
     }
+    
+    // 디버깅을 위한 로그
+    console.log('Current user ID:', user.id);
+    console.log('Current user email:', user.email);
+    
+    // companies 테이블에서 사용자 정보 확인
+    const { data: companyData, error: companyError } = await supabase
+      .from('companies')
+      .select('id, user_id, email, user_type, approval_status')
+      .eq('user_id', user.id)
+      .single();
+    
+    console.log('Company data:', companyData);
+    console.log('Company error:', companyError);
 
     // 1단계: 파일 업로드
     let fileUrls = [];
