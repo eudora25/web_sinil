@@ -297,7 +297,8 @@ const handleSignup = async () => {
     }
   }
   try {
-    // 1단계: 사업자등록번호 중복 검증 (인증 전)
+    // 1단계: 사업자등록번호 중복 검증 (인증 전) - 임시 비활성화
+    /*
     try {
       // 사업자등록번호에서 하이픈 제거하여 검색
       const cleanBusinessNumber = formData.value.businessRegistrationNumber.replace(/-/g, '');
@@ -328,6 +329,8 @@ const handleSignup = async () => {
       alert('사업자등록번호 중복 검사 중 오류가 발생했습니다. 다시 시도해주세요.');
       return;
     }
+    */
+    console.log('사업자등록번호 중복 검사 임시 비활성화됨');
 
     // 2단계: Supabase Auth로 직접 사용자 계정 생성 (자동 로그인 비활성화)
     const { data, error } = await supabase.auth.signUp({
