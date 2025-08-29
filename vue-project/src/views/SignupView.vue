@@ -395,7 +395,8 @@ const handleSignup = async () => {
         data: {
           name: formData.value.companyName,
           phone: formData.value.mobilePhone || null,
-          user_type: 'user'
+          user_type: 'user',
+          approval_status: 'pending'
         },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
         emailConfirm: false
@@ -427,7 +428,8 @@ const handleSignup = async () => {
               data: {
                 name: formData.value.companyName,
                 phone: formData.value.mobilePhone || null,
-                user_type: 'user'
+                user_type: 'user',
+                approval_status: 'pending'
               },
               emailRedirectTo: `${window.location.origin}/auth/callback`,
               emailConfirm: false

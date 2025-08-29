@@ -64,6 +64,7 @@ serve(async (req) => {
         name: companyData.company_name,
         phone: companyData.mobile_phone || null,
         user_type: 'user',
+        approval_status: companyData.approval_status === '승인' ? 'approved' : 'pending',
         admin_created: true  // 관리자가 생성한 계정임을 표시
       }
     })
