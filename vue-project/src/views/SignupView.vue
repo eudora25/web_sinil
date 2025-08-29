@@ -297,9 +297,9 @@ const handleSignup = async () => {
     }
   }
   try {
-    // 1단계: 사업자등록번호 중복 검증 (인증 전) - 임시 비활성화
-    /*
+    // 1단계: 사업자등록번호 중복 검증 (인증 전)
     try {
+      console.log('사업자등록번호 중복 검사 시작...');
       // 사업자등록번호에서 하이픈 제거하여 검색
       const cleanBusinessNumber = formData.value.businessRegistrationNumber.replace(/-/g, '');
       
@@ -309,11 +309,21 @@ const handleSignup = async () => {
         .eq('business_registration_number', cleanBusinessNumber)
         .single();
       
-      if (checkError && checkError.code !== 'PGRST116') { // PGRST116는 결과가 없는 경우
-        console.error('사업자등록번호 중복 검사 실패:', checkError);
-        alert('사업자등록번호 중복 검사 중 오류가 발생했습니다. 다시 시도해주세요.');
-        return;
+      // 모든 오류 상황에서 중단 (PGRST116 제외)
+      if (checkError) {
+        if (checkError.code === 'PGRST116') {
+          // 결과가 없는 경우 - 중복 없음
+          console.log('사업자등록번호 중복 없음');
+        } else {
+          // 다른 모든 오류 (HTTP 406, 500 등) - 중단
+          console.error('사업자등록번호 중복 검사 실패:', checkError);
+          console.error('오류 코드:', checkError.code);
+          console.error('오류 메시지:', checkError.message);
+          alert(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
+          return;
+        }
       } else if (existingCompany) {
+        // 중복 발견
         alert('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
         setTimeout(() => {
           const businessNumberInput = document.getElementById('businessRegistrationNumber');
@@ -324,15 +334,60 @@ const handleSignup = async () => {
         }, 100);
         return;
       }
+      console.log('사업자등록번호 중복 검사 통과');
     } catch (duplicateCheckError) {
-      console.error('사업자등록번호 중복 검사 중 오류 발생:', duplicateCheckError);
-      alert('사업자등록번호 중복 검사 중 오류가 발생했습니다. 다시 시도해주세요.');
+      console.error('사업자등록번호 중복 검사 중 예외 발생:', duplicateCheckError);
+      alert('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
       return;
     }
-    */
-    console.log('사업자등록번호 중복 검사 임시 비활성화됨');
 
-    // 2단계: Supabase Auth로 직접 사용자 계정 생성 (자동 로그인 비활성화)
+    // 2단계: 이메일 중복 검증 (인증 전)
+    try {
+      console.log('이메일 중복 검사 시작...');
+      console.log('검사할 이메일:', formData.value.email);
+      
+      const { data: existingUser, error: emailCheckError } = await supabase
+        .from('companies')
+        .select('id,email,company_name')
+        .eq('email', formData.value.email)
+        .single();
+      
+      console.log('이메일 중복 검사 결과:', { existingUser, emailCheckError });
+      
+      // 모든 오류 상황에서 중단 (PGRST116 제외)
+      if (emailCheckError) {
+        if (emailCheckError.code === 'PGRST116') {
+          // 결과가 없는 경우 - 중복 없음
+          console.log('이메일 중복 없음 (PGRST116)');
+        } else {
+          // 다른 모든 오류 (HTTP 406, 500 등) - 중단
+          console.error('이메일 중복 검사 실패:', emailCheckError);
+          console.error('오류 코드:', emailCheckError.code);
+          console.error('오류 메시지:', emailCheckError.message);
+          alert(`이메일 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${emailCheckError.code}\n오류 메시지: ${emailCheckError.message}\n\n관리자에게 문의해주세요.`);
+          return;
+        }
+      } else if (existingUser) {
+        // 중복 발견
+        console.log('이메일 중복 발견:', existingUser);
+        alert(`동일한 이메일로 이미 가입된 이력이 있습니다.\n\n이메일: ${existingUser.email}\n회사명: ${existingUser.company_name}`);
+        setTimeout(() => {
+          const emailInput = document.getElementById('email');
+          if (emailInput) {
+            emailInput.focus();
+            emailInput.select();
+          }
+        }, 100);
+        return;
+      }
+      console.log('이메일 중복 검사 통과');
+    } catch (emailDuplicateCheckError) {
+      console.error('이메일 중복 검사 중 예외 발생:', emailDuplicateCheckError);
+      alert('이메일 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
+      return;
+    }
+
+    // 3단계: Supabase Auth로 직접 사용자 계정 생성 (자동 로그인 비활성화)
     const { data, error } = await supabase.auth.signUp({
       email: formData.value.email,
       password: formData.value.password,
@@ -346,17 +401,6 @@ const handleSignup = async () => {
         emailConfirm: false
       }
     });
-
-    // 회원가입 후 자동 로그인 방지 - 세션 강제 제거
-    if (data.session) {
-      await supabase.auth.signOut();
-    }
-    
-    // 추가로 현재 세션 상태 확인 및 제거
-    const { data: { session: currentSession } } = await supabase.auth.getSession();
-    if (currentSession) {
-      await supabase.auth.signOut();
-    }
 
     if (error) {
       console.error('Supabase Auth 오류:', error);
@@ -449,7 +493,7 @@ const handleSignup = async () => {
       throw error;
     }
 
-    // 3단계: 회사 정보 등록
+    // 4단계: 회사 정보 등록 (signOut 전에 수행)
     if (data.user) {
       
       // 3단계: 회사 정보 등록
@@ -506,11 +550,8 @@ const handleSignup = async () => {
       console.log('회사 정보 등록 성공');
     }
     
-    // 회원가입 완료 - 최종 세션 확인 및 제거
-    const { data: { session: finalSession } } = await supabase.auth.getSession();
-    if (finalSession) {
-      await supabase.auth.signOut();
-    }
+    // 회원가입 완료 - 자동 로그인 방지를 위해 세션 제거
+    await supabase.auth.signOut();
     
     alert('회원가입이 완료되었습니다. 로그인 페이지에서 로그인해주세요.');
     router.push('/login');
