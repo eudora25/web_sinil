@@ -654,16 +654,89 @@ const handleFileUpload = async (event) => {
       isAppendMode = confirm('기존 데이터에 추가하시겠습니까? 대체하시겠습니까?\n\n확인: 기존 데이터는 그대로 추가 등록\n취소: 기존 데이터를 모두 지우고 등록')
       
       if (!isAppendMode) {
-        // 대체 모드: 기존 데이터 삭제
-        const { error: deleteError } = await supabase.from('clients').delete().neq('id', 0)
-        
-        if (deleteError) {
-          alert('기존 데이터 삭제 실패: ' + deleteError.message)
-          event.target.value = ''
-          return
+        // 대체 모드: 기존 데이터 삭제 (외래키 제약조건 고려)
+        try {
+          // 1. 먼저 기존 병의원 ID들을 조회
+          const { data: existingClients, error: fetchError } = await supabase
+            .from('clients')
+            .select('id')
+            .neq('id', 0);
+          
+          if (fetchError) {
+            alert('기존 데이터 조회 실패: ' + fetchError.message);
+            event.target.value = '';
+            return;
+          }
+          
+          if (existingClients && existingClients.length > 0) {
+            const clientIds = existingClients.map(c => c.id);
+            
+            // 2. performance_records_absorption에서 해당 병의원들을 참조하는 데이터 삭제
+            const { error: absorptionError } = await supabase
+              .from('performance_records_absorption')
+              .delete()
+              .in('client_id', clientIds);
+            
+            if (absorptionError) {
+              console.error('실적 데이터 삭제 오류:', absorptionError);
+              // 실적 데이터 삭제 실패해도 계속 진행
+            }
+            
+            // 3. performance_records에서 해당 병의원들을 참조하는 데이터 삭제
+            const { error: recordsError } = await supabase
+              .from('performance_records')
+              .delete()
+              .in('client_id', clientIds);
+            
+            if (recordsError) {
+              console.error('실적 기록 삭제 오류:', recordsError);
+              // 실적 기록 삭제 실패해도 계속 진행
+            }
+            
+            // 4. client_company_assignments에서 해당 병의원들을 참조하는 데이터 삭제
+            const { error: assignmentError } = await supabase
+              .from('client_company_assignments')
+              .delete()
+              .in('client_id', clientIds);
+            
+            if (assignmentError) {
+              console.error('업체 할당 데이터 삭제 오류:', assignmentError);
+              // 할당 데이터 삭제 실패해도 계속 진행
+            }
+            
+            // 5. client_pharmacy_assignments에서 해당 병의원들을 참조하는 데이터 삭제
+            const { error: pharmacyAssignmentError } = await supabase
+              .from('client_pharmacy_assignments')
+              .delete()
+              .in('client_id', clientIds);
+            
+            if (pharmacyAssignmentError) {
+              console.error('약국 할당 데이터 삭제 오류:', pharmacyAssignmentError);
+              // 약국 할당 데이터 삭제 실패해도 계속 진행
+            }
+          }
+          
+          // 6. 마지막으로 병의원들 삭제
+          const { error: deleteError } = await supabase
+            .from('clients')
+            .delete()
+            .neq('id', 0);
+          
+          if (deleteError) {
+            alert('기존 데이터 삭제 실패: ' + deleteError.message);
+            event.target.value = '';
+            return;
+          }
+          
+          // 로컬 데이터도 초기화
+          clients.value = [];
+          
+        } catch (error) {
+          console.error('삭제 중 예외 발생:', error);
+          alert('기존 데이터 삭제 실패: ' + error.message);
+          event.target.value = '';
+          return;
         }
-        // 로컬 데이터도 초기화
-        clients.value = []
       }
     }
 
