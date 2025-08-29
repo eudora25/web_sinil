@@ -369,7 +369,6 @@ watch(
 
 const confirmApprovalChange = async (company, newStatus) => {
   const actionText = newStatus === 'approved' ? '승인' : '승인 취소'
-  if (!confirm(`${company.company_name} 업체를 ${actionText} 처리하시겠습니까?`)) return
   try {
     loading.value = true
     
