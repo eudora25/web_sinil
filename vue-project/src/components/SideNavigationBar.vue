@@ -38,7 +38,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, h } from 'vue';
+import { ref, computed, onMounted, watch, h } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { supabase } from '@/supabase';
 
@@ -50,6 +50,21 @@ const emit = defineEmits(['logout']);
 const router = useRouter();
 const route = useRoute();
 const openMenu = ref(0); // 첫 번째 대메뉴 기본 오픈
+
+// 현재 페이지에 따라 해당 메뉴 섹션을 자동으로 열기
+const getCurrentMenuIndex = () => {
+  const currentPath = route.path;
+  
+  for (let i = 0; i < menuTree.value.length; i++) {
+    const menu = menuTree.value[i];
+    for (const child of menu.children) {
+      if (isActive(child)) {
+        return i;
+      }
+    }
+  }
+  return 0; // 기본값
+};
 
 const companyName = ref('');
 
@@ -119,7 +134,61 @@ function go(item) {
   if (item.path) router.push(item.path);
 }
 function isActive(item) {
-  return route.path === item.path;
+  // 정확한 경로 매칭
+  if (route.path === item.path) {
+    return true;
+  }
+  
+  // 하위 경로 매칭 (예: /admin/companies/123 -> /admin/companies/approved 메뉴 활성화)
+  if (item.path.includes('/admin/companies/') && route.path.startsWith('/admin/companies/')) {
+    return true;
+  }
+  
+  if (item.path.includes('/admin/clients/') && route.path.startsWith('/admin/clients/')) {
+    return true;
+  }
+  
+  if (item.path.includes('/admin/products/') && route.path.startsWith('/admin/products/')) {
+    return true;
+  }
+  
+  if (item.path.includes('/admin/pharmacies/') && route.path.startsWith('/admin/pharmacies/')) {
+    return true;
+  }
+  
+  if (item.path.includes('/admin/performance/') && route.path.startsWith('/admin/performance/')) {
+    return true;
+  }
+  
+  if (item.path.includes('/admin/wholesale-revenue') && route.path.startsWith('/admin/wholesale-revenue')) {
+    return true;
+  }
+  
+  if (item.path.includes('/admin/direct-revenue') && route.path.startsWith('/admin/direct-revenue')) {
+    return true;
+  }
+  
+  if (item.path.includes('/notices/') && route.path.startsWith('/notices/')) {
+    return true;
+  }
+  
+  if (item.path.includes('/products/') && route.path.startsWith('/products/')) {
+    return true;
+  }
+  
+  if (item.path.includes('/clients/') && route.path.startsWith('/clients/')) {
+    return true;
+  }
+  
+  if (item.path.includes('/performance/') && route.path.startsWith('/performance/')) {
+    return true;
+  }
+  
+  if (item.path.includes('/settlements/') && route.path.startsWith('/settlements/')) {
+    return true;
+  }
+  
+  return false;
 }
 function toggleMenu(idx) {
   openMenu.value = openMenu.value === idx ? null : idx;
@@ -213,6 +282,10 @@ onMounted(async () => {
   window.__goToNotice = (id) => {
     router.push(`/notices/${id}`);
   };
+  
+  // 현재 페이지에 따라 해당 메뉴 섹션 자동 열기
+  openMenu.value = getCurrentMenuIndex();
+  
   // ...기존 데이터 불러오기 코드...
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -227,6 +300,11 @@ onMounted(async () => {
       }
     }
   } catch {}
+});
+
+// 라우트 변경 시 메뉴 자동 업데이트
+watch(() => route.path, (newPath) => {
+  openMenu.value = getCurrentMenuIndex();
 });
 </script>
 
