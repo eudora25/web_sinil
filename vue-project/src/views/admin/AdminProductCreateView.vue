@@ -100,6 +100,20 @@ const handleSubmit = async () => {
     return;
   }
 
+  // 기준월 형식 검증 (YYYY-MM)
+  const baseMonthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
+  if (!baseMonthRegex.test(baseMonth.value)) {
+    alert('기준월은 YYYY-MM 형식의 유효한 연월이어야 합니다.');
+    setTimeout(() => {
+      const baseMonthInput = document.querySelector('input[v-model="baseMonth"]');
+      if (baseMonthInput) {
+        baseMonthInput.focus();
+        baseMonthInput.select();
+      }
+    }, 100);
+    return;
+  }
+
   // 보험코드 형식 검증 (9자리 숫자)
   if (insuranceCode.value.length !== 9 || !/^\d{9}$/.test(insuranceCode.value)) {
     alert('보험코드는 9자리 숫자여야 합니다.');
@@ -214,4 +228,4 @@ const handleSubmit = async () => {
 function goList() {
   router.push('/admin/products');
 }
-</script> 
+</script>
