@@ -81,8 +81,9 @@ onMounted(async () => {
     console.log('비밀번호 재설정 페이지 초기화 시작');
     console.log('현재 URL:', window.location.href);
     
-    // 라우터 가드 우회를 위한 글로벌 플래그 설정
+    // 라우터 가드 우회를 위한 글로벌 플래그 설정 (페이지 로드 즉시)
     window.isPasswordResetPage = true;
+    console.log('비밀번호 재설정 페이지 플래그 설정 완료');
     
     // 현재 세션 확인
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();

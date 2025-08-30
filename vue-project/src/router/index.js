@@ -459,7 +459,7 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   console.log(`[Router Guard] Navigating from: ${from.fullPath} to: ${to.fullPath}`);
 
-  // 비밀번호 재설정 페이지는 완전히 라우터 가드 우회
+  // 비밀번호 재설정 페이지는 완전히 라우터 가드 우회 (가장 먼저 체크)
   if (to.path === '/reset-password' || window.isPasswordResetPage) {
     console.log('[Router Guard] Password reset page detected. Bypassing all guards.');
     return next();
@@ -468,6 +468,12 @@ router.beforeEach(async (to, from, next) => {
   // 로그인, 회원가입 페이지는 항상 접근 허용
   if (to.name === 'login' || to.name === 'signup') {
     console.log('[Router Guard] Accessing login/signup page. Allowing.');
+    return next();
+  }
+
+  // 비밀번호 재설정 페이지 플래그가 설정되어 있으면 세션 체크 건너뛰기
+  if (window.isPasswordResetPage) {
+    console.log('[Router Guard] Password reset page flag detected. Skipping session check.');
     return next();
   }
 
