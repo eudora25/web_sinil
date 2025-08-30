@@ -721,8 +721,8 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 3단계: 추가 모드일 때만 사업자등록번호 중복 체크
-    if (hasExistingData && uploadMode === 'append') {
+    // 3단계: 기존 데이터가 있을 때만 사업자등록번호 중복 체크
+    if (hasExistingData) {
       const duplicateErrors = []
       const duplicateClients = []
       
