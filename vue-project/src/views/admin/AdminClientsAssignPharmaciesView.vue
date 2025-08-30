@@ -44,7 +44,7 @@
         </div>
         <div class="action-buttons-group">
           <button class="btn-excell-template" @click="downloadTemplate" style="margin-right: 1rem;">엑셀 템플릿</button>
-          <button class="btn-excell-upload" @click="triggerFileUpload" style="margin-right: 1rem;">엑셀 등록</button>
+                    <button class="btn-excell-upload" @click="triggerFileUpload" style="margin-right: 1rem;">엑셀 등록</button>
           <button class="btn-excell-download" @click="downloadExcel" style="margin-right: 1rem;">엑셀 다운로드</button>
           <button class="btn-delete" @click="deleteAllAssignments">모두 삭제</button>
           <input
@@ -780,6 +780,8 @@ const downloadExcel = async () => {
   link.click()
   window.URL.revokeObjectURL(url)
 }
+
+
 
 async function deleteAllAssignments() {
   if (!confirm('정말 모든 문전약국 지정 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;

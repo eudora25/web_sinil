@@ -48,7 +48,7 @@
             @change="handleFileUpload"
             style="display: none"
           />
-          <button class="btn-excell-download" @click="downloadExcel" style="margin-right: 1rem;">엑셀 다운로드</button>
+                    <button class="btn-excell-download" @click="downloadExcel" style="margin-right: 1rem;">엑셀 다운로드</button>
           <button class="btn-delete" @click="deleteAllStandardCodes" style="margin-right: 1rem;">모두 삭제</button>
           <button class="btn-save" @click="goCreate">개별 등록</button>
         </div>
@@ -911,6 +911,8 @@ const deleteStandardCode = async (row) => {
     alert('삭제 중 오류가 발생했습니다.')
   }
 }
+
+
 
 async function deleteAllStandardCodes() {
   const confirmMessage = `정말 모든 표준코드를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`;
