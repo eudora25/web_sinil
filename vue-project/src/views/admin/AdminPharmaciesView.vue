@@ -607,37 +607,19 @@ const handleFileUpload = async (event) => {
     const hasExistingData = pharmacies.value.length > 0
 
     // 1단계: 기존 데이터 존재 시 확인
-    let uploadMode = 'cancel' // 'append', 'replace', 'cancel'
     if (hasExistingData) {
       if (!confirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?')) {
         event.target.value = ''
         return
       }
 
-      // 2단계: 3개 옵션 선택 (버튼 방식)
+      // 2단계: 추가 등록 확인
       const choice = await showUploadChoiceModal()
       
-      if (choice === 'append') {
-        uploadMode = 'append'
-      } else if (choice === 'replace') {
-        uploadMode = 'replace'
-      } else {
+      if (choice !== 'append') {
         // cancel이거나 잘못된 입력
         event.target.value = ''
         return
-      }
-      
-      if (uploadMode === 'replace') {
-        // 대체 모드: 기존 데이터 삭제
-        const { error: deleteError } = await supabase.from('pharmacies').delete().neq('id', 0)
-        
-        if (deleteError) {
-          alert('기존 데이터 삭제 실패: ' + deleteError.message)
-          event.target.value = ''
-          return
-        }
-        // 로컬 데이터도 초기화
-        pharmacies.value = []
       }
     }
 
@@ -701,8 +683,8 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 3단계: 추가 모드일 때만 사업자등록번호 중복 체크
-    if (hasExistingData && uploadMode === 'append') {
+    // 3단계: 기존 데이터가 있을 때만 사업자등록번호 중복 체크
+    if (hasExistingData) {
       const duplicateErrors = []
       const duplicatePharmacies = []
       
@@ -1133,15 +1115,15 @@ function showUploadChoiceModal() {
       padding: 30px;
       border-radius: 8px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-      max-width: 500px;
+      max-width: 400px;
       width: 90%;
       text-align: center;
     `
     
     modalContent.innerHTML = `
-      <h3 style="margin: 0 0 20px 0; color: #333;">어떤 방식으로 등록하시겠습니까?</h3>
-      <div style="display: flex; flex-direction: column; gap: 10px;">
-        <button id="append-btn" style="
+      <h3 style="margin: 0 0 20px 0; color: #333;">기존 데이터는 그대로 두고 추가 등록하시겠습니까?</h3>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button id="confirm-btn" style="
           padding: 12px 20px;
           background: #4CAF50;
           color: white;
@@ -1151,19 +1133,7 @@ function showUploadChoiceModal() {
           font-size: 14px;
           transition: background 0.3s;
         " onmouseover="this.style.background='#45a049'" onmouseout="this.style.background='#4CAF50'">
-          기존 데이터는 그대로 두고 추가 등록
-        </button>
-        <button id="replace-btn" style="
-          padding: 12px 20px;
-          background: #f44336;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          transition: background 0.3s;
-        " onmouseover="this.style.background='#da190b'" onmouseout="this.style.background='#f44336'">
-          기존 데이터 모두 지우고 등록
+          확인
         </button>
         <button id="cancel-btn" style="
           padding: 12px 20px;
@@ -1184,14 +1154,9 @@ function showUploadChoiceModal() {
     document.body.appendChild(modal)
     
     // 버튼 이벤트 리스너
-    document.getElementById('append-btn').addEventListener('click', () => {
+    document.getElementById('confirm-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('append')
-    })
-    
-    document.getElementById('replace-btn').addEventListener('click', () => {
-      document.body.removeChild(modal)
-      resolve('replace')
     })
     
     document.getElementById('cancel-btn').addEventListener('click', () => {
