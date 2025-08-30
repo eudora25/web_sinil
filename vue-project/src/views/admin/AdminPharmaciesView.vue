@@ -775,15 +775,35 @@ const handleFileUpload = async (event) => {
   }
 }
 
-// 엑셀 다운로드 (현재 목록)
+// 엑셀 다운로드 (전체 목록)
 const downloadExcel = async () => {
-  if (pharmacies.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.')
-    return
-  }
+  try {
+    // 전체 데이터 조회 (페이징 없이)
+    let query = supabase
+      .from('pharmacies')
+      .select('*')
+      .order('pharmacy_code', { ascending: true })
 
-  // 데이터 변환
-  const excelData = pharmacies.value.map((pharmacy, index) => ({
+    // 검색 조건이 있으면 적용
+    if (searchKeyword.value.length >= 2) {
+      const keyword = searchKeyword.value.toLowerCase();
+      query = query.or(`name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%,pharmacy_code.ilike.%${keyword}%`)
+    }
+
+    const { data: allPharmacies, error } = await query
+
+    if (error) {
+      alert('데이터 조회 실패: ' + error.message)
+      return
+    }
+
+    if (!allPharmacies || allPharmacies.length === 0) {
+      alert('다운로드할 데이터가 없습니다.')
+      return
+    }
+
+    // 데이터 변환
+    const excelData = allPharmacies.map((pharmacy, index) => ({
     No: index + 1,
     약국코드: pharmacy.pharmacy_code || '',
     약국명: pharmacy.name || '',
