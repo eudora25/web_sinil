@@ -460,7 +460,7 @@ router.beforeEach(async (to, from, next) => {
   console.log(`[Router Guard] Navigating from: ${from.fullPath} to: ${to.fullPath}`);
 
   // 로그인, 회원가입, 비밀번호 재설정 페이지는 항상 접근 허용
-  if (to.name === 'login' || to.name === 'signup' || to.name === 'ResetPassword') {
+  if (to.name === 'login' || to.name === 'signup' || to.path === '/reset-password') {
     console.log('[Router Guard] Accessing login/signup/reset-password page. Allowing.');
     return next();
   }
