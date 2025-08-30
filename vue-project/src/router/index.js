@@ -459,9 +459,15 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   console.log(`[Router Guard] Navigating from: ${from.fullPath} to: ${to.fullPath}`);
 
-  // 로그인, 회원가입, 비밀번호 재설정 페이지는 항상 접근 허용
-  if (to.name === 'login' || to.name === 'signup' || to.path === '/reset-password') {
-    console.log('[Router Guard] Accessing login/signup/reset-password page. Allowing.');
+  // 비밀번호 재설정 페이지는 완전히 라우터 가드 우회
+  if (to.path === '/reset-password') {
+    console.log('[Router Guard] Password reset page detected. Bypassing all guards.');
+    return next();
+  }
+
+  // 로그인, 회원가입 페이지는 항상 접근 허용
+  if (to.name === 'login' || to.name === 'signup') {
+    console.log('[Router Guard] Accessing login/signup page. Allowing.');
     return next();
   }
 
