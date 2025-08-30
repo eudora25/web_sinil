@@ -896,6 +896,10 @@ const downloadExcel = async () => {
   link.download = generateExcelFileName('문전약국목록')
   link.click()
   window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('엑셀 다운로드 오류:', error)
+    alert('엑셀 다운로드 중 오류가 발생했습니다.')
+  }
 }
 
 async function deleteAllPharmacies() {
