@@ -643,121 +643,19 @@ const handleFileUpload = async (event) => {
     const hasExistingData = clients.value.length > 0
 
     // 1단계: 기존 데이터 존재 시 확인
-    let uploadMode = 'cancel' // 'append', 'replace', 'cancel'
     if (hasExistingData) {
       if (!confirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?')) {
         event.target.value = ''
         return
       }
 
-      // 2단계: 3개 옵션 선택 (버튼 방식)
+      // 2단계: 추가 등록 확인
       const choice = await showUploadChoiceModal()
       
-      if (choice === 'append') {
-        uploadMode = 'append'
-      } else if (choice === 'replace') {
-        uploadMode = 'replace'
-      } else {
+      if (choice !== 'append') {
         // cancel이거나 잘못된 입력
         event.target.value = ''
         return
-      }
-      
-      if (uploadMode === 'replace') {
-        // 대체 모드: 기존 데이터 삭제 (외래키 제약조건 고려)
-        try {
-          // 1. 먼저 기존 병의원 ID들을 조회
-          const { data: existingClients, error: fetchError } = await supabase
-            .from('clients')
-            .select('id')
-            .neq('id', 0);
-          
-          if (fetchError) {
-            alert('기존 데이터 조회 실패: ' + fetchError.message);
-            event.target.value = '';
-            return;
-          }
-          
-          if (existingClients && existingClients.length > 0) {
-            const clientIds = existingClients.map(c => c.id);
-            
-            // 2. performance_records_absorption에서 해당 병의원들을 참조하는 데이터 삭제
-            const { error: absorptionError } = await supabase
-              .from('performance_records_absorption')
-              .delete()
-              .in('client_id', clientIds);
-            
-            if (absorptionError) {
-              console.error('실적 데이터 삭제 오류:', absorptionError);
-              // 실적 데이터 삭제 실패해도 계속 진행
-            }
-            
-            // 3. performance_records에서 해당 병의원들을 참조하는 데이터 삭제
-            const { error: recordsError } = await supabase
-              .from('performance_records')
-              .delete()
-              .in('client_id', clientIds);
-            
-            if (recordsError) {
-              console.error('실적 기록 삭제 오류:', recordsError);
-              // 실적 기록 삭제 실패해도 계속 진행
-            }
-            
-            // 4. client_company_assignments에서 해당 병의원들을 참조하는 데이터 삭제
-            const { error: assignmentError } = await supabase
-              .from('client_company_assignments')
-              .delete()
-              .in('client_id', clientIds);
-            
-            if (assignmentError) {
-              console.error('업체 할당 데이터 삭제 오류:', assignmentError);
-              // 할당 데이터 삭제 실패해도 계속 진행
-            }
-            
-            // 5. client_pharmacy_assignments에서 해당 병의원들을 참조하는 데이터 삭제
-            const { error: pharmacyAssignmentError } = await supabase
-              .from('client_pharmacy_assignments')
-              .delete()
-              .in('client_id', clientIds);
-            
-            if (pharmacyAssignmentError) {
-              console.error('약국 할당 데이터 삭제 오류:', pharmacyAssignmentError);
-              // 약국 할당 데이터 삭제 실패해도 계속 진행
-            }
-            
-            // 6. performance_evidence_files에서 해당 병의원들을 참조하는 데이터 삭제
-            const { error: evidenceFilesError } = await supabase
-              .from('performance_evidence_files')
-              .delete()
-              .in('client_id', clientIds);
-            
-            if (evidenceFilesError) {
-              console.error('증빙 파일 데이터 삭제 오류:', evidenceFilesError);
-              // 증빙 파일 데이터 삭제 실패해도 계속 진행
-            }
-          }
-          
-          // 7. 마지막으로 병의원들 삭제
-          const { error: deleteError } = await supabase
-            .from('clients')
-            .delete()
-            .neq('id', 0);
-          
-          if (deleteError) {
-            alert('기존 데이터 삭제 실패: ' + deleteError.message);
-            event.target.value = '';
-            return;
-          }
-          
-          // 로컬 데이터도 초기화
-          clients.value = [];
-          
-        } catch (error) {
-          console.error('삭제 중 예외 발생:', error);
-          alert('기존 데이터 삭제 실패: ' + error.message);
-          event.target.value = '';
-          return;
-        }
       }
     }
 
@@ -1287,15 +1185,15 @@ function showUploadChoiceModal() {
       padding: 30px;
       border-radius: 8px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-      max-width: 500px;
+      max-width: 400px;
       width: 90%;
       text-align: center;
     `
     
     modalContent.innerHTML = `
-      <h3 style="margin: 0 0 20px 0; color: #333;">어떤 방식으로 등록하시겠습니까?</h3>
-      <div style="display: flex; flex-direction: column; gap: 10px;">
-        <button id="append-btn" style="
+      <h3 style="margin: 0 0 20px 0; color: #333;">기존 데이터는 그대로 두고 추가 등록하시겠습니까?</h3>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button id="confirm-btn" style="
           padding: 12px 20px;
           background: #4CAF50;
           color: white;
@@ -1305,19 +1203,7 @@ function showUploadChoiceModal() {
           font-size: 14px;
           transition: background 0.3s;
         " onmouseover="this.style.background='#45a049'" onmouseout="this.style.background='#4CAF50'">
-          기존 데이터는 그대로 두고 추가 등록
-        </button>
-        <button id="replace-btn" style="
-          padding: 12px 20px;
-          background: #f44336;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          transition: background 0.3s;
-        " onmouseover="this.style.background='#da190b'" onmouseout="this.style.background='#f44336'">
-          기존 데이터 모두 지우고 등록
+          확인
         </button>
         <button id="cancel-btn" style="
           padding: 12px 20px;
@@ -1338,14 +1224,9 @@ function showUploadChoiceModal() {
     document.body.appendChild(modal)
     
     // 버튼 이벤트 리스너
-    document.getElementById('append-btn').addEventListener('click', () => {
+    document.getElementById('confirm-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('append')
-    })
-    
-    document.getElementById('replace-btn').addEventListener('click', () => {
-      document.body.removeChild(modal)
-      resolve('replace')
     })
     
     document.getElementById('cancel-btn').addEventListener('click', () => {
