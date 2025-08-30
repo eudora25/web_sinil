@@ -526,11 +526,14 @@ const handleSubmit = async () => {
     }
     const adminUserId = currentUser.data.user.id;
     
-    // 사업자등록번호 중복 검증 (자신 제외)
+    // 사업자등록번호에서 특수문자 제거
+    const cleanBusinessNumber = businessNumber.value.replace(/[^0-9]/g, '');
+    
+    // 사업자등록번호 중복 검증 (자신 제외, 특수문자 제거된 값으로 검색)
     const { data: existingCompany, error: checkError } = await supabase
       .from('companies')
       .select('id')
-      .eq('business_registration_number', businessNumber.value)
+      .eq('business_registration_number', cleanBusinessNumber)
       .neq('id', route.params.id) // 자신 제외
       .single();
     
@@ -554,7 +557,7 @@ const handleSubmit = async () => {
       .from('companies')
       .update({
         company_name: companyName.value,
-        business_registration_number: businessNumber.value,
+        business_registration_number: cleanBusinessNumber,
         representative_name: representative.value,
         business_address: address.value,
         landline_phone: landline.value,
