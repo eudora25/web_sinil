@@ -460,7 +460,7 @@ router.beforeEach(async (to, from, next) => {
   console.log(`[Router Guard] Navigating from: ${from.fullPath} to: ${to.fullPath}`);
 
   // 비밀번호 재설정 페이지는 완전히 라우터 가드 우회
-  if (to.path === '/reset-password') {
+  if (to.path === '/reset-password' || window.isPasswordResetPage) {
     console.log('[Router Guard] Password reset page detected. Bypassing all guards.');
     return next();
   }

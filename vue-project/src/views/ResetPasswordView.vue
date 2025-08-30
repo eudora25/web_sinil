@@ -81,12 +81,15 @@ onMounted(async () => {
     console.log('비밀번호 재설정 페이지 초기화 시작');
     console.log('현재 URL:', window.location.href);
     
+    // 라우터 가드 우회를 위한 글로벌 플래그 설정
+    window.isPasswordResetPage = true;
+    
     // 현재 세션 확인
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
     if (sessionError) {
       console.error('세션 확인 오류:', sessionError);
-      throw new Error('세션 확인에 실패했습니다.');
+      // 세션 오류가 있어도 계속 진행 (토큰으로 세션 설정 시도)
     }
     
     console.log('현재 세션:', session ? '존재' : '없음');
@@ -112,9 +115,10 @@ onMounted(async () => {
         
         if (setSessionError) {
           console.error('세션 설정 오류:', setSessionError);
-          throw new Error('세션 설정에 실패했습니다.');
+          // 세션 설정 실패해도 계속 진행 (사용자가 수동으로 처리할 수 있도록)
+        } else {
+          console.log('세션 설정 성공');
         }
-        console.log('세션 설정 성공');
       } else {
         // 2. 해시 파라미터 확인
         console.log('해시 파라미터 확인 중...');
@@ -134,9 +138,10 @@ onMounted(async () => {
           
           if (setSessionError) {
             console.error('세션 설정 오류:', setSessionError);
-            throw new Error('세션 설정에 실패했습니다.');
+            // 세션 설정 실패해도 계속 진행
+          } else {
+            console.log('세션 설정 성공');
           }
-          console.log('세션 설정 성공');
         } else {
           // 3. 전체 URL에서 토큰 패턴 찾기
           console.log('전체 URL에서 토큰 패턴 검색 중...');
@@ -153,12 +158,13 @@ onMounted(async () => {
             
             if (setSessionError) {
               console.error('세션 설정 오류:', setSessionError);
-              throw new Error('세션 설정에 실패했습니다.');
+              // 세션 설정 실패해도 계속 진행
+            } else {
+              console.log('세션 설정 성공');
             }
-            console.log('세션 설정 성공');
           } else {
-            console.error('토큰을 찾을 수 없음');
-            throw new Error('유효하지 않은 재설정 링크입니다.');
+            console.log('토큰을 찾을 수 없음 - 사용자가 수동으로 처리할 수 있도록 계속 진행');
+            // 토큰이 없어도 에러를 던지지 않고 계속 진행
           }
         }
       }
