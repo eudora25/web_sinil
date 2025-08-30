@@ -6,6 +6,11 @@
       <div v-if="loading" class="loading">
         처리 중입니다...
       </div>
+      <div v-else-if="error" class="error">
+        {{ error }}
+        <br><br>
+        <button @click="$router.push('/login')" class="btn-login">로그인 페이지로 이동</button>
+      </div>
       <form v-else @submit.prevent="handleResetPassword" class="reset-form">
         <div class="form-group">
           <label for="password">새 비밀번호</label>
@@ -73,23 +78,48 @@ const canSubmit = computed(() => {
 
 onMounted(async () => {
   try {
-    // URL에서 access_token과 refresh_token 확인
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    const refreshToken = hashParams.get('refresh_token');
-    
-    if (!accessToken) {
-      throw new Error('유효하지 않은 재설정 링크입니다.');
-    }
-    
-    // 세션 설정
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken
-    });
+    // 현재 세션 확인
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
     if (sessionError) {
-      throw new Error('세션 설정에 실패했습니다.');
+      throw new Error('세션 확인에 실패했습니다.');
+    }
+    
+    // 세션이 없으면 URL 파라미터에서 토큰 확인
+    if (!session) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const accessToken = urlParams.get('access_token');
+      const refreshToken = urlParams.get('refresh_token');
+      
+      if (accessToken) {
+        // 토큰으로 세션 설정
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+        
+        if (setSessionError) {
+          throw new Error('세션 설정에 실패했습니다.');
+        }
+      } else {
+        // 해시 파라미터에서도 확인
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const hashAccessToken = hashParams.get('access_token');
+        const hashRefreshToken = hashParams.get('refresh_token');
+        
+        if (hashAccessToken) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: hashAccessToken,
+            refresh_token: hashRefreshToken
+          });
+          
+          if (setSessionError) {
+            throw new Error('세션 설정에 실패했습니다.');
+          }
+        } else {
+          throw new Error('유효하지 않은 재설정 링크입니다.');
+        }
+      }
     }
     
     loading.value = false;
