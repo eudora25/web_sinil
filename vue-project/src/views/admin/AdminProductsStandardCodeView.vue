@@ -627,12 +627,76 @@ const handleFileUpload = async (event) => {
 }
 
 const downloadExcel = async () => {
-  if (filteredStandardCodes.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.')
-    return
-  }
+  try {
+    // 전체 데이터 조회 (페이징 없이)
+    const { data: allStandardCodes, error } = await supabase
+      .from('products_standard_code')
+      .select('*')
+      .order('insurance_code', { ascending: true })
 
-  const workbook = new ExcelJS.Workbook()
+    if (error) {
+      alert('데이터 조회 실패: ' + error.message)
+      return
+    }
+
+    if (!allStandardCodes || allStandardCodes.length === 0) {
+      alert('다운로드할 데이터가 없습니다.')
+      return
+    }
+
+    // 제품명과 업체명 매핑을 위한 데이터 조회
+    const { data: productsData } = await supabase
+      .from('products')
+      .select('insurance_code, product_name')
+      .eq('status', 'active')
+
+    const { data: companiesData } = await supabase
+      .from('companies')
+      .select('user_id, company_name')
+      .eq('approval_status', 'approved')
+
+    // 매핑 데이터 생성
+    const productsMap = {}
+    productsData?.forEach(product => {
+      productsMap[product.insurance_code] = product.product_name
+    })
+
+    const companiesMap = {}
+    companiesData?.forEach(company => {
+      companiesMap[company.user_id] = company.company_name
+    })
+
+    // 전체 데이터에 제품명과 업체명 추가
+    const excelData = allStandardCodes.map((item, index) => ({
+      No: index + 1,
+      제품명: productsMap[item.insurance_code] || '',
+      보험코드: item.insurance_code || '',
+      표준코드: item.standard_code || '',
+      단위포장형태: item.unit_packaging_desc || '',
+      단위수량: item.unit_quantity || 0,
+      비고: item.remarks || '',
+      상태: item.status === 'active' ? '활성' : '비활성',
+      등록일시: item.created_at ? new Date(item.created_at).toLocaleString('ko-KR', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace(/\. /g, '-').replace(/\./g, '').replace(/ /g, ' ') : '',
+      등록자: companiesMap[item.created_by] || '',
+      수정일시: item.updated_at ? new Date(item.updated_at).toLocaleString('ko-KR', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace(/\. /g, '-').replace(/\./g, '').replace(/ /g, ' ') : '',
+      수정자: companiesMap[item.updated_by] || ''
+    }))
+
+    const workbook = new ExcelJS.Workbook()
   const worksheet = workbook.addWorksheet('표준코드목록')
 
   // 헤더 정의
@@ -657,35 +721,8 @@ const downloadExcel = async () => {
   })
 
   // 데이터 추가
-  filteredStandardCodes.value.forEach((item, index) => {
-    const dataRow = worksheet.addRow([
-      index + 1,
-      item.product_name || '',
-      item.insurance_code || '',
-      item.standard_code || '',
-      item.unit_packaging_desc || '',
-      item.unit_quantity || 0,
-      item.remarks || '',
-      item.status === 'active' ? '활성' : '비활성',
-      item.created_at ? new Date(item.created_at).toLocaleString('ko-KR', { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      }).replace(/\. /g, '-').replace(/\./g, '').replace(/ /g, ' ') : '',
-      item.created_by_name || '',
-      item.updated_at ? new Date(item.updated_at).toLocaleString('ko-KR', { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      }).replace(/\. /g, '-').replace(/\./g, '').replace(/ /g, ' ') : '',
-      item.updated_by_name || ''
-    ])
+  excelData.forEach((item) => {
+    const dataRow = worksheet.addRow(Object.values(item))
 
     // 데이터 행 스타일 설정
     dataRow.eachCell((cell, colNumber) => {
@@ -754,6 +791,10 @@ const downloadExcel = async () => {
   link.download = generateExcelFileName('표준코드목록')
   link.click()
   window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('엑셀 다운로드 오류:', error)
+    alert('엑셀 다운로드 중 오류가 발생했습니다.')
+  }
 }
 
 const startEdit = (row) => {

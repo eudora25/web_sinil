@@ -594,10 +594,11 @@ const handleFileUpload = async (event) => {
 }
 
 const downloadExcel = async () => {
-  if (filteredClients.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.')
-    return
-  }
+  try {
+    if (filteredClients.value.length === 0) {
+      alert('다운로드할 데이터가 없습니다.')
+      return
+    }
   const excelData = []
   filteredClients.value.forEach((client) => {
     if (client.companies && client.companies.length > 0) {
