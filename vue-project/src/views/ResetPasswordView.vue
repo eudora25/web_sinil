@@ -111,40 +111,8 @@ if (window.location.pathname === '/reset-password') {
   console.log('플래그 재설정 완료:', window.isPasswordResetPage);
 }
 
-// 즉시 세션 차단: 모든 Supabase 관련 세션 제거
-console.log('즉시 세션 차단 시작...');
-
-// 1. 로컬 스토리지에서 모든 Supabase 관련 데이터 제거
-if (typeof window !== 'undefined') {
-  const keysToRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && (key.includes('supabase') || key.includes('auth'))) {
-      keysToRemove.push(key);
-    }
-  }
-  keysToRemove.forEach(key => {
-    localStorage.removeItem(key);
-    console.log('로컬 스토리지에서 제거:', key);
-  });
-}
-
-// 2. 세션 스토리지에서도 제거
-if (typeof window !== 'undefined') {
-  const sessionKeysToRemove = [];
-  for (let i = 0; i < sessionStorage.length; i++) {
-    const key = sessionStorage.key(i);
-    if (key && (key.includes('supabase') || key.includes('auth'))) {
-      sessionKeysToRemove.push(key);
-    }
-  }
-  sessionKeysToRemove.forEach(key => {
-    sessionStorage.removeItem(key);
-    console.log('세션 스토리지에서 제거:', key);
-  });
-}
-
-console.log('즉시 세션 차단 완료');
+// 비밀번호 재설정 페이지임을 표시
+console.log('비밀번호 재설정 페이지 감지됨');
 
 console.log('=== 즉시 초기화 완료 ===');
 
@@ -153,42 +121,8 @@ onMounted(async () => {
     console.log('비밀번호 재설정 페이지 초기화 시작');
     console.log('현재 URL:', window.location.href);
     
-    // 즉시 세션 차단: 기본 Supabase 클라이언트도 로그아웃
-    console.log('기본 Supabase 클라이언트 세션도 제거 중...');
-    const { createClient } = await import('@supabase/supabase-js');
-    const defaultSupabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
-    await defaultSupabase.auth.signOut();
-    console.log('기본 Supabase 클라이언트 세션 제거 완료');
-    
-    // 강력한 세션 제거: 여러 번 시도
-    console.log('기존 로그인 세션 강제 제거 중...');
-    
-    // 1차: 일반 로그아웃
-    await resetSupabase.auth.signOut();
-    
-    // 2차: 세션 확인 후 추가 제거
-    const { data: { session } } = await resetSupabase.auth.getSession();
-    if (session) {
-      console.log('세션이 여전히 존재함. 추가 제거 시도...');
-      await resetSupabase.auth.signOut();
-    }
-    
-    // 3차: 로컬 스토리지에서 세션 관련 데이터 제거
-    if (typeof window !== 'undefined') {
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.includes('supabase')) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-        console.log('로컬 스토리지에서 제거:', key);
-      });
-    }
-    
-    console.log('세션 제거 완료');
+    // Supabase가 자동으로 설정한 세션 확인 (세션 제거 없이)
+    console.log('Supabase 자동 세션 확인 중...');
     
     // Supabase가 자동으로 설정한 세션 확인
     console.log('Supabase 자동 세션 확인 중...');
