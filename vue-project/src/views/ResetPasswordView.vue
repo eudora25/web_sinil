@@ -85,6 +85,11 @@ onMounted(async () => {
     window.isPasswordResetPage = true;
     console.log('비밀번호 재설정 페이지 플래그 설정 완료');
     
+    // 보안 강화: 기존 로그인 세션 제거
+    console.log('기존 로그인 세션 제거 중...');
+    await supabase.auth.signOut();
+    console.log('기존 세션 제거 완료');
+    
     // 현재 세션 확인
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
@@ -171,7 +176,6 @@ onMounted(async () => {
       }
     }
     
-    console.log('비밀번호 재설정 페이지 초기화 완료');
     loading.value = false;
   } catch (err) {
     console.error('비밀번호 재설정 페이지 초기화 오류:', err);
@@ -186,6 +190,16 @@ async function handleResetPassword() {
   loading.value = true;
   
   try {
+    // 현재 세션의 사용자 정보 확인
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      throw new Error('사용자 정보를 확인할 수 없습니다. 비밀번호 재설정 링크가 유효하지 않습니다.');
+    }
+    
+    console.log('비밀번호 변경 대상 사용자:', user.email);
+    
+    // 해당 사용자의 비밀번호 변경
     const { error: updateError } = await supabase.auth.updateUser({
       password: password.value
     });
@@ -207,6 +221,8 @@ async function handleResetPassword() {
     let errorMessage = err.message;
     if (errorMessage.includes('New password should be different from the old password')) {
       errorMessage = '새 비밀번호는 기존 비밀번호와 달라야 합니다.';
+    } else if (errorMessage.includes('사용자 정보를 확인할 수 없습니다')) {
+      errorMessage = '비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.';
     }
     
     alert('비밀번호 변경 실패: ' + errorMessage);
