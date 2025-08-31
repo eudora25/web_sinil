@@ -61,7 +61,24 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { supabase } from '@/supabase';
+import { createClient } from '@supabase/supabase-js';
+import supabaseConfig from '@/config/supabase.js';
+import appConfig from '@/config/app.js';
+
+// 비밀번호 재설정 전용 Supabase 클라이언트 (detectSessionInUrl 비활성화)
+const resetSupabase = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false, // 자동 세션 감지 비활성화
+    flowType: 'pkce',
+    emailRedirectTo: appConfig.AUTH_CALLBACK_URL,
+    emailConfirm: false,
+    secureEmailChange: false,
+    emailValidation: false,
+    emailValidationRequired: false
+  }
+});
 
 const router = useRouter();
 const loading = ref(true);
@@ -96,13 +113,13 @@ onMounted(async () => {
     console.log('기존 로그인 세션 강제 제거 중...');
     
     // 1차: 일반 로그아웃
-    await supabase.auth.signOut();
+    await resetSupabase.auth.signOut();
     
     // 2차: 세션 확인 후 추가 제거
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await resetSupabase.auth.getSession();
     if (session) {
       console.log('세션이 여전히 존재함. 추가 제거 시도...');
-      await supabase.auth.signOut();
+      await resetSupabase.auth.signOut();
     }
     
     // 3차: 로컬 스토리지에서 세션 관련 데이터 제거
@@ -181,7 +198,7 @@ async function handleResetPassword() {
     
     // 저장된 토큰으로 임시 세션 설정
     console.log('저장된 토큰으로 임시 세션 설정 중...');
-    const { data: { user }, error: setSessionError } = await supabase.auth.setSession({
+    const { data: { user }, error: setSessionError } = await resetSupabase.auth.setSession({
       access_token: resetTokens.value.accessToken,
       refresh_token: resetTokens.value.refreshToken
     });
@@ -193,7 +210,7 @@ async function handleResetPassword() {
     console.log('임시 세션 설정 성공. 비밀번호 변경 대상 사용자:', user.email);
     
     // 해당 사용자의 비밀번호 변경
-    const { error: updateError } = await supabase.auth.updateUser({
+    const { error: updateError } = await resetSupabase.auth.updateUser({
       password: password.value
     });
     
@@ -204,7 +221,7 @@ async function handleResetPassword() {
     console.log('비밀번호 변경 성공. 즉시 로그아웃 처리 중...');
     
     // 비밀번호 변경 성공 후 즉시 로그아웃 (자동 로그인 방지)
-    await supabase.auth.signOut();
+    await resetSupabase.auth.signOut();
     console.log('로그아웃 완료');
     
     // 토큰 초기화
