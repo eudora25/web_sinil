@@ -229,7 +229,7 @@ async function handleResetPassword() {
   try {
     // Supabase 이메일 비밀번호 재설정 기능 사용
     const { error } = await supabase.auth.resetPasswordForEmail(company.value.email, {
-      redirectTo: `${window.location.origin}/reset-password`
+      redirectTo: 'https://web-sinil.vercel.app/reset-password'
     });
     
     if (error) {
