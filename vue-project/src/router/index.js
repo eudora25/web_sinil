@@ -59,7 +59,7 @@ const router = createRouter({
       path: '/reset-password',
       name: 'ResetPassword',
       component: () => import('@/views/ResetPasswordView.vue'),
-      meta: { layout: 'empty' }
+      meta: { layout: 'empty', requiresAuth: false }
     },
     {
       path: '/signup',
@@ -460,7 +460,7 @@ router.beforeEach(async (to, from, next) => {
   console.log(`[Router Guard] Navigating from: ${from.fullPath} to: ${to.fullPath}`);
 
   // 비밀번호 재설정 페이지는 완전히 라우터 가드 우회 (가장 먼저 체크)
-  if (to.path === '/reset-password' || window.isPasswordResetPage) {
+  if (to.path === '/reset-password' || to.name === 'ResetPassword' || window.isPasswordResetPage) {
     console.log('[Router Guard] Password reset page detected. Bypassing all guards.');
     return next();
   }
