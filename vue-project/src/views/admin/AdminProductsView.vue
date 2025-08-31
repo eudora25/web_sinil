@@ -61,7 +61,7 @@
             style="display: none"
           />
           <button class="btn-excell-download" @click="downloadExcel" style="margin-right: 1rem;">엑셀 다운로드</button>
-          <button class="btn-delete" @click="deleteAllProducts" style="margin-right: 1rem;">모두 삭제</button>
+<!--          <button class="btn-delete" @click="deleteAllProducts" style="margin-right: 1rem;">모두 삭제</button>-->
           <button class="btn-save" @click="goCreate">개별 등록</button>
         </div>
       </div>
@@ -207,7 +207,7 @@
         <Column header="업체" :headerStyle="{ width: columnWidths.companies }" :sortable="false">
           <template #body="slotProps">
             <div class="companies-cell">
-              <div 
+              <div
                 class="companies-summary clickable"
                 @click="openCompanyAssignment(slotProps.data)"
                 title="업체 할당 관리"
@@ -396,7 +396,7 @@ const fetchProducts = async () => {
     let hasMore = true;
     let offset = 0;
     const limit = 1000;
-    
+
     while (hasMore) {
       const { data: monthData, error: monthError } = await supabase
         .from('products')
@@ -404,16 +404,16 @@ const fetchProducts = async () => {
         .not('base_month', 'is', null)
         .order('base_month', { ascending: false })
         .range(offset, offset + limit - 1);
-      
+
       if (monthError) {
         console.error('기준월 목록 로딩 오류:', monthError);
         return;
       }
-      
+
       if (monthData && monthData.length > 0) {
         allMonthData = allMonthData.concat(monthData);
         offset += limit;
-        
+
         // 더 이상 데이터가 없으면 중단
         if (monthData.length < limit) {
           hasMore = false;
@@ -422,10 +422,10 @@ const fetchProducts = async () => {
         hasMore = false;
       }
     }
-    
+
     console.log('가져온 기준월 데이터 개수:', allMonthData.length);
     console.log('기준월 데이터 샘플:', allMonthData.slice(0, 10));
-    
+
     // 중복 제거하고 최신순으로 정렬
     const monthSet = new Set();
     allMonthData.forEach((item) => {
@@ -433,13 +433,13 @@ const fetchProducts = async () => {
         monthSet.add(item.base_month);
       }
     });
-    
+
     availableMonths.value = Array.from(monthSet).sort((a, b) => {
       return b.localeCompare(a); // 최신순 정렬
     });
-    
+
     console.log('추출된 기준월 목록:', availableMonths.value);
-    
+
     // 최신 연월을 기본값으로 설정하고 해당 월의 제품 불러오기
     if (availableMonths.value.length > 0) {
       selectedMonth.value = availableMonths.value[0];
@@ -455,7 +455,7 @@ const fetchProducts = async () => {
 // 선택된 기준월의 제품만 불러오는 함수
 const fetchProductsByMonth = async (month) => {
   if (!month) return;
-  
+
   loading.value = true;
   try {
     // 1. 제품 데이터 가져오기
@@ -465,12 +465,12 @@ const fetchProductsByMonth = async (month) => {
       .eq('base_month', month)
       .order('product_name', { ascending: true })
       .limit(1000);
-    
+
     if (productsError) {
       console.error('제품 데이터 로딩 오류:', productsError);
       return;
     }
-    
+
     // 2. 업체 할당 정보 가져오기 (product_company_not_assignments 테이블 사용)
     const { data: assignmentData, error: assignmentError } = await supabase
       .from('product_company_not_assignments')
@@ -486,36 +486,36 @@ const fetchProductsByMonth = async (month) => {
       `)
       .eq('companies.user_type', 'user')
       .eq('companies.approval_status', 'approved');
-    
+
     if (assignmentError) {
       console.error('업체 할당 데이터 로딩 오류:', assignmentError);
       return;
     }
-    
+
     // 3. 전체 업체 수 계산 (승인된 업체만)
     const { count: totalCompaniesCount } = await supabase
       .from('companies')
       .select('*', { count: 'exact', head: true })
       .eq('user_type', 'user')
       .eq('approval_status', 'approved');
-    
+
     // 4. companies 테이블에서 업체명 가져오기 (user와 admin 모두 포함)
     const { data: companiesData, error: companiesError } = await supabase
       .from('companies')
       .select('user_id, company_name')
       .eq('approval_status', 'approved');
-    
+
     if (companiesError) {
       console.error('업체 데이터 로딩 오류:', companiesError);
       return;
     }
-    
+
     // 5. user_id로 company_name 매핑
     const companiesMap = {};
     companiesData?.forEach(company => {
       companiesMap[company.user_id] = company.company_name;
     });
-    
+
     // 디버깅: created_by, updated_by 값 확인
     console.log('Companies data:', companiesData);
     console.log('Companies map:', companiesMap);
@@ -524,24 +524,24 @@ const fetchProductsByMonth = async (month) => {
       console.log('Sample product updated_by:', productsData[0].updated_by);
       console.log('Sample product created_by type:', typeof productsData[0].created_by);
       console.log('Sample product updated_by type:', typeof productsData[0].updated_by);
-      
+
       // companiesMap에서 해당 값이 있는지 확인
       console.log('created_by in companiesMap:', companiesMap[productsData[0].created_by]);
       console.log('updated_by in companiesMap:', companiesMap[productsData[0].updated_by]);
     }
-    
+
     // 4. 제품별 업체 할당 정보 매핑 (할당 안된 업체만 저장하는 방식)
     const productsWithAssignments = productsData.map(product => {
       const notAssignedCompanies = assignmentData.filter(
         assignment => assignment.product_id === product.id
       );
-      
+
       // 할당 안된 업체 수
       const notAssignedCount = notAssignedCompanies.length;
-      
+
       // 활성 업체 수 = 전체 업체 수 - 할당 안된 업체 수
       const activeCompaniesCount = Math.max(0, (totalCompaniesCount || 0) - notAssignedCount);
-      
+
       return {
         ...product,
         created_by_name: companiesMap[product.created_by] || '',
@@ -551,7 +551,7 @@ const fetchProductsByMonth = async (month) => {
         not_assigned_companies: notAssignedCompanies
       };
     });
-    
+
     products.value = productsWithAssignments || [];
   } catch (err) {
     console.error('제품 데이터 로딩 오류:', err);
@@ -577,7 +577,7 @@ const downloadTemplate = async () => {
   const headers = [
     '기준월', '제품명', '보험코드', '약가', '수수료A', '수수료B', '수수료C', '수수료D', '수수료E', '비고', '상태'
   ]
-  
+
   // 헤더 추가
   worksheet.addRow(headers)
 
@@ -600,18 +600,18 @@ const downloadTemplate = async () => {
 
   exampleData.forEach((rowData) => {
     const dataRow = worksheet.addRow(rowData)
-    
+
     // 데이터 행 스타일 설정
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
-      
+
       // 가운데 정렬이 필요한 컬럼들 (기준월, 보험코드, 수수료A~E, 상태)
-      if (colNumber === 1 || colNumber === 3 || colNumber === 5 || 
+      if (colNumber === 1 || colNumber === 3 || colNumber === 5 ||
           colNumber === 6 || colNumber === 7 || colNumber === 8 || colNumber === 9 || colNumber === 11) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
-      
+
       // 약가 컬럼은 숫자형식이므로 오른쪽 정렬
       if (colNumber === 4) {
         cell.alignment = { horizontal: 'right', vertical: 'middle' }
@@ -719,7 +719,7 @@ const handleFileUpload = async (event) => {
 
     // 업로드 데이터의 기준월들 추출
     const uploadMonths = [...new Set(jsonData.map(row => row['기준월']).filter(month => month))]
-    
+
     // 기존 데이터 확인
     let hasExistingData = false
     for (const month of uploadMonths) {
@@ -740,7 +740,7 @@ const handleFileUpload = async (event) => {
 
       // 2단계: 3개 옵션 선택 (버튼 방식)
       const choice = await showUploadChoiceModal()
-      
+
       if (choice === 'append') {
         uploadMode = 'append'
       } else if (choice === 'replace') {
@@ -750,7 +750,7 @@ const handleFileUpload = async (event) => {
         event.target.value = ''
         return
       }
-      
+
       if (uploadMode === 'replace') {
         // 대체 모드: 해당 기준월의 기존 데이터 삭제
         for (const month of uploadMonths) {
@@ -758,7 +758,7 @@ const handleFileUpload = async (event) => {
             .from('products')
             .delete()
             .eq('base_month', month)
-          
+
           if (deleteError) {
             alert('기존 데이터 삭제 실패: ' + deleteError.message)
             event.target.value = ''
@@ -906,15 +906,15 @@ const handleFileUpload = async (event) => {
     if (hasExistingData && uploadMode === 'append') {
       const duplicateErrors = []
       const duplicateProducts = []
-      
+
       for (const newProduct of uploadData) {
         if (newProduct.insurance_code) {
           // 기존 데이터에서 동일한 기준월의 보험코드 중복 확인
-          const existingProduct = products.value.find(p => 
-            p.base_month === newProduct.base_month && 
+          const existingProduct = products.value.find(p =>
+            p.base_month === newProduct.base_month &&
             p.insurance_code === newProduct.insurance_code
           )
-          
+
           if (existingProduct) {
             duplicateErrors.push(`${newProduct.rowNum}행: 이미 동일한 보험코드 제품이 등록되어 있습니다.`)
             duplicateProducts.push(newProduct)
@@ -930,7 +930,7 @@ const handleFileUpload = async (event) => {
 
         // 5단계: 중복 해결 방법 선택 (버튼 모달)
         const duplicateChoice = await showDuplicateChoiceModal()
-        
+
         if (duplicateChoice === 'replace') {
           // 교체 모드: 중복되는 기존 제품들 삭제
           for (const duplicateProduct of duplicateProducts) {
@@ -939,7 +939,7 @@ const handleFileUpload = async (event) => {
               .delete()
               .eq('base_month', duplicateProduct.base_month)
               .eq('insurance_code', duplicateProduct.insurance_code)
-            
+
             if (deleteError) {
               alert('기존 제품 삭제 실패: ' + deleteError.message)
               return
@@ -947,8 +947,8 @@ const handleFileUpload = async (event) => {
           }
           // 로컬 데이터에서도 삭제
           for (const duplicateProduct of duplicateProducts) {
-            const index = products.value.findIndex(p => 
-              p.base_month === duplicateProduct.base_month && 
+            const index = products.value.findIndex(p =>
+              p.base_month === duplicateProduct.base_month &&
               p.insurance_code === duplicateProduct.insurance_code
             )
             if (index > -1) {
@@ -1006,10 +1006,10 @@ const downloadExcel = async () => {
 
   // 헤더 정의
   const headers = [
-    'No', '기준월', '제품명', '보험코드', '약가', '수수료A', '수수료B', '수수료C', 
+    'No', '기준월', '제품명', '보험코드', '약가', '수수료A', '수수료B', '수수료C',
     '수수료D', '수수료E', '비고', '상태', '등록일시', '등록자', '수정일시', '수정자'
   ]
-  
+
   // 헤더 추가
   worksheet.addRow(headers)
   // 헤더 스타일 설정
@@ -1040,18 +1040,18 @@ const downloadExcel = async () => {
       product.commission_rate_e || 0,
       product.remarks || '',
       product.status === 'active' ? '활성' : '비활성',
-      product.created_at ? new Date(product.created_at).toLocaleString('ko-KR', { 
-        year: 'numeric', 
-        month: '2-digit', 
+      product.created_at ? new Date(product.created_at).toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
         hour12: false
       }).replace(/\. /g, '-').replace(/\./g, '').replace(/ /g, ' ') : '',
       product.created_by_name || '',
-      product.updated_at ? new Date(product.updated_at).toLocaleString('ko-KR', { 
-        year: 'numeric', 
-        month: '2-digit', 
+      product.updated_at ? new Date(product.updated_at).toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
@@ -1064,14 +1064,14 @@ const downloadExcel = async () => {
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
-      
+
       // 가운데 정렬이 필요한 컬럼들 (No, 기준월, 보험코드, 수수료A~E, 상태, 등록일시, 수정일시)
-      if (colNumber === 1 || colNumber === 2 || colNumber === 4 || colNumber === 6 || 
+      if (colNumber === 1 || colNumber === 2 || colNumber === 4 || colNumber === 6 ||
           colNumber === 7 || colNumber === 8 || colNumber === 9 || colNumber === 10 ||
           colNumber === 12 || colNumber === 13 || colNumber === 15) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
-      
+
       // 약가 컬럼은 숫자형식이므로 오른쪽 정렬
       if (colNumber === 5) {
         cell.alignment = { horizontal: 'right', vertical: 'middle' }
@@ -1106,7 +1106,7 @@ const downloadExcel = async () => {
       cell.numFmt = '0.0%'
     }
   }
-  
+
   // 약가 컬럼에 천단위 콤마 형식 적용
   for (let row = 2; row <= worksheet.rowCount; row++) {
     const cell = worksheet.getCell(row, 5) // E컬럼 (약가)
@@ -1142,11 +1142,11 @@ const downloadExcel = async () => {
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  
+
   // 기준월 정보가 있으면 파일명에 포함
   const monthInfo = selectedMonth.value ? formatMonthToKorean(selectedMonth.value) : null
   link.download = generateExcelFileName('제품목록', monthInfo)
-  
+
   link.click()
   window.URL.revokeObjectURL(url)
 }
@@ -1165,10 +1165,10 @@ const startEdit = (row) => {
 // 변경값 감지 및 필수값 검증
 const isEditValid = (row) => {
   // 필수값 검증
-  const hasRequiredFields = row.product_name && row.product_name.trim() !== '' && 
-                           row.insurance_code && row.insurance_code.toString().trim() !== '' && 
+  const hasRequiredFields = row.product_name && row.product_name.trim() !== '' &&
+                           row.insurance_code && row.insurance_code.toString().trim() !== '' &&
                            row.price && row.price.toString().trim() !== '';
-  
+
   // 변경값 감지
   const hasChanges = row.product_name !== row.originalData.product_name ||
                     row.insurance_code !== row.originalData.insurance_code ||
@@ -1180,7 +1180,7 @@ const isEditValid = (row) => {
                     row.commission_rate_e !== row.originalData.commission_rate_e ||
                     row.status !== row.originalData.status ||
                     row.remarks !== row.originalData.remarks;
-  
+
   return hasRequiredFields && hasChanges;
 }
 
@@ -1393,11 +1393,25 @@ const deleteProduct = async (row) => {
   }
 
   try {
+    // RPC를 호출하여 참조 여부 확인
+    const { data: isReferenceExist, error: rpcError } = await supabase.rpc(
+      'check_product_references_exist',
+      { p_id: row.id }
+    )
+
+    if (rpcError) {
+      throw new Error(rpcError.message);
+    }
+
+    if (isReferenceExist != 0) {
+      alert('이 제품을 참조하는 실적 데이터가 있어 삭제할 수 없습니다.');
+      return;
+    }
+
     const { error } = await supabase.from('products').delete().eq('id', row.id)
 
     if (error) {
-      alert('삭제 실패: ' + error.message)
-      return
+      throw new Error(error.message);
     }
 
     const index = products.value.findIndex((item) => item.id === row.id)
@@ -1408,7 +1422,7 @@ const deleteProduct = async (row) => {
     alert('삭제되었습니다.')
   } catch (error) {
     console.error('삭제 오류:', error)
-    alert('삭제 중 오류가 발생했습니다.')
+    alert('삭제 중 오류가 발생했습니다.');
   }
 }
 
@@ -1417,67 +1431,67 @@ async function deleteAllProducts() {
     alert('기준월을 선택해주세요.');
     return;
   }
-  
+
   const confirmMessage = `정말 ${selectedMonth.value} 기준월의 모든 제품을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.\n\n주의: 이 제품을 참조하는 실적 데이터도 함께 삭제됩니다.`;
   if (!confirm(confirmMessage)) return;
-  
+
   try {
     // 1. 먼저 해당 기준월의 제품 ID들을 조회
     const { data: productsToDelete, error: fetchError } = await supabase
       .from('products')
       .select('id')
       .eq('base_month', selectedMonth.value);
-    
+
     if (fetchError) {
       alert('제품 조회 중 오류가 발생했습니다: ' + fetchError.message);
       return;
     }
-    
+
     if (!productsToDelete || productsToDelete.length === 0) {
       alert('삭제할 제품이 없습니다.');
       return;
     }
-    
+
     const productIds = productsToDelete.map(p => p.id);
-    
+
     // 2. performance_records_absorption에서 해당 제품들을 참조하는 데이터 삭제
     const { error: absorptionError } = await supabase
       .from('performance_records_absorption')
       .delete()
       .in('product_id', productIds);
-    
+
     if (absorptionError) {
       console.error('실적 데이터 삭제 오류:', absorptionError);
       // 실적 데이터 삭제 실패해도 계속 진행
     }
-    
+
     // 3. performance_records에서 해당 제품들을 참조하는 데이터 삭제
     const { error: recordsError } = await supabase
       .from('performance_records')
       .delete()
       .in('product_id', productIds);
-    
+
     if (recordsError) {
       console.error('실적 기록 삭제 오류:', recordsError);
       // 실적 기록 삭제 실패해도 계속 진행
     }
-    
+
     // 4. 마지막으로 제품들 삭제
     const { error: deleteError } = await supabase
       .from('products')
       .delete()
       .eq('base_month', selectedMonth.value);
-    
+
     if (deleteError) {
       alert('제품 삭제 중 오류가 발생했습니다: ' + deleteError.message);
       return;
     }
-    
+
     // 5. 로컬 데이터에서도 해당 기준월 제품 제거
     products.value = products.value.filter(p => p.base_month !== selectedMonth.value);
-    
+
     alert(`${selectedMonth.value} 기준월의 모든 제품이 삭제되었습니다.`);
-    
+
   } catch (error) {
     console.error('삭제 중 예외 발생:', error);
     alert('삭제 중 오류가 발생했습니다: ' + error.message);
@@ -1487,35 +1501,35 @@ async function deleteAllProducts() {
 // 제품명 오버플로우 감지 함수
 const checkProductOverflow = (event) => {
   const element = event.target;
-  
+
   // 실제 오버플로우 감지
   const rect = element.getBoundingClientRect();
   const computedStyle = window.getComputedStyle(element);
   const fontSize = parseFloat(computedStyle.fontSize);
   const fontFamily = computedStyle.fontFamily;
-  
+
   // 임시 캔버스를 만들어서 텍스트의 실제 너비 측정
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   context.font = `${fontSize}px ${fontFamily}`;
   const textWidth = context.measureText(element.textContent).width;
-  
+
   // 패딩과 보더 고려
   const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
   const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
   const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
   const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
-  
+
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
-  
+
   console.log('오버플로우 체크:', {
     text: element.textContent,
     textWidth,
     availableWidth,
     isOverflowed
   });
-  
+
   if (isOverflowed) {
     element.classList.add('overflowed');
     console.log('오버플로우 클래스 추가됨');
@@ -1567,7 +1581,7 @@ function showDuplicateChoiceModal() {
       align-items: center;
       z-index: 9999;
     `
-    
+
     // 모달 내용 생성
     const modalContent = document.createElement('div')
     modalContent.style.cssText = `
@@ -1579,7 +1593,7 @@ function showDuplicateChoiceModal() {
       width: 90%;
       text-align: center;
     `
-    
+
     modalContent.innerHTML = `
       <h3 style="margin: 0 0 20px 0; color: #333;">이미 동일한 보험코드 제품을 어떻게 처리하시겠습니까?</h3>
       <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -1621,26 +1635,26 @@ function showDuplicateChoiceModal() {
         </button>
       </div>
     `
-    
+
     modal.appendChild(modalContent)
     document.body.appendChild(modal)
-    
+
     // 버튼 이벤트 리스너
     document.getElementById('replace-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('replace')
     })
-    
+
     document.getElementById('keep-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('keep')
     })
-    
+
     document.getElementById('cancel-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('cancel')
     })
-    
+
     // 모달 외부 클릭 시 취소
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
@@ -1668,7 +1682,7 @@ function showUploadChoiceModal() {
       align-items: center;
       z-index: 9999;
     `
-    
+
     // 모달 내용 생성
     const modalContent = document.createElement('div')
     modalContent.style.cssText = `
@@ -1680,7 +1694,7 @@ function showUploadChoiceModal() {
       width: 90%;
       text-align: center;
     `
-    
+
     modalContent.innerHTML = `
       <h3 style="margin: 0 0 20px 0; color: #333;">어떤 방식으로 등록하시겠습니까?</h3>
       <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -1722,26 +1736,26 @@ function showUploadChoiceModal() {
         </button>
       </div>
     `
-    
+
     modal.appendChild(modalContent)
     document.body.appendChild(modal)
-    
+
     // 버튼 이벤트 리스너
     document.getElementById('append-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('append')
     })
-    
+
     document.getElementById('replace-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('replace')
     })
-    
+
     document.getElementById('cancel-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('cancel')
     })
-    
+
     // 모달 외부 클릭 시 취소
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
