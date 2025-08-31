@@ -109,6 +109,13 @@ onMounted(async () => {
     window.isPasswordResetPage = true;
     console.log('비밀번호 재설정 페이지 플래그 설정 완료');
     
+    // 즉시 세션 차단: 기본 Supabase 클라이언트도 로그아웃
+    console.log('기본 Supabase 클라이언트 세션도 제거 중...');
+    const { createClient } = await import('@supabase/supabase-js');
+    const defaultSupabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+    await defaultSupabase.auth.signOut();
+    console.log('기본 Supabase 클라이언트 세션 제거 완료');
+    
     // 강력한 세션 제거: 여러 번 시도
     console.log('기존 로그인 세션 강제 제거 중...');
     

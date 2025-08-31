@@ -477,6 +477,12 @@ router.beforeEach(async (to, from, next) => {
     return next();
   }
 
+  // 비밀번호 재설정 페이지에서는 세션 체크 건너뛰기
+  if (window.isPasswordResetPage) {
+    console.log('[Router Guard] Password reset page flag detected. Skipping session check.');
+    return next();
+  }
+  
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
   if (sessionError) {
