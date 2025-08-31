@@ -77,7 +77,7 @@ async function testPasswordReset() {
     // 2. B 계정의 비밀번호 재설정 이메일 발송
     console.log('\n2. B 계정의 비밀번호 재설정 이메일 발송 중...');
     const { error: resetError } = await supabase.auth.resetPasswordForEmail('b@example.com', {
-      redirectTo: 'https://web-sinil.vercel.app/reset-password'
+      redirectTo: process.env.APP_URL ? `${process.env.APP_URL}/reset-password` : 'https://web-sinil.vercel.app/reset-password'
     });
     
     if (resetError) {

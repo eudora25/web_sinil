@@ -85,6 +85,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import Button from 'primevue/button';
 import { supabase } from '@/supabase';
 import { useRouter } from 'vue-router';
+import config from '@/config/app.js';
 
 const email = ref('');
 const password = ref('');
@@ -227,10 +228,10 @@ const handlePasswordReset = async () => {
       return;
     }
     
-    // 4단계: 비밀번호 재설정 메일 발송
-    const { data, error } = await supabase.auth.resetPasswordForEmail(resetEmail.value, {
-      redirectTo: 'https://web-sinil.vercel.app/reset-password',
-    });
+          // 4단계: 비밀번호 재설정 메일 발송
+      const { data, error } = await supabase.auth.resetPasswordForEmail(resetEmail.value, {
+        redirectTo: config.RESET_PASSWORD_URL,
+      });
     
     if (error) {
       if (error.message.includes('not found')) {

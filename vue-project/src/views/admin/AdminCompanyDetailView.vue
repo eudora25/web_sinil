@@ -96,6 +96,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import TopNavigationBar from '@/components/TopNavigationBar.vue'
+import config from '@/config/app.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -229,7 +230,7 @@ async function handleResetPassword() {
   try {
     // Supabase 이메일 비밀번호 재설정 기능 사용
     const { error } = await supabase.auth.resetPasswordForEmail(company.value.email, {
-      redirectTo: 'https://web-sinil.vercel.app/reset-password'
+      redirectTo: config.RESET_PASSWORD_URL
     });
     
     if (error) {
