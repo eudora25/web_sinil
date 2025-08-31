@@ -65,12 +65,12 @@ import { createClient } from '@supabase/supabase-js';
 import supabaseConfig from '@/config/supabase.js';
 import appConfig from '@/config/app.js';
 
-// 비밀번호 재설정 전용 Supabase 클라이언트 (detectSessionInUrl 비활성화)
+// 비밀번호 재설정 전용 Supabase 클라이언트 (detectSessionInUrl 활성화)
 const resetSupabase = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false, // 자동 세션 감지 비활성화
+    detectSessionInUrl: true, // 자동 세션 감지 활성화
     flowType: 'pkce',
     emailRedirectTo: appConfig.AUTH_CALLBACK_URL,
     emailConfirm: false,
