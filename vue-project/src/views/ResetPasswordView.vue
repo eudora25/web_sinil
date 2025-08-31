@@ -108,6 +108,12 @@ console.log('현재 URL:', window.location.href);
 window.isPasswordResetPage = true;
 console.log('비밀번호 재설정 페이지 플래그 즉시 설정 완료');
 
+// URL이 비밀번호 재설정 페이지인지 확인
+if (window.location.pathname === '/reset-password') {
+  console.log('비밀번호 재설정 페이지 URL 확인됨');
+  window.isPasswordResetPage = true;
+}
+
 // 즉시 세션 차단: 모든 Supabase 관련 세션 제거
 console.log('즉시 세션 차단 시작...');
 
