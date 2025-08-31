@@ -236,8 +236,6 @@ const handlePasswordReset = async () => {
     if (error) {
       if (error.message.includes('not found')) {
         alert('가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해주세요.');
-      } else if (error.message.includes('21 seconds')) {
-        alert('보안을 위해 21초 후에 다시 시도해주세요. 잠시 기다린 후 비밀번호 재설정을 다시 요청해주세요.');
       } else {
         alert(`오류가 발생했습니다: ${error.message}`);
       }

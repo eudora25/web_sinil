@@ -6,7 +6,10 @@ const config = {
   get APP_URL() {
     // 개발 환경인지 확인
     const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    // 브라우저 환경에서만 hostname 확인
+    const isLocalhost = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     
     if (isDevelopment && isLocalhost) {
       return 'http://localhost:5173';
