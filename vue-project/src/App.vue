@@ -69,7 +69,7 @@ const handleRedirect = async (currentSession) => {
     }
   } else {
     // 사용자가 로그인되지 않은 상태
-    if (actualPath !== '/login' && actualPath !== '/signup') {
+    if (actualPath !== '/login' && actualPath !== '/signup' && actualPath !== '/reset-password') {
       console.log(`[App.vue] handleRedirect: User not logged in. Redirecting from ${actualPath} to /login`);
       try {
         await router.push('/login');
