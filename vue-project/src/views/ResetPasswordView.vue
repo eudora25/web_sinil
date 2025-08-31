@@ -113,7 +113,8 @@ onMounted(async () => {
       console.log('URL 파라미터 - refresh_token:', refreshToken ? '존재' : '없음');
       
       if (accessToken) {
-        console.log('URL 파라미터에서 토큰 발견. 세션 설정 중...');
+        console.log('URL 파라미터에서 토큰 발견. 임시 세션 설정 중...');
+        // 임시로 세션을 설정하되, 비밀번호 변경 후 즉시 로그아웃할 예정
         const { error: setSessionError } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken
@@ -121,9 +122,9 @@ onMounted(async () => {
         
         if (setSessionError) {
           console.error('세션 설정 오류:', setSessionError);
-          // 세션 설정 실패해도 계속 진행 (사용자가 수동으로 처리할 수 있도록)
+          throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
         } else {
-          console.log('세션 설정 성공');
+          console.log('임시 세션 설정 성공 (비밀번호 변경 후 로그아웃 예정)');
         }
       } else {
         // 2. 해시 파라미터 확인
@@ -136,7 +137,7 @@ onMounted(async () => {
         console.log('해시 파라미터 - refresh_token:', hashRefreshToken ? '존재' : '없음');
         
         if (hashAccessToken) {
-          console.log('해시 파라미터에서 토큰 발견. 세션 설정 중...');
+          console.log('해시 파라미터에서 토큰 발견. 임시 세션 설정 중...');
           const { error: setSessionError } = await supabase.auth.setSession({
             access_token: hashAccessToken,
             refresh_token: hashRefreshToken
@@ -144,9 +145,9 @@ onMounted(async () => {
           
           if (setSessionError) {
             console.error('세션 설정 오류:', setSessionError);
-            // 세션 설정 실패해도 계속 진행
+            throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
           } else {
-            console.log('세션 설정 성공');
+            console.log('임시 세션 설정 성공 (비밀번호 변경 후 로그아웃 예정)');
           }
         } else {
           // 3. 전체 URL에서 토큰 패턴 찾기
@@ -156,7 +157,7 @@ onMounted(async () => {
           const refreshMatch = url.match(/[?&]refresh_token=([^&]+)/);
           
           if (tokenMatch) {
-            console.log('URL 패턴에서 토큰 발견. 세션 설정 중...');
+            console.log('URL 패턴에서 토큰 발견. 임시 세션 설정 중...');
             const { error: setSessionError } = await supabase.auth.setSession({
               access_token: decodeURIComponent(tokenMatch[1]),
               refresh_token: refreshMatch ? decodeURIComponent(refreshMatch[1]) : null
@@ -164,13 +165,13 @@ onMounted(async () => {
             
             if (setSessionError) {
               console.error('세션 설정 오류:', setSessionError);
-              // 세션 설정 실패해도 계속 진행
+              throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
             } else {
-              console.log('세션 설정 성공');
+              console.log('임시 세션 설정 성공 (비밀번호 변경 후 로그아웃 예정)');
             }
           } else {
-            console.log('토큰을 찾을 수 없음 - 사용자가 수동으로 처리할 수 있도록 계속 진행');
-            // 토큰이 없어도 에러를 던지지 않고 계속 진행
+            console.log('토큰을 찾을 수 없음');
+            throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
           }
         }
       }
@@ -208,10 +209,18 @@ async function handleResetPassword() {
       throw new Error(updateError.message);
     }
     
-    alert('비밀번호가 성공적으로 변경되었습니다.');
+    console.log('비밀번호 변경 성공. 즉시 로그아웃 처리 중...');
     
-    // 로그아웃 후 로그인 페이지로 이동
+    // 비밀번호 변경 성공 후 즉시 로그아웃 (자동 로그인 방지)
     await supabase.auth.signOut();
+    console.log('로그아웃 완료');
+    
+    // 글로벌 플래그 제거
+    window.isPasswordResetPage = false;
+    
+    alert('비밀번호가 성공적으로 변경되었습니다.\n새 비밀번호로 로그인해주세요.');
+    
+    // 로그인 페이지로 이동
     router.push('/login');
     
   } catch (err) {
