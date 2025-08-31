@@ -183,6 +183,20 @@ onMounted(async () => {
         refreshToken: refreshToken
       };
       console.log('토큰 저장 완료 (세션 설정하지 않음)');
+      
+      // URL에서 토큰 파라미터 즉시 제거 (Supabase가 감지하지 못하도록)
+      const cleanUrl = window.location.href
+        .replace(/[?&]access_token=[^&]*/g, '')
+        .replace(/[?&]refresh_token=[^&]*/g, '')
+        .replace(/[?&]type=[^&]*/g, '')
+        .replace(/[?&]error=[^&]*/g, '')
+        .replace(/[?&]error_description=[^&]*/g, '')
+        .replace(/\?$/, ''); // 빈 쿼리스트링 제거
+      
+      if (cleanUrl !== window.location.href) {
+        window.history.replaceState({}, document.title, cleanUrl);
+        console.log('URL에서 토큰 파라미터 즉시 제거 완료');
+      }
     } else {
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
     }

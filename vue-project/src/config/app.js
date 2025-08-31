@@ -2,13 +2,15 @@ import supabaseConfig from './supabase.js';
 
 // 앱 설정 파일
 const config = {
-  // Supabase URL에서 도메인 추출
+  // 실제 배포된 웹사이트 URL 사용
   get APP_URL() {
-    try {
-      const url = new URL(supabaseConfig.url);
-      return `${url.protocol}//${url.hostname}`;
-    } catch (error) {
-      // 기본값으로 배포 URL 사용
+    // 개발 환경인지 확인
+    const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (isDevelopment && isLocalhost) {
+      return 'http://localhost:5173';
+    } else {
       return 'https://web-sinil.vercel.app';
     }
   },
