@@ -88,16 +88,9 @@ const confirmPassword = ref('');
 const showPassword = ref(false);
 const showPassword2 = ref(false);
 
-// 토큰을 저장할 변수 추가
-const resetTokens = ref({
-  accessToken: null,
-  refreshToken: null
-});
-
 const canSubmit = computed(() => {
   return password.value.length >= 6 && 
-         password.value === confirmPassword.value &&
-         resetTokens.value.accessToken; // 토큰이 있어야만 제출 가능
+         password.value === confirmPassword.value;
 });
 
 // 즉시 실행되는 초기화 코드 (페이지 로드 시점에 즉시 실행)
@@ -153,38 +146,6 @@ if (typeof window !== 'undefined') {
 
 console.log('즉시 세션 차단 완료');
 
-// URL에서 토큰 즉시 추출 및 제거 (Supabase가 감지하기 전에)
-const url = window.location.href;
-const tokenMatch = url.match(/[?&]access_token=([^&]+)/);
-const refreshMatch = url.match(/[?&]refresh_token=([^&]+)/);
-
-if (tokenMatch) {
-  const accessToken = decodeURIComponent(tokenMatch[1]);
-  const refreshToken = refreshMatch ? decodeURIComponent(refreshMatch[1]) : null;
-  
-  console.log('토큰 즉시 추출 완료 - access_token:', accessToken ? '존재' : '없음');
-  
-  // 토큰을 전역 변수에 저장
-  window.resetTokens = {
-    accessToken: accessToken,
-    refreshToken: refreshToken
-  };
-  
-  // URL에서 토큰 파라미터 즉시 제거
-  const cleanUrl = url
-    .replace(/[?&]access_token=[^&]*/g, '')
-    .replace(/[?&]refresh_token=[^&]*/g, '')
-    .replace(/[?&]type=[^&]*/g, '')
-    .replace(/[?&]error=[^&]*/g, '')
-    .replace(/[?&]error_description=[^&]*/g, '')
-    .replace(/\?$/, '');
-  
-  if (cleanUrl !== url) {
-    window.history.replaceState({}, document.title, cleanUrl);
-    console.log('URL에서 토큰 파라미터 즉시 제거 완료');
-  }
-}
-
 console.log('=== 즉시 초기화 완료 ===');
 
 onMounted(async () => {
@@ -229,15 +190,40 @@ onMounted(async () => {
     
     console.log('세션 제거 완료');
     
-    // 전역 변수에서 토큰 가져오기
-    if (window.resetTokens && window.resetTokens.accessToken) {
-      resetTokens.value = {
-        accessToken: window.resetTokens.accessToken,
-        refreshToken: window.resetTokens.refreshToken
-      };
-      console.log('전역 변수에서 토큰 가져오기 완료');
-    } else {
+    // Supabase가 자동으로 설정한 세션 확인
+    console.log('Supabase 자동 세션 확인 중...');
+    const { data: { session: autoSession }, error: sessionError } = await resetSupabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('세션 확인 오류:', sessionError);
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
+    }
+    
+    if (!autoSession || !autoSession.user) {
+      console.log('자동 세션이 없음. URL에서 토큰 확인 중...');
+      
+      // URL에서 토큰 확인 (Supabase가 자동으로 처리하지 않은 경우)
+      const urlParams = new URLSearchParams(window.location.search);
+      const accessToken = urlParams.get('access_token');
+      const refreshToken = urlParams.get('refresh_token');
+      
+      if (accessToken) {
+        console.log('URL에서 토큰 발견. 세션 설정 중...');
+        const { data: { user }, error: setSessionError } = await resetSupabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+        
+        if (setSessionError || !user) {
+          throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
+        }
+        
+        console.log('토큰으로 세션 설정 성공:', user.email);
+      } else {
+        throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
+      }
+    } else {
+      console.log('자동 세션 발견:', autoSession.user.email);
     }
     
     loading.value = false;
@@ -256,18 +242,14 @@ async function handleResetPassword() {
   try {
     console.log('비밀번호 변경 시작...');
     
-    // 저장된 토큰으로 임시 세션 설정
-    console.log('저장된 토큰으로 임시 세션 설정 중...');
-    const { data: { user }, error: setSessionError } = await resetSupabase.auth.setSession({
-      access_token: resetTokens.value.accessToken,
-      refresh_token: resetTokens.value.refreshToken
-    });
+    // 현재 세션의 사용자 정보 확인
+    const { data: { user }, error: userError } = await resetSupabase.auth.getUser();
     
-    if (setSessionError || !user) {
+    if (userError || !user) {
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
     }
     
-    console.log('임시 세션 설정 성공. 비밀번호 변경 대상 사용자:', user.email);
+    console.log('비밀번호 변경 대상 사용자:', user.email);
     
     // 해당 사용자의 비밀번호 변경
     const { error: updateError } = await resetSupabase.auth.updateUser({
@@ -283,9 +265,6 @@ async function handleResetPassword() {
     // 비밀번호 변경 성공 후 즉시 로그아웃 (자동 로그인 방지)
     await resetSupabase.auth.signOut();
     console.log('로그아웃 완료');
-    
-    // 토큰 초기화
-    resetTokens.value = { accessToken: null, refreshToken: null };
     
     // 글로벌 플래그 제거
     window.isPasswordResetPage = false;
