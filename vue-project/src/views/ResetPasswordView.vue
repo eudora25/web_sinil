@@ -100,14 +100,52 @@ const canSubmit = computed(() => {
          resetTokens.value.accessToken; // 토큰이 있어야만 제출 가능
 });
 
+// 즉시 실행되는 초기화 코드 (페이지 로드 시점에 즉시 실행)
+console.log('=== 비밀번호 재설정 페이지 즉시 초기화 시작 ===');
+console.log('현재 URL:', window.location.href);
+
+// 라우터 가드 우회를 위한 글로벌 플래그 설정 (즉시)
+window.isPasswordResetPage = true;
+console.log('비밀번호 재설정 페이지 플래그 즉시 설정 완료');
+
+// URL에서 토큰 즉시 추출 및 제거 (Supabase가 감지하기 전에)
+const url = window.location.href;
+const tokenMatch = url.match(/[?&]access_token=([^&]+)/);
+const refreshMatch = url.match(/[?&]refresh_token=([^&]+)/);
+
+if (tokenMatch) {
+  const accessToken = decodeURIComponent(tokenMatch[1]);
+  const refreshToken = refreshMatch ? decodeURIComponent(refreshMatch[1]) : null;
+  
+  console.log('토큰 즉시 추출 완료 - access_token:', accessToken ? '존재' : '없음');
+  
+  // 토큰을 전역 변수에 저장
+  window.resetTokens = {
+    accessToken: accessToken,
+    refreshToken: refreshToken
+  };
+  
+  // URL에서 토큰 파라미터 즉시 제거
+  const cleanUrl = url
+    .replace(/[?&]access_token=[^&]*/g, '')
+    .replace(/[?&]refresh_token=[^&]*/g, '')
+    .replace(/[?&]type=[^&]*/g, '')
+    .replace(/[?&]error=[^&]*/g, '')
+    .replace(/[?&]error_description=[^&]*/g, '')
+    .replace(/\?$/, '');
+  
+  if (cleanUrl !== url) {
+    window.history.replaceState({}, document.title, cleanUrl);
+    console.log('URL에서 토큰 파라미터 즉시 제거 완료');
+  }
+}
+
+console.log('=== 즉시 초기화 완료 ===');
+
 onMounted(async () => {
   try {
     console.log('비밀번호 재설정 페이지 초기화 시작');
     console.log('현재 URL:', window.location.href);
-    
-    // 라우터 가드 우회를 위한 글로벌 플래그 설정 (페이지 로드 즉시)
-    window.isPasswordResetPage = true;
-    console.log('비밀번호 재설정 페이지 플래그 설정 완료');
     
     // 즉시 세션 차단: 기본 Supabase 클라이언트도 로그아웃
     console.log('기본 Supabase 클라이언트 세션도 제거 중...');
@@ -146,57 +184,13 @@ onMounted(async () => {
     
     console.log('세션 제거 완료');
     
-    // 토큰 추출 (세션 설정하지 않음)
-    console.log('URL에서 토큰 추출 중...');
-    
-    // 1. URL 파라미터 확인
-    const urlParams = new URLSearchParams(window.location.search);
-    let accessToken = urlParams.get('access_token');
-    let refreshToken = urlParams.get('refresh_token');
-    
-    // 2. 해시 파라미터 확인
-    if (!accessToken) {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      accessToken = hashParams.get('access_token');
-      refreshToken = hashParams.get('refresh_token');
-    }
-    
-    // 3. 전체 URL에서 토큰 패턴 찾기
-    if (!accessToken) {
-      const url = window.location.href;
-      const tokenMatch = url.match(/[?&]access_token=([^&]+)/);
-      const refreshMatch = url.match(/[?&]refresh_token=([^&]+)/);
-      
-      if (tokenMatch) {
-        accessToken = decodeURIComponent(tokenMatch[1]);
-        refreshToken = refreshMatch ? decodeURIComponent(refreshMatch[1]) : null;
-      }
-    }
-    
-    console.log('토큰 추출 결과 - access_token:', accessToken ? '존재' : '없음');
-    console.log('토큰 추출 결과 - refresh_token:', refreshToken ? '존재' : '없음');
-    
-    if (accessToken) {
-      // 토큰을 저장하되 세션은 설정하지 않음
+    // 전역 변수에서 토큰 가져오기
+    if (window.resetTokens && window.resetTokens.accessToken) {
       resetTokens.value = {
-        accessToken: accessToken,
-        refreshToken: refreshToken
+        accessToken: window.resetTokens.accessToken,
+        refreshToken: window.resetTokens.refreshToken
       };
-      console.log('토큰 저장 완료 (세션 설정하지 않음)');
-      
-      // URL에서 토큰 파라미터 즉시 제거 (Supabase가 감지하지 못하도록)
-      const cleanUrl = window.location.href
-        .replace(/[?&]access_token=[^&]*/g, '')
-        .replace(/[?&]refresh_token=[^&]*/g, '')
-        .replace(/[?&]type=[^&]*/g, '')
-        .replace(/[?&]error=[^&]*/g, '')
-        .replace(/[?&]error_description=[^&]*/g, '')
-        .replace(/\?$/, ''); // 빈 쿼리스트링 제거
-      
-      if (cleanUrl !== window.location.href) {
-        window.history.replaceState({}, document.title, cleanUrl);
-        console.log('URL에서 토큰 파라미터 즉시 제거 완료');
-      }
+      console.log('전역 변수에서 토큰 가져오기 완료');
     } else {
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
     }
