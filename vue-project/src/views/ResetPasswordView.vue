@@ -108,6 +108,41 @@ console.log('현재 URL:', window.location.href);
 window.isPasswordResetPage = true;
 console.log('비밀번호 재설정 페이지 플래그 즉시 설정 완료');
 
+// 즉시 세션 차단: 모든 Supabase 관련 세션 제거
+console.log('즉시 세션 차단 시작...');
+
+// 1. 로컬 스토리지에서 모든 Supabase 관련 데이터 제거
+if (typeof window !== 'undefined') {
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.includes('supabase') || key.includes('auth'))) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach(key => {
+    localStorage.removeItem(key);
+    console.log('로컬 스토리지에서 제거:', key);
+  });
+}
+
+// 2. 세션 스토리지에서도 제거
+if (typeof window !== 'undefined') {
+  const sessionKeysToRemove = [];
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key && (key.includes('supabase') || key.includes('auth'))) {
+      sessionKeysToRemove.push(key);
+    }
+  }
+  sessionKeysToRemove.forEach(key => {
+    sessionStorage.removeItem(key);
+    console.log('세션 스토리지에서 제거:', key);
+  });
+}
+
+console.log('즉시 세션 차단 완료');
+
 // URL에서 토큰 즉시 추출 및 제거 (Supabase가 감지하기 전에)
 const url = window.location.href;
 const tokenMatch = url.match(/[?&]access_token=([^&]+)/);
