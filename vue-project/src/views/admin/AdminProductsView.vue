@@ -1404,7 +1404,7 @@ const deleteProduct = async (row) => {
     }
 
     if (isReferenceExist != 0) {
-      alert(`이 제품(${row.product_name})은 이미 사용되고 삭제할 수 없습니다.`);
+      alert(`이 제품(${row.product_name})은 이미 사용되고 있어 삭제할 수 없습니다.`);
       return;
     }
 
