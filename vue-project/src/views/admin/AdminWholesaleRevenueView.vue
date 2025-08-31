@@ -56,7 +56,7 @@
           <button class="btn-excell-template" @click="downloadTemplate" style="margin-right: 1rem;">엑셀 템플릿</button>
                     <button class="btn-excell-upload" @click="triggerFileUpload" style="margin-right: 1rem;">엑셀 등록</button>
           <button class="btn-excell-download" @click="downloadExcel" style="margin-right: 1rem;">엑셀 다운로드</button>
-          <button class="btn-delete" @click="deleteAllRevenues" style="margin-right: 1rem;">모두 삭제</button>
+<!--          <button class="btn-delete" @click="deleteAllRevenues" style="margin-right: 1rem;">모두 삭제</button>-->
           <button class="btn-save" @click="goCreate">개별 등록</button>
           <input
             ref="fileInput"
@@ -334,7 +334,7 @@ const fetchRevenues = async () => {
       toDate.setDate(0) // 해당 월의 마지막 날
       const lastDay = toDate.getDate().toString().padStart(2, '0')
       const toDateStr = toMonth.value + '-' + lastDay
-      
+
       query = query.gte('sales_date', fromDate)
         .lte('sales_date', toDateStr)
     } else if (fromMonth.value) {
@@ -347,7 +347,7 @@ const fetchRevenues = async () => {
       toDate.setDate(0) // 해당 월의 마지막 날
       const lastDay = toDate.getDate().toString().padStart(2, '0')
       const toDateStr = toMonth.value + '-' + lastDay
-      
+
       query = query.lte('sales_date', toDateStr)
     }
 
@@ -408,7 +408,7 @@ const fetchSummary = async () => {
       toDate.setDate(0) // 해당 월의 마지막 날
       const lastDay = toDate.getDate().toString().padStart(2, '0')
       const toDateStr = toMonth.value + '-' + lastDay
-      
+
       countQuery = countQuery.gte('sales_date', fromDate)
         .lte('sales_date', toDateStr)
     } else if (fromMonth.value) {
@@ -421,7 +421,7 @@ const fetchSummary = async () => {
       toDate.setDate(0) // 해당 월의 마지막 날
       const lastDay = toDate.getDate().toString().padStart(2, '0')
       const toDateStr = toMonth.value + '-' + lastDay
-      
+
       countQuery = countQuery.lte('sales_date', toDateStr)
     }
 
@@ -456,14 +456,14 @@ const fetchAvailableMonths = () => {
   // 현재 월에서 1년 전까지의 연월 생성
   const months = []
   const currentDate = new Date()
-  
+
   for (let i = 0; i < 12; i++) {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1)
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
     months.push(`${year}-${month}`)
   }
-  
+
   availableMonths.value = months
 }
 
@@ -730,22 +730,22 @@ const downloadTemplate = async () => {
   // 데이터 추가
   templateData.forEach((row) => {
     const dataRow = worksheet.addRow(Object.values(row))
-    
+
     // 데이터 행 스타일 설정
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
-      
+
       // 가운데 정렬할 컬럼 지정 (약국코드, 표준코드, 매출일자)
       if ([1, 3, 5, 8].includes(colNumber)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
-      
+
       // 사업자등록번호 컬럼은 텍스트 형식으로 설정
       if (colNumber === 3) {
         cell.numFmt = '@'
       }
-      
+
       // 매출액 컬럼은 숫자 형식으로 설정
       if (colNumber === 7) {
         cell.numFmt = '#,##0'
@@ -764,7 +764,7 @@ const downloadTemplate = async () => {
       }
     })
   })
-  
+
   // 컬럼 너비 설정
   worksheet.columns = [
     { width: 12 }, // 약국코드
@@ -779,9 +779,9 @@ const downloadTemplate = async () => {
 
   // 헤더행 고정 및 눈금선 숨기기
   worksheet.views = [
-    { 
-      state: 'frozen', 
-      xSplit: 0, 
+    {
+      state: 'frozen',
+      xSplit: 0,
       ySplit: 1,
       showGridLines: false
     }
@@ -851,10 +851,10 @@ const handleFileUpload = async (event) => {
         errors.push(`${rowNum}행: 사업자등록번호는 10자리 숫자여야 합니다.`)
         return
       }
-      
+
       // 사업자등록번호 형식 변환: ###-##-#####
-      const formattedBusinessNumber = businessNumber.substring(0, 3) + '-' + 
-                                     businessNumber.substring(3, 5) + '-' + 
+      const formattedBusinessNumber = businessNumber.substring(0, 3) + '-' +
+                                     businessNumber.substring(3, 5) + '-' +
                                      businessNumber.substring(5);
 
       // 표준코드 형식 검증 (13자리 숫자)
@@ -939,13 +939,13 @@ const handleFileUpload = async (event) => {
 const downloadExcel = async () => {
   try {
     loading.value = true
-    
+
     // 전체 데이터를 페이지별로 조회하여 합치기
     let allData = []
     let page = 0
     const pageSize = 1000
     let hasMore = true
-    
+
     while (hasMore) {
       // 페이지별 데이터 조회
       let query = supabase
@@ -968,7 +968,7 @@ const downloadExcel = async () => {
         toDate.setDate(0) // 해당 월의 마지막 날
         const lastDay = toDate.getDate().toString().padStart(2, '0')
         const toDateStr = toMonth.value + '-' + lastDay
-        
+
         query = query.gte('sales_date', fromDate)
           .lte('sales_date', toDateStr)
       } else if (fromMonth.value) {
@@ -981,7 +981,7 @@ const downloadExcel = async () => {
         toDate.setDate(0) // 해당 월의 마지막 날
         const lastDay = toDate.getDate().toString().padStart(2, '0')
         const toDateStr = toMonth.value + '-' + lastDay
-        
+
         query = query.lte('sales_date', toDateStr)
       }
 
@@ -1002,7 +1002,7 @@ const downloadExcel = async () => {
 
       allData = allData.concat(data)
       page++
-      
+
       // 1000개 미만이면 더 이상 데이터가 없음
       if (data.length < pageSize) {
         hasMore = false
@@ -1048,22 +1048,22 @@ const downloadExcel = async () => {
     // 데이터 추가
     excelData.forEach((row) => {
       const dataRow = worksheet.addRow(Object.values(row))
-      
+
       // 데이터 행 스타일 설정
       dataRow.eachCell((cell, colNumber) => {
         cell.font = { size: 11 }
         cell.alignment = { vertical: 'middle' }
-        
+
         // 가운데 정렬할 컬럼 지정 (No, 약국코드, 표준코드, 매출일자, 등록일시, 수정일시)
         if ([1, 2, 4, 6, 9, 10, 11].includes(colNumber)) {
           cell.alignment = { horizontal: 'center', vertical: 'middle' }
         }
-        
+
         // 사업자등록번호 컬럼은 텍스트 형식으로 설정
         if (colNumber === 4) {
           cell.numFmt = '@'
         }
-        
+
         // 매출액 컬럼은 숫자 형식으로 설정
         if (colNumber === 8) {
           cell.numFmt = '#,##0'
@@ -1100,9 +1100,9 @@ const downloadExcel = async () => {
 
     // 헤더행 고정 및 눈금선 숨기기
     worksheet.views = [
-      { 
-        state: 'frozen', 
-        xSplit: 0, 
+      {
+        state: 'frozen',
+        xSplit: 0,
         ySplit: 1,
         showGridLines: false
       }
@@ -1127,19 +1127,19 @@ const downloadExcel = async () => {
 
 
 
-async function deleteAllRevenues() {
-  if (!confirm('정말 모든 도매매출 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'))
-    return
-  const { error } = await supabase.from('wholesale_sales').delete().neq('id', 0)
-  if (error) {
-    alert('삭제 중 오류가 발생했습니다: ' + error.message)
-    return
-  }
-  revenues.value = []
-  totalCount.value = 0
-  totalSalesAmount.value = 0
-  alert('모든 도매매출 데이터가 삭제되었습니다.')
-}
+// async function deleteAllRevenues() {
+//   if (!confirm('정말 모든 도매매출 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'))
+//     return
+//   const { error } = await supabase.from('wholesale_sales').delete().neq('id', 0)
+//   if (error) {
+//     alert('삭제 중 오류가 발생했습니다: ' + error.message)
+//     return
+//   }
+//   revenues.value = []
+//   totalCount.value = 0
+//   totalSalesAmount.value = 0
+//   alert('모든 도매매출 데이터가 삭제되었습니다.')
+// }
 
 async function getCurrentUserId() {
   const { data: { user } } = await supabase.auth.getUser();
@@ -1149,35 +1149,35 @@ async function getCurrentUserId() {
 // 오버플로우 감지 및 툴팁 제어 함수들
 const checkOverflow = (event) => {
   const element = event.target;
-  
+
   // 실제 오버플로우 감지
   const rect = element.getBoundingClientRect();
   const computedStyle = window.getComputedStyle(element);
   const fontSize = parseFloat(computedStyle.fontSize);
   const fontFamily = computedStyle.fontFamily;
-  
+
   // 임시 캔버스를 만들어서 텍스트의 실제 너비 측정
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   context.font = `${fontSize}px ${fontFamily}`;
   const textWidth = context.measureText(element.textContent).width;
-  
+
   // 패딩과 보더 고려
   const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
   const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
   const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
   const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
-  
+
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
-  
+
   console.log('도매매출 오버플로우 체크:', {
     text: element.textContent,
     textWidth,
     availableWidth,
     isOverflowed
   });
-  
+
   if (isOverflowed) {
     element.classList.add('overflowed');
     console.log('도매매출 오버플로우 클래스 추가됨');
@@ -1205,11 +1205,11 @@ const allowOnlyNumbers = (event) => {
 const formatBusinessNumber = (event) => {
   const target = event.target;
   let value = target.value.replace(/[^0-9]/g, ''); // 숫자만 추출
-  
+
   if (value.length > 10) {
     value = value.substring(0, 10); // 최대 10자리로 제한
   }
-  
+
   // 형식 변환: ###-##-#####
   if (value.length >= 3) {
     value = value.substring(0, 3) + '-' + value.substring(3);
@@ -1217,12 +1217,12 @@ const formatBusinessNumber = (event) => {
   if (value.length >= 6) {
     value = value.substring(0, 6) + '-' + value.substring(6);
   }
-  
+
   // 최대 12자리(하이픈 포함)로 제한
   if (value.length > 12) {
     value = value.substring(0, 12);
   }
-  
+
   target.value = value;
 };
 
@@ -1231,13 +1231,13 @@ const handleBackspace = (event) => {
   if (event.key === 'Backspace') {
     const cursorPosition = event.target.selectionStart;
     const value = event.target.value;
-    
+
     // 커서 위치에 하이픈이 있으면 한 칸 더 뒤로 이동
     if (value[cursorPosition - 1] === '-') {
       event.preventDefault();
       const newPosition = cursorPosition - 2;
       event.target.value = value.substring(0, newPosition) + value.substring(cursorPosition);
-      
+
       // 커서 위치 조정
       setTimeout(() => {
         event.target.setSelectionRange(newPosition, newPosition);

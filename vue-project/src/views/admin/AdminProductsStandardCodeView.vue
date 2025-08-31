@@ -49,7 +49,7 @@
             style="display: none"
           />
                     <button class="btn-excell-download" @click="downloadExcel" style="margin-right: 1rem;">엑셀 다운로드</button>
-          <button class="btn-delete" @click="deleteAllStandardCodes" style="margin-right: 1rem;">모두 삭제</button>
+<!--          <button class="btn-delete" @click="deleteAllStandardCodes" style="margin-right: 1rem;">모두 삭제</button>-->
           <button class="btn-save" @click="goCreate">개별 등록</button>
         </div>
       </div>
@@ -300,46 +300,46 @@ const fetchStandardCodes = async () => {
       .select('*')
       .order('insurance_code', { ascending: true })
       .limit(1000);
-    
+
     if (standardCodesError) {
       console.error('표준코드 데이터 로딩 오류:', standardCodesError);
       return;
     }
-    
+
     // 2. products 테이블에서 product_name 가져오기
     const { data: productsData, error: productsError } = await supabase
       .from('products')
       .select('insurance_code, product_name')
       .eq('status', 'active');
-    
+
     if (productsError) {
       console.error('제품 데이터 로딩 오류:', productsError);
       return;
     }
-    
+
     // 3. insurance_code로 product_name 매핑
     const productsMap = {};
     productsData?.forEach(product => {
       productsMap[product.insurance_code] = product.product_name;
     });
-    
+
     // 4. companies 테이블에서 업체명 가져오기 (user와 admin 모두 포함)
     const { data: companiesData, error: companiesError } = await supabase
       .from('companies')
       .select('user_id, company_name')
       .eq('approval_status', 'approved');
-    
+
     if (companiesError) {
       console.error('업체 데이터 로딩 오류:', companiesError);
       return;
     }
-    
+
     // 5. user_id로 company_name 매핑
     const companiesMap = {};
     companiesData?.forEach(company => {
       companiesMap[company.user_id] = company.company_name;
     });
-    
+
     // 디버깅: created_by, updated_by 값 확인
     console.log('Companies data:', companiesData);
     console.log('Companies map:', companiesMap);
@@ -348,12 +348,12 @@ const fetchStandardCodes = async () => {
       console.log('Sample standard code updated_by:', standardCodesData[0].updated_by);
       console.log('Sample standard code created_by type:', typeof standardCodesData[0].created_by);
       console.log('Sample standard code updated_by type:', typeof standardCodesData[0].updated_by);
-      
+
       // companiesMap에서 해당 값이 있는지 확인
       console.log('created_by in companiesMap:', companiesMap[standardCodesData[0].created_by]);
       console.log('updated_by in companiesMap:', companiesMap[standardCodesData[0].updated_by]);
     }
-    
+
     // 6. 표준코드 데이터에 product_name과 업체명 추가
     const mappedData = standardCodesData?.map(item => ({
       ...item,
@@ -361,7 +361,7 @@ const fetchStandardCodes = async () => {
       created_by_name: companiesMap[item.created_by] || '',
       updated_by_name: companiesMap[item.updated_by] || ''
     })) || [];
-    
+
     standardCodes.value = mappedData;
   } catch (err) {
     console.error('표준코드 데이터 로딩 오류:', err);
@@ -387,7 +387,7 @@ const downloadTemplate = async () => {
   const headers = [
     '보험코드', '표준코드', '단위포장형태', '단위수량', '비고', '상태'
   ]
-  
+
   // 헤더 추가
   worksheet.addRow(headers)
 
@@ -410,12 +410,12 @@ const downloadTemplate = async () => {
 
   exampleData.forEach((rowData) => {
     const dataRow = worksheet.addRow(rowData)
-    
+
     // 데이터 행 스타일 설정
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
-      
+
       // 가운데 정렬이 필요한 컬럼들 (보험코드, 표준코드, 단위수량, 상태)
       if (colNumber === 1 || colNumber === 2 || colNumber === 3 || colNumber === 4 || colNumber === 6) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
@@ -564,7 +564,7 @@ const handleFileUpload = async (event) => {
     // 중복된 표준코드 확인
     const standardCodeCounts = {}
     const duplicateStandardCodes = []
-    
+
     uploadData.forEach((item, index) => {
       const standardCode = item.standard_code
       if (!standardCodeCounts[standardCode]) {
@@ -572,7 +572,7 @@ const handleFileUpload = async (event) => {
       }
       standardCodeCounts[standardCode].push(index + 2) // 엑셀 행 번호 (헤더 제외)
     })
-    
+
     Object.keys(standardCodeCounts).forEach(standardCode => {
       if (standardCodeCounts[standardCode].length > 1) {
         duplicateStandardCodes.push({
@@ -581,7 +581,7 @@ const handleFileUpload = async (event) => {
         })
       }
     })
-    
+
     if (duplicateStandardCodes.length > 0) {
       let duplicateMessage = '중복된 표준코드가 있습니다:\n\n'
       duplicateStandardCodes.forEach(duplicate => {
@@ -589,7 +589,7 @@ const handleFileUpload = async (event) => {
         duplicateMessage += `중복된 행: ${duplicate.rows.join(', ')}행\n\n`
       })
       duplicateMessage += '중복된 표준코드를 제거한 후 다시 업로드해주세요.'
-      
+
       alert(duplicateMessage)
       return
     }
@@ -676,18 +676,18 @@ const downloadExcel = async () => {
       단위수량: item.unit_quantity || 0,
       비고: item.remarks || '',
       상태: item.status === 'active' ? '활성' : '비활성',
-      등록일시: item.created_at ? new Date(item.created_at).toLocaleString('ko-KR', { 
-        year: 'numeric', 
-        month: '2-digit', 
+      등록일시: item.created_at ? new Date(item.created_at).toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
         hour12: false
       }).replace(/\. /g, '-').replace(/\./g, '').replace(/ /g, ' ') : '',
       등록자: companiesMap[item.created_by] || '',
-      수정일시: item.updated_at ? new Date(item.updated_at).toLocaleString('ko-KR', { 
-        year: 'numeric', 
-        month: '2-digit', 
+      수정일시: item.updated_at ? new Date(item.updated_at).toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
@@ -701,10 +701,10 @@ const downloadExcel = async () => {
 
   // 헤더 정의
   const headers = [
-    'No', '제품명', '보험코드', '표준코드', '단위포장형태', '단위수량', 
+    'No', '제품명', '보험코드', '표준코드', '단위포장형태', '단위수량',
     '비고', '상태', '등록일시', '등록자', '수정일시', '수정자'
   ]
-  
+
   // 헤더 추가
   worksheet.addRow(headers)
 
@@ -728,9 +728,9 @@ const downloadExcel = async () => {
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
-      
+
       // 가운데 정렬이 필요한 컬럼들 (No, 보험코드, 표준코드, 단위수량, 상태, 등록일시, 등록자, 수정일시, 수정자)
-      if (colNumber === 1 || colNumber === 3 || colNumber === 4 || colNumber === 5 || colNumber === 6 || colNumber === 8 || 
+      if (colNumber === 1 || colNumber === 3 || colNumber === 4 || colNumber === 5 || colNumber === 6 || colNumber === 8 ||
           colNumber === 9 || colNumber === 11) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
@@ -775,7 +775,7 @@ const downloadExcel = async () => {
       ySplit: 1
     }
   ]
-  
+
   // 단위수량 컬럼에 천단위 콤마 형식 적용
   for (let row = 2; row <= worksheet.rowCount; row++) {
     const cell = worksheet.getCell(row, 5) // E컬럼 (단위수량)
@@ -809,16 +809,16 @@ const startEdit = (row) => {
 }
 
 const isEditValid = (row) => {
-  const hasRequiredFields = row.insurance_code && row.insurance_code.toString().trim() !== '' && 
+  const hasRequiredFields = row.insurance_code && row.insurance_code.toString().trim() !== '' &&
                            row.standard_code && row.standard_code.toString().trim() !== '';
-  
+
   const hasChanges = row.insurance_code !== row.originalData.insurance_code ||
                     row.standard_code !== row.originalData.standard_code ||
                     row.unit_packaging_desc !== row.originalData.unit_packaging_desc ||
                     row.unit_quantity !== row.originalData.unit_quantity ||
                     row.remarks !== row.originalData.remarks ||
                     row.status !== row.originalData.status;
-  
+
   return hasRequiredFields && hasChanges;
 }
 
@@ -955,43 +955,43 @@ const deleteStandardCode = async (row) => {
 
 
 
-async function deleteAllStandardCodes() {
-  const confirmMessage = `정말 모든 표준코드를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`;
-  if (!confirm(confirmMessage)) return;
-  
-  const { error } = await supabase.from('products_standard_code').delete().neq('id', 0);
-  if (error) {
-    alert('삭제 중 오류가 발생했습니다: ' + error.message);
-    return;
-  }
-  
-  standardCodes.value = [];
-  
-  alert('모든 표준코드가 삭제되었습니다.');
-}
+// async function deleteAllStandardCodes() {
+//   const confirmMessage = `정말 모든 표준코드를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`;
+//   if (!confirm(confirmMessage)) return;
+//
+//   const { error } = await supabase.from('products_standard_code').delete().neq('id', 0);
+//   if (error) {
+//     alert('삭제 중 오류가 발생했습니다: ' + error.message);
+//     return;
+//   }
+//
+//   standardCodes.value = [];
+//
+//   alert('모든 표준코드가 삭제되었습니다.');
+// }
 
 // 제품명 오버플로우 감지 함수
 const checkProductOverflow = (event) => {
   const element = event.target;
-  
+
   const rect = element.getBoundingClientRect();
   const computedStyle = window.getComputedStyle(element);
   const fontSize = parseFloat(computedStyle.fontSize);
   const fontFamily = computedStyle.fontFamily;
-  
+
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   context.font = `${fontSize}px ${fontFamily}`;
   const textWidth = context.measureText(element.textContent).width;
-  
+
   const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
   const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
   const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
   const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
-  
+
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
-  
+
   if (isOverflowed) {
     element.classList.add('overflowed');
   } else {
@@ -1010,4 +1010,4 @@ const removeOverflowClass = (event) => {
   opacity: 0.6;
   cursor: not-allowed;
 }
-</style> 
+</style>

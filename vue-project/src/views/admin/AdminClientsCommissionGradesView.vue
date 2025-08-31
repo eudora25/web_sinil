@@ -38,7 +38,7 @@
           <button class="btn-excell-template" @click="downloadTemplate" style="margin-right: 1rem;">엑셀 템플릿</button>
           <button class="btn-excell-upload" @click="triggerFileUpload" style="margin-right: 1rem;">엑셀 등록</button>
           <button class="btn-excell-download" @click="downloadExcel" style="margin-right: 1rem;">엑셀 다운로드</button>
-          <button class="btn-delete" @click="deleteAllGrades">모두 삭제</button>
+<!--          <button class="btn-delete" @click="deleteAllGrades">모두 삭제</button>-->
           <input
             ref="fileInput"
             type="file"
@@ -83,14 +83,14 @@
           field="client_name"
           header="병의원명"
           :headerStyle="{ width: columnWidths.client_name }"
-          :style="{ fontWeight: '500 !important' }"  
+          :style="{ fontWeight: '500 !important' }"
           :sortable="true"
         >
           <template #body="slotProps">
-            <span 
-              class="ellipsis-cell text-link" 
-              :title="slotProps.data.client_name" 
-              @mouseenter="checkOverflow" 
+            <span
+              class="ellipsis-cell text-link"
+              :title="slotProps.data.client_name"
+              @mouseenter="checkOverflow"
               @mouseleave="removeOverflowClass"
               @click="goToClientDetail(slotProps.data.client_id)"
             >
@@ -134,8 +134,8 @@
           :sortable="true"
         >
           <template #body="slotProps">
-            <span 
-              class="text-link" 
+            <span
+              class="text-link"
               @click="goToCompanyDetail(slotProps.data.company_id)"
               style="cursor: pointer;"
             >
@@ -268,7 +268,7 @@ const fetchAssignments = async () => {
         client:clients(id, client_code, name, business_registration_number, owner_name, address),
         company:companies(id, company_name, business_registration_number, default_commission_grade, company_group)
       `)
-    
+
     if (!error && assignmentsData) {
       assignments.value = assignmentsData.map((assignment) => ({
         id: assignment.id,
@@ -295,14 +295,14 @@ const fetchAssignments = async () => {
 // 수수료 등급 변경 관련 함수들
 async function onGradeChange(assignment, newValue) {
   const oldValue = assignment.modified_commission_grade
-  
+
   if (confirm('해당 병의원의 수수료 등급을 변경하시겠습니까?')) {
     try {
       const { error } = await supabase
         .from('client_company_assignments')
         .update({ modified_commission_grade: newValue })
         .eq('id', assignment.id)
-      
+
       if (error) {
         console.error('수수료 등급 변경 오류:', error)
         alert('수수료 등급 변경 중 오류가 발생했습니다.')
@@ -349,12 +349,12 @@ const downloadTemplate = async () => {
   // 데이터 추가
   templateData.forEach((row) => {
     const dataRow = worksheet.addRow(Object.values(row))
-    
+
     // 데이터 행 스타일 설정
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { horizontal: 'center', vertical: 'middle' }
-      
+
       // 사업자등록번호 컬럼은 텍스트 형식으로 설정
       if (colNumber === 1 || colNumber === 2) {
         cell.numFmt = '@'
@@ -383,9 +383,9 @@ const downloadTemplate = async () => {
 
   // 헤더행 고정 및 눈금선 숨기기
   worksheet.views = [
-    { 
-      state: 'frozen', 
-      xSplit: 0, 
+    {
+      state: 'frozen',
+      xSplit: 0,
       ySplit: 1,
       showGridLines: false
     }
@@ -500,7 +500,7 @@ const handleFileUpload = async (event) => {
           .from('client_company_assignments')
           .update({ modified_commission_grade: gradeUpdate.modified_commission_grade })
           .eq('id', gradeUpdate.id)
-        
+
         if (error) {
           errorCount++
           console.error('수수료 등급 업데이트 오류:', error)
@@ -514,7 +514,7 @@ const handleFileUpload = async (event) => {
       } else {
         alert(`${successCount}건의 수수료 등급이 업데이트되었습니다.`)
       }
-      
+
       await fetchAssignments() // 목록 새로고침
     }
   } catch (error) {
@@ -534,7 +534,7 @@ const downloadExcel = async () => {
     alert('다운로드할 데이터가 없습니다.')
     return
   }
-  
+
   const excelData = filteredClients.value.map((assignment) => ({
     병의원코드: assignment.client_code,
     병의원명: assignment.client_name,
@@ -567,17 +567,17 @@ const downloadExcel = async () => {
   // 데이터 추가
   excelData.forEach((row) => {
     const dataRow = worksheet.addRow(Object.values(row))
-    
+
     // 데이터 행 스타일 설정
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
-      
+
       // 가운데 정렬할 컬럼 지정 (병의원코드, 원장명, 구분, 기본 수수료 등급, 변경 수수료 등급)
       if ([1, 3, 4, 8, 9, 10].includes(colNumber)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
-      
+
       // 사업자등록번호 컬럼은 텍스트 형식으로 설정
       if (colNumber === 3 || colNumber === 8) {
         cell.numFmt = '@'
@@ -613,9 +613,9 @@ const downloadExcel = async () => {
 
   // 헤더행 고정 및 눈금선 숨기기
   worksheet.views = [
-    { 
-      state: 'frozen', 
-      xSplit: 0, 
+    {
+      state: 'frozen',
+      xSplit: 0,
       ySplit: 1,
       showGridLines: false
     }
@@ -632,60 +632,60 @@ const downloadExcel = async () => {
   window.URL.revokeObjectURL(url)
 }
 
-async function deleteAllGrades() {
-  if (!confirm('정말 모든 변경 수수료 등급을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'))
-    return
-  
-  const { error } = await supabase
-    .from('client_company_assignments')
-    .update({ modified_commission_grade: null })
-    .neq('id', 0)
-  
-  if (error) {
-    alert('삭제 중 오류가 발생했습니다: ' + error.message)
-    return
-  }
-  
-  // 로컬 데이터도 업데이트
-  assignments.value.forEach((assignment) => {
-    assignment.modified_commission_grade = null
-  })
-  
-  alert('모든 변경 수수료 등급이 삭제되었습니다.')
-}
+// async function deleteAllGrades() {
+//   if (!confirm('정말 모든 변경 수수료 등급을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'))
+//     return
+//
+//   const { error } = await supabase
+//     .from('client_company_assignments')
+//     .update({ modified_commission_grade: null })
+//     .neq('id', 0)
+//
+//   if (error) {
+//     alert('삭제 중 오류가 발생했습니다: ' + error.message)
+//     return
+//   }
+//
+//   // 로컬 데이터도 업데이트
+//   assignments.value.forEach((assignment) => {
+//     assignment.modified_commission_grade = null
+//   })
+//
+//   alert('모든 변경 수수료 등급이 삭제되었습니다.')
+// }
 
 // 오버플로우 감지 및 툴팁 제어 함수들
 const checkOverflow = (event) => {
   const element = event.target;
-  
+
   // 실제 오버플로우 감지
   const rect = element.getBoundingClientRect();
   const computedStyle = window.getComputedStyle(element);
   const fontSize = parseFloat(computedStyle.fontSize);
   const fontFamily = computedStyle.fontFamily;
-  
+
   // 임시 캔버스를 만들어서 텍스트의 실제 너비 측정
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   context.font = `${fontSize}px ${fontFamily}`;
   const textWidth = context.measureText(element.textContent).width;
-  
+
   // 패딩과 보더 고려
   const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
   const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
   const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
   const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
-  
+
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
-  
+
   console.log('병의원 수수료등급 오버플로우 체크:', {
     text: element.textContent,
     textWidth,
     availableWidth,
     isOverflowed
   });
-  
+
   if (isOverflowed) {
     element.classList.add('overflowed');
     console.log('병의원 수수료등급 오버플로우 클래스 추가됨');

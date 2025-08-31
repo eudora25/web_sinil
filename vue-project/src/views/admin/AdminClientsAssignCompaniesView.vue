@@ -38,7 +38,7 @@
           <button class="btn-excell-template" @click="downloadTemplate" style="margin-right: 1rem;">엑셀 템플릿</button>
           <button class="btn-excell-upload" @click="triggerFileUpload" style="margin-right: 1rem;">엑셀 등록</button>
           <button class="btn-excell-download" @click="downloadExcel" style="margin-right: 1rem;">엑셀 다운로드</button>
-          <button class="btn-delete" @click="deleteAllAssignments">모두 삭제</button>
+<!--          <button class="btn-delete" @click="deleteAllAssignments">모두 삭제</button>-->
           <input
             ref="fileInput"
             type="file"
@@ -413,6 +413,10 @@ async function assignCompanies() {
   await fetchClients()
 }
 async function deleteAssignment(client, company = null) {
+  if (!confirm('정말 삭제하시겠습니까?')) {
+    return
+  }
+
   let query = supabase.from('client_company_assignments').delete().eq('client_id', client.id)
   if (company) query = query.eq('company_id', company.id)
   await query
@@ -743,13 +747,13 @@ function goToCompanyDetail(companyId) {
 // 사업자번호 형식 변환 함수
 function formatBusinessNumber(businessNumber) {
   if (!businessNumber) return '-';
-  
+
   // 숫자만 추출
   const numbers = businessNumber.replace(/[^0-9]/g, '');
-  
+
   // 10자리가 아니면 원본 반환
   if (numbers.length !== 10) return businessNumber;
-  
+
   // 형식 변환: ###-##-#####
   return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
 }

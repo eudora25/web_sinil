@@ -40,7 +40,7 @@
           <button class="btn-excell-template" @click="downloadTemplate" style="margin-right: 1rem;">엑셀 템플릿</button>
           <button class="btn-excell-upload" @click="triggerFileUpload" style="margin-right: 1rem;">엑셀 등록</button>
           <button class="btn-excell-download" @click="downloadExcel" style="margin-right: 1rem;">엑셀 다운로드</button>
-          <button class="btn-delete" @click="deleteAllPharmacies" style="margin-right: 1rem;">모두 삭제</button>
+<!--          <button class="btn-delete" @click="deleteAllPharmacies" style="margin-right: 1rem;">모두 삭제</button>-->
           <input
             ref="fileInput"
             type="file"
@@ -356,9 +356,9 @@ const startEdit = (row) => {
 // 변경값 감지 및 필수값 검증
 const isEditValid = (row) => {
   // 필수값 검증
-  const hasRequiredFields = row.name && row.name.trim() !== '' && 
+  const hasRequiredFields = row.name && row.name.trim() !== '' &&
                            row.business_registration_number && row.business_registration_number.trim() !== '';
-  
+
   // 변경값 감지
   const hasChanges = row.pharmacy_code !== row.originalData.pharmacy_code ||
                     row.name !== row.originalData.name ||
@@ -366,7 +366,7 @@ const isEditValid = (row) => {
                     row.address !== row.originalData.address ||
                     row.status !== row.originalData.status ||
                     row.remarks !== row.originalData.remarks;
-  
+
   return hasRequiredFields && hasChanges;
 }
 
@@ -466,11 +466,25 @@ const deletePharmacy = async (row) => {
   }
 
   try {
+    // RPC를 호출하여 참조 여부 확인
+    const { data: isReferenceExist, error: rpcError } = await supabase.rpc(
+      'check_pharmacy_references_exist',
+      { p_pharmacy_id: row.id }
+    )
+
+    if (rpcError) {
+      throw new Error(rpcError.message);
+    }
+
+    if (isReferenceExist != 0) {
+      alert(`이 약국(${row.name})은 이미 사용되고 삭제할 수 없습니다.`);
+      return;
+    }
+
     const { error } = await supabase.from('pharmacies').delete().eq('id', row.id)
 
     if (error) {
-      alert('삭제 실패: ' + error.message)
-      return
+      throw new Error(error.message);
     }
 
     // 목록에서 제거
@@ -518,17 +532,17 @@ const downloadTemplate = async () => {
   // 데이터 추가
   templateData.forEach((row) => {
     const dataRow = worksheet.addRow(Object.values(row))
-    
+
     // 데이터 행 스타일 설정
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
-      
+
       // 가운데 정렬할 컬럼 지정 (약국코드, 상태)
       if ([1, 3, 6].includes(colNumber)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
-      
+
       // 사업자등록번호 컬럼은 텍스트 형식으로 설정
       if (colNumber === 3) {
         cell.numFmt = '@'
@@ -560,9 +574,9 @@ const downloadTemplate = async () => {
 
   // 헤더행 고정 및 눈금선 숨기기
   worksheet.views = [
-    { 
-      state: 'frozen', 
-      xSplit: 0, 
+    {
+      state: 'frozen',
+      xSplit: 0,
       ySplit: 1,
       showGridLines: false
     }
@@ -615,7 +629,7 @@ const handleFileUpload = async (event) => {
 
       // 2단계: 추가 등록 확인
       const choice = await showUploadChoiceModal()
-      
+
       if (choice !== 'append') {
         // cancel이거나 잘못된 입력
         event.target.value = ''
@@ -646,10 +660,10 @@ const handleFileUpload = async (event) => {
         errors.push(`${rowNum}행: 사업자등록번호는 10자리 숫자여야 합니다.`)
         return
       }
-      
+
       // 사업자등록번호 형식 변환: ###-##-#####
-      const formattedBusinessNumber = businessNumber.substring(0, 3) + '-' + 
-                                     businessNumber.substring(3, 5) + '-' + 
+      const formattedBusinessNumber = businessNumber.substring(0, 3) + '-' +
+                                     businessNumber.substring(3, 5) + '-' +
                                      businessNumber.substring(5);
 
       // 상태 값 검증 및 변환
@@ -687,14 +701,14 @@ const handleFileUpload = async (event) => {
     if (hasExistingData) {
       const duplicateErrors = []
       const duplicatePharmacies = []
-      
+
       for (const newPharmacy of uploadData) {
         if (newPharmacy.business_registration_number) {
           // 기존 데이터에서 동일한 사업자등록번호 중복 확인
-          const existingPharmacy = pharmacies.value.find(p => 
+          const existingPharmacy = pharmacies.value.find(p =>
             p.business_registration_number === newPharmacy.business_registration_number
           )
-          
+
           if (existingPharmacy) {
             duplicateErrors.push(`${newPharmacy.rowNum}행: 이미 동일한 사업자등록번호의 약국이 등록되어 있습니다.`)
             duplicatePharmacies.push(newPharmacy)
@@ -710,7 +724,7 @@ const handleFileUpload = async (event) => {
 
         // 5단계: 중복 해결 방법 선택 (버튼 모달)
         const duplicateChoice = await showDuplicateChoiceModal()
-        
+
         if (duplicateChoice === 'replace') {
           // 교체 모드: 중복되는 기존 약국들 삭제
           for (const duplicatePharmacy of duplicatePharmacies) {
@@ -718,7 +732,7 @@ const handleFileUpload = async (event) => {
               .from('pharmacies')
               .delete()
               .eq('business_registration_number', duplicatePharmacy.business_registration_number)
-            
+
             if (deleteError) {
               alert('기존 약국 삭제 실패: ' + deleteError.message)
               return
@@ -726,7 +740,7 @@ const handleFileUpload = async (event) => {
           }
           // 로컬 데이터에서도 삭제
           for (const duplicatePharmacy of duplicatePharmacies) {
-            const index = pharmacies.value.findIndex(p => 
+            const index = pharmacies.value.findIndex(p =>
               p.business_registration_number === duplicatePharmacy.business_registration_number
             )
             if (index > -1) {
@@ -834,17 +848,17 @@ const downloadExcel = async () => {
   // 데이터 추가
   excelData.forEach((row) => {
     const dataRow = worksheet.addRow(Object.values(row))
-    
+
     // 데이터 행 스타일 설정
     dataRow.eachCell((cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
-      
+
       // 가운데 정렬할 컬럼 지정 (No, 약국코드, 상태, 등록일시, 수정일시)
       if ([1, 2, 4, 7, 8, 9].includes(colNumber)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
-      
+
       // 사업자등록번호 컬럼은 텍스트 형식으로 설정
       if (colNumber === 4) {
         cell.numFmt = '@'
@@ -879,9 +893,9 @@ const downloadExcel = async () => {
 
   // 헤더행 고정 및 눈금선 숨기기
   worksheet.views = [
-    { 
-      state: 'frozen', 
-      xSplit: 0, 
+    {
+      state: 'frozen',
+      xSplit: 0,
       ySplit: 1,
       showGridLines: false
     }
@@ -902,49 +916,49 @@ const downloadExcel = async () => {
   }
 }
 
-async function deleteAllPharmacies() {
-  if (!confirm('정말 모든 약국을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
-  const { error } = await supabase.from('pharmacies').delete().neq('id', 0);
-  if (error) {
-    alert('삭제 중 오류가 발생했습니다: ' + error.message);
-    return;
-  }
-  pharmacies.value = [];
-  alert('모든 약국이 삭제되었습니다.');
-}
+// async function deleteAllPharmacies() {
+//   if (!confirm('정말 모든 약국을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+//   const { error } = await supabase.from('pharmacies').delete().neq('id', 0);
+//   if (error) {
+//     alert('삭제 중 오류가 발생했습니다: ' + error.message);
+//     return;
+//   }
+//   pharmacies.value = [];
+//   alert('모든 약국이 삭제되었습니다.');
+// }
 
 // 오버플로우 감지 및 툴팁 제어 함수들
 const checkOverflow = (event) => {
   const element = event.target;
-  
+
   // 실제 오버플로우 감지
   const rect = element.getBoundingClientRect();
   const computedStyle = window.getComputedStyle(element);
   const fontSize = parseFloat(computedStyle.fontSize);
   const fontFamily = computedStyle.fontFamily;
-  
+
   // 임시 캔버스를 만들어서 텍스트의 실제 너비 측정
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   context.font = `${fontSize}px ${fontFamily}`;
   const textWidth = context.measureText(element.textContent).width;
-  
+
   // 패딩과 보더 고려
   const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
   const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
   const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
   const borderRight = parseFloat(computedStyle.borderRightWidth) || 0;
-  
+
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
-  
+
   console.log('약국 오버플로우 체크:', {
     text: element.textContent,
     textWidth,
     availableWidth,
     isOverflowed
   });
-  
+
   if (isOverflowed) {
     element.classList.add('overflowed');
     console.log('약국 오버플로우 클래스 추가됨');
@@ -972,11 +986,11 @@ const allowOnlyNumbers = (event) => {
 const formatBusinessNumberInput = (event) => {
   const target = event.target;
   let value = target.value.replace(/[^0-9]/g, ''); // 숫자만 추출
-  
+
   if (value.length > 10) {
     value = value.substring(0, 10); // 최대 10자리로 제한
   }
-  
+
   // 형식 변환: ###-##-#####
   if (value.length >= 3) {
     value = value.substring(0, 3) + '-' + value.substring(3);
@@ -984,12 +998,12 @@ const formatBusinessNumberInput = (event) => {
   if (value.length >= 6) {
     value = value.substring(0, 6) + '-' + value.substring(6);
   }
-  
+
   // 최대 12자리(하이픈 포함)로 제한
   if (value.length > 12) {
     value = value.substring(0, 12);
   }
-  
+
   target.value = value;
 };
 
@@ -998,13 +1012,13 @@ const handleBackspace = (event) => {
   if (event.key === 'Backspace') {
     const cursorPosition = event.target.selectionStart;
     const value = event.target.value;
-    
+
     // 커서 위치에 하이픈이 있으면 한 칸 더 뒤로 이동
     if (value[cursorPosition - 1] === '-') {
       event.preventDefault();
       const newPosition = cursorPosition - 2;
       event.target.value = value.substring(0, newPosition) + value.substring(cursorPosition);
-      
+
       // 커서 위치 조정
       setTimeout(() => {
         event.target.setSelectionRange(newPosition, newPosition);
@@ -1030,7 +1044,7 @@ function showDuplicateChoiceModal() {
       align-items: center;
       z-index: 9999;
     `
-    
+
     // 모달 내용 생성
     const modalContent = document.createElement('div')
     modalContent.style.cssText = `
@@ -1042,7 +1056,7 @@ function showDuplicateChoiceModal() {
       width: 90%;
       text-align: center;
     `
-    
+
     modalContent.innerHTML = `
       <h3 style="margin: 0 0 20px 0; color: #333;">이미 동일한 사업자등록번호 약국을 어떻게 처리하시겠습니까?</h3>
       <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -1084,26 +1098,26 @@ function showDuplicateChoiceModal() {
         </button>
       </div>
     `
-    
+
     modal.appendChild(modalContent)
     document.body.appendChild(modal)
-    
+
     // 버튼 이벤트 리스너
     document.getElementById('replace-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('replace')
     })
-    
+
     document.getElementById('keep-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('keep')
     })
-    
+
     document.getElementById('cancel-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('cancel')
     })
-    
+
     // 모달 외부 클릭 시 취소
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
@@ -1131,7 +1145,7 @@ function showUploadChoiceModal() {
       align-items: center;
       z-index: 9999;
     `
-    
+
     // 모달 내용 생성
     const modalContent = document.createElement('div')
     modalContent.style.cssText = `
@@ -1143,7 +1157,7 @@ function showUploadChoiceModal() {
       width: 90%;
       text-align: center;
     `
-    
+
     modalContent.innerHTML = `
       <h3 style="margin: 0 0 20px 0; color: #333;">기존 데이터는 그대로 두고 추가 등록하시겠습니까?</h3>
       <div style="display: flex; gap: 10px; justify-content: center;">
@@ -1173,21 +1187,21 @@ function showUploadChoiceModal() {
         </button>
       </div>
     `
-    
+
     modal.appendChild(modalContent)
     document.body.appendChild(modal)
-    
+
     // 버튼 이벤트 리스너
     document.getElementById('confirm-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('append')
     })
-    
+
     document.getElementById('cancel-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('cancel')
     })
-    
+
     // 모달 외부 클릭 시 취소
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
@@ -1201,13 +1215,13 @@ function showUploadChoiceModal() {
 // 사업자번호 형식 변환 함수 (표시용)
 function formatBusinessNumber(businessNumber) {
   if (!businessNumber) return '-';
-  
+
   // 숫자만 추출
   const numbers = businessNumber.replace(/[^0-9]/g, '');
-  
+
   // 10자리가 아니면 원본 반환
   if (numbers.length !== 10) return businessNumber;
-  
+
   // 형식 변환: ###-##-#####
   return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
 }

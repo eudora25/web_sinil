@@ -87,21 +87,21 @@ onMounted(async () => {
     .select('*')
     .eq('id', route.params.id)
     .single();
-  
+
   if (!error && data) {
     // 등록자와 수정자의 회사명 가져오기
     const userIds = [...new Set([
       data.created_by,
       data.updated_by
     ].filter(Boolean))];
-    
+
     let companyMap = {};
     if (userIds.length > 0) {
       const { data: companies, error: companyError } = await supabase
         .from('companies')
         .select('user_id, company_name')
         .in('user_id', userIds);
-      
+
       if (!companyError && companies) {
         companyMap = companies.reduce((acc, company) => {
           acc[company.user_id] = company.company_name;
@@ -109,7 +109,7 @@ onMounted(async () => {
         }, {});
       }
     }
-    
+
     client.value = {
       ...data,
       created_by_name: data.created_by ? (companyMap[data.created_by] || '관리자') : '-',
@@ -143,12 +143,38 @@ function goList() {
 }
 async function handleDelete() {
   if (!confirm('정말 삭제하시겠습니까?')) return;
-  const { error } = await supabase.from('clients').delete().eq('id', route.params.id);
-  if (!error) {
+
+  const clientId = route.params.id;
+
+  try {
+    // RPC를 호출하여 참조 여부 확인
+    const { data: isReferenceExist, error: rpcError } = await supabase.rpc(
+      'check_client_references_exist',
+      { p_client_id: clientId }
+    )
+
+    if (rpcError) {
+      throw new Error(rpcError.message);
+    }
+
+    if (isReferenceExist != 0) {
+      alert(`이 병의원은 이미 사용되고있어 삭제할 수 없습니다.`);
+      return;
+    }
+
+    const { error } = await supabase.from('clients').delete().eq('id', clientId);
+
+    if (error) {
+      throw new Error(error.message);
+      return
+    }
+
     alert('삭제되었습니다.');
     router.push('/admin/clients');
-  } else {
-    alert('삭제 실패: ' + error.message);
+
+  } catch (error) {
+    console.error('삭제 오류:', error)
+    alert('삭제 중 오류가 발생했습니다.')
   }
 }
 </script>

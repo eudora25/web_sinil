@@ -68,22 +68,22 @@ const month = ref({});
 function formatKST(dateStr) {
   if (!dateStr) return '';
   const date = new Date(dateStr);
-  
+
   // UTC 시간에 9시간을 더해서 KST 계산
   const kstTime = new Date(date.getTime() + (9 * 60 * 60 * 1000));
-  
+
   const yyyy = kstTime.getUTCFullYear();
   const mm = String(kstTime.getUTCMonth() + 1).padStart(2, '0');
   const dd = String(kstTime.getUTCDate()).padStart(2, '0');
   const hh = kstTime.getUTCHours();
   const min = String(kstTime.getUTCMinutes()).padStart(2, '0');
   const sec = String(kstTime.getUTCSeconds()).padStart(2, '0');
-  
+
   // 오전/오후 구분
   const ampm = hh >= 12 ? '오후' : '오전';
   const displayHour = hh >= 12 ? hh - 12 : hh;
   const displayHourStr = displayHour === 0 ? '12' : String(displayHour).padStart(2, '0');
-  
+
   return `${yyyy}. ${mm}. ${dd}. ${ampm} ${displayHourStr}:${min}:${sec}`;
 }
 
@@ -95,7 +95,7 @@ onMounted(async () => {
     .single();
   if (!error && data) {
     month.value = data;
-    
+
     // 등록자 정보 - companies 테이블에서 company_name 조회
     if (data.created_by) {
       try {
@@ -104,7 +104,7 @@ onMounted(async () => {
           .select('company_name')
           .eq('user_id', data.created_by)
           .single();
-        
+
         if (createdByCompany?.company_name) {
           month.value.created_by_name = createdByCompany.company_name;
         } else {
@@ -115,7 +115,7 @@ onMounted(async () => {
         month.value.created_by_name = data.created_by; // UUID 표시
       }
     }
-    
+
     // 수정자 정보 - companies 테이블에서 company_name 조회
     if (data.updated_by) {
       try {
@@ -124,7 +124,7 @@ onMounted(async () => {
           .select('company_name')
           .eq('user_id', data.updated_by)
           .single();
-        
+
         if (updatedByCompany?.company_name) {
           month.value.updated_by_name = updatedByCompany.company_name;
         } else {
@@ -146,6 +146,8 @@ function goList() {
 }
 async function handleDelete() {
   if (!confirm('정말 삭제하시겠습니까?')) return;
+
+
   const { error } = await supabase.from('settlement_months').delete().eq('id', route.params.id);
   if (!error) {
     alert('삭제되었습니다.');
@@ -154,5 +156,5 @@ async function handleDelete() {
     alert('삭제 실패: ' + error.message);
   }
 }
-</script> 
+</script>
 
