@@ -103,6 +103,9 @@ const canSubmit = computed(() => {
 // 즉시 실행되는 초기화 코드 (페이지 로드 시점에 즉시 실행)
 console.log('=== 비밀번호 재설정 페이지 즉시 초기화 시작 ===');
 console.log('현재 URL:', window.location.href);
+console.log('현재 pathname:', window.location.pathname);
+console.log('현재 search:', window.location.search);
+console.log('현재 hash:', window.location.hash);
 
 // 라우터 가드 우회를 위한 글로벌 플래그 설정 (즉시)
 window.isPasswordResetPage = true;
@@ -112,6 +115,7 @@ console.log('비밀번호 재설정 페이지 플래그 즉시 설정 완료');
 if (window.location.pathname === '/reset-password') {
   console.log('비밀번호 재설정 페이지 URL 확인됨');
   window.isPasswordResetPage = true;
+  console.log('플래그 재설정 완료:', window.isPasswordResetPage);
 }
 
 // 즉시 세션 차단: 모든 Supabase 관련 세션 제거

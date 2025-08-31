@@ -458,10 +458,16 @@ const router = createRouter({
 // (선택 사항) 네비게이션 가드 추가: requiresAuth 메타 필드가 있는 라우트에 대해 인증 여부 확인
 router.beforeEach(async (to, from, next) => {
   console.log(`[Router Guard] Navigating from: ${from.fullPath} to: ${to.fullPath}`);
+  console.log(`[Router Guard] To path: ${to.path}, To name: ${to.name}`);
+  console.log(`[Router Guard] Window isPasswordResetPage: ${window.isPasswordResetPage}`);
 
   // 비밀번호 재설정 페이지는 완전히 라우터 가드 우회 (가장 먼저 체크)
   if (to.path === '/reset-password' || to.name === 'ResetPassword' || window.isPasswordResetPage) {
     console.log('[Router Guard] Password reset page detected. Bypassing all guards.');
+    console.log('[Router Guard] Condition check:');
+    console.log(`  - to.path === '/reset-password': ${to.path === '/reset-password'}`);
+    console.log(`  - to.name === 'ResetPassword': ${to.name === 'ResetPassword'}`);
+    console.log(`  - window.isPasswordResetPage: ${window.isPasswordResetPage}`);
     return next();
   }
 
