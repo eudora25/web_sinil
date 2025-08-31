@@ -895,31 +895,7 @@ const handleFileUpload = async (event) => {
         // 5단계: 중복 해결 방법 선택 (버튼 모달)
         const duplicateChoice = await showDuplicateChoiceModal()
 
-        if (duplicateChoice === 'replace') {
-          // 교체 모드: 중복되는 기존 제품들 삭제
-          for (const duplicateProduct of duplicateProducts) {
-            const { error: deleteError } = await supabase
-              .from('products')
-              .delete()
-              .eq('base_month', duplicateProduct.base_month)
-              .eq('insurance_code', duplicateProduct.insurance_code)
-
-            if (deleteError) {
-              alert('기존 제품 삭제 실패: ' + deleteError.message)
-              return
-            }
-          }
-          // 로컬 데이터에서도 삭제
-          for (const duplicateProduct of duplicateProducts) {
-            const index = products.value.findIndex(p =>
-              p.base_month === duplicateProduct.base_month &&
-              p.insurance_code === duplicateProduct.insurance_code
-            )
-            if (index > -1) {
-              products.value.splice(index, 1)
-            }
-          }
-        } else if (duplicateChoice === 'keep') {
+        if (duplicateChoice === 'keep') {
           // 기존 유지 모드: 중복되는 신규 제품들 제외
           const duplicateInsuranceCodes = duplicateProducts.map(p => p.insurance_code)
           uploadData = uploadData.filter(item => !duplicateInsuranceCodes.includes(item.insurance_code))
@@ -1561,18 +1537,6 @@ function showDuplicateChoiceModal() {
     modalContent.innerHTML = `
       <h3 style="margin: 0 0 20px 0; color: #333;">이미 동일한 보험코드 제품을 어떻게 처리하시겠습니까?</h3>
       <div style="display: flex; flex-direction: column; gap: 10px;">
-        <button id="replace-btn" style="
-          padding: 12px 20px;
-          background: #f44336;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          transition: background 0.3s;
-        " onmouseover="this.style.background='#da190b'" onmouseout="this.style.background='#f44336'">
-          기존 제품 정보를 신규 제품 정보로 교체하기
-        </button>
         <button id="keep-btn" style="
           padding: 12px 20px;
           background: #4CAF50;
@@ -1604,11 +1568,6 @@ function showDuplicateChoiceModal() {
     document.body.appendChild(modal)
 
     // 버튼 이벤트 리스너
-    document.getElementById('replace-btn').addEventListener('click', () => {
-      document.body.removeChild(modal)
-      resolve('replace')
-    })
-
     document.getElementById('keep-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('keep')
@@ -1660,9 +1619,9 @@ function showUploadChoiceModal() {
     `
 
     modalContent.innerHTML = `
-      <h3 style="margin: 0 0 20px 0; color: #333;">어떤 방식으로 등록하시겠습니까?</h3>
-      <div style="display: flex; flex-direction: column; gap: 10px;">
-        <button id="append-btn" style="
+      <h3 style="margin: 0 0 20px 0; color: #333;">기존 데이터는 그대로 두고 추가 등록하시겠습니까?</h3>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button id="confirm-btn" style="
           padding: 12px 20px;
           background: #4CAF50;
           color: white;
@@ -1672,19 +1631,7 @@ function showUploadChoiceModal() {
           font-size: 14px;
           transition: background 0.3s;
         " onmouseover="this.style.background='#45a049'" onmouseout="this.style.background='#4CAF50'">
-          기존 데이터는 그대로 두고 추가 등록
-        </button>
-        <button id="replace-btn" style="
-          padding: 12px 20px;
-          background: #f44336;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          transition: background 0.3s;
-        " onmouseover="this.style.background='#da190b'" onmouseout="this.style.background='#f44336'">
-          기존 데이터 모두 지우고 등록
+          확인
         </button>
         <button id="cancel-btn" style="
           padding: 12px 20px;
@@ -1705,14 +1652,9 @@ function showUploadChoiceModal() {
     document.body.appendChild(modal)
 
     // 버튼 이벤트 리스너
-    document.getElementById('append-btn').addEventListener('click', () => {
+    document.getElementById('confirm-btn').addEventListener('click', () => {
       document.body.removeChild(modal)
       resolve('append')
-    })
-
-    document.getElementById('replace-btn').addEventListener('click', () => {
-      document.body.removeChild(modal)
-      resolve('replace')
     })
 
     document.getElementById('cancel-btn').addEventListener('click', () => {
