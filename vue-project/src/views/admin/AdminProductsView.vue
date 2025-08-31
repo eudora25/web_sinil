@@ -717,59 +717,27 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 업로드 데이터의 기준월들 추출
-    const uploadMonths = [...new Set(jsonData.map(row => row['기준월']).filter(month => month))]
-
     // 기존 데이터 확인
-    let hasExistingData = false
-    for (const month of uploadMonths) {
-      const existingProducts = products.value.filter(p => p.base_month === month)
-      if (existingProducts.length > 0) {
-        hasExistingData = true
-        break
-      }
-    }
+    const hasExistingData = products.value.length > 0
 
     // 1단계: 기존 데이터 존재 시 확인
-    let uploadMode = 'cancel' // 'append', 'replace', 'cancel'
     if (hasExistingData) {
       if (!confirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?')) {
         event.target.value = ''
         return
       }
 
-      // 2단계: 3개 옵션 선택 (버튼 방식)
+      // 2단계: 추가 등록 확인
       const choice = await showUploadChoiceModal()
 
-      if (choice === 'append') {
-        uploadMode = 'append'
-      } else if (choice === 'replace') {
-        uploadMode = 'replace'
-      } else {
+      if (choice !== 'append') {
         // cancel이거나 잘못된 입력
         event.target.value = ''
         return
       }
-
-      if (uploadMode === 'replace') {
-        // 대체 모드: 해당 기준월의 기존 데이터 삭제
-        for (const month of uploadMonths) {
-          const { error: deleteError } = await supabase
-            .from('products')
-            .delete()
-            .eq('base_month', month)
-
-          if (deleteError) {
-            alert('기존 데이터 삭제 실패: ' + deleteError.message)
-            event.target.value = ''
-            return
-          }
-        }
-        // 대체 모드에서는 로컬 데이터도 업데이트
-        products.value = products.value.filter(p => !uploadMonths.includes(p.base_month))
-      }
     }
 
+    // 데이터 변환 및 검증
     let uploadData = []
     const errors = []
 
@@ -794,8 +762,6 @@ const handleFileUpload = async (event) => {
         errors.push(`${rowNum}행: 보험코드는 9자리 숫자여야 합니다.`)
         return
       }
-
-
 
       // 약가 형식 검증 (숫자)
       if (row['약가'] && (isNaN(Number(row['약가'])) || Number(row['약가']) < 0)) {
@@ -858,8 +824,6 @@ const handleFileUpload = async (event) => {
         row['수수료E'] = Math.round(commissionE * 1000) / 1000
       }
 
-
-
       const monthRegex = /^\d{4}-\d{2}$/
       if (!monthRegex.test(row['기준월'])) {
         errors.push(`${rowNum}행: 기준월은 YYYY-MM 형식이어야 합니다.`)
@@ -902,8 +866,8 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 3단계: 추가 모드일 때만 보험코드 중복 체크
-    if (hasExistingData && uploadMode === 'append') {
+    // 3단계: 기존 데이터가 있을 때만 보험코드 중복 체크
+    if (hasExistingData) {
       const duplicateErrors = []
       const duplicateProducts = []
 
