@@ -341,8 +341,14 @@ async function downloadExcel() {
         cell.font = { size: 11 };
         cell.alignment = { vertical: 'middle' };
         
-        // 가운데 정렬이 필요한 컬럼들 (No, 기준월, 보험코드)
-        if (colNumber === 1 || colNumber === 2 || colNumber === 4 || colNumber === 6) {
+        // 기준월 컬럼은 텍스트 형식으로 설정
+        if (colNumber === 2) {
+          cell.numFmt = '@';
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+        
+        // 가운데 정렬이 필요한 컬럼들 (No, 보험코드)
+        if (colNumber === 1 || colNumber === 4 || colNumber === 6) {
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
         }
         
