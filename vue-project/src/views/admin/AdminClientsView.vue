@@ -736,64 +736,125 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 3단계: 기존 데이터가 있을 때만 사업자등록번호 중복 체크
-    if (hasExistingData) {
-      const duplicateErrors = []
-      const duplicateClients = []
+    // 3단계: 데이터베이스 전체에서 중복 체크
+    console.log('데이터베이스 중복 체크 시작...')
+    const duplicateErrors = []
+    const duplicateClients = []
 
-      for (const newClient of uploadData) {
-        if (newClient.business_registration_number) {
-          // 기존 데이터에서 동일한 사업자등록번호 중복 확인
-          const existingClient = clients.value.find(c =>
-            c.business_registration_number === newClient.business_registration_number
-          )
-
-          if (existingClient) {
-            duplicateErrors.push(`${newClient.rowNum}행: 이미 동일한 사업자등록번호의 병의원이 등록되어 있습니다.`)
+    for (const newClient of uploadData) {
+      // 병의원 코드 중복 체크 (입력된 경우에만)
+      if (newClient.client_code && newClient.client_code.trim() !== '') {
+        try {
+          const { data: existingClientByCode, error: codeCheckError } = await supabase
+            .from('clients')
+            .select('id, name, client_code')
+            .eq('client_code', newClient.client_code.trim())
+            .single();
+          
+          if (codeCheckError && codeCheckError.code !== 'PGRST116') {
+            // PGRST116이 아닌 오류는 실제 오류
+            duplicateErrors.push(`${newClient.rowNum}행: 병의원 코드 중복 검사 중 오류가 발생했습니다. (${codeCheckError.message})`)
+            duplicateClients.push(newClient)
+          } else if (existingClientByCode) {
+            // 중복 발견
+            duplicateErrors.push(`${newClient.rowNum}행: 동일한 병의원 코드(${newClient.client_code})로 이미 등록된 병의원이 있습니다. (${existingClientByCode.name})`)
             duplicateClients.push(newClient)
           }
+        } catch (codeError) {
+          duplicateErrors.push(`${newClient.rowNum}행: 병의원 코드 중복 검사 중 예외가 발생했습니다.`)
+          duplicateClients.push(newClient)
         }
       }
 
-      if (duplicateErrors.length > 0) {
-        // 4단계: 중복 발견 시 계속 진행 여부 확인
-        if (!confirm('중복 오류:\n' + duplicateErrors.join('\n') + '\n\n계속 등록 작업을 진행하시겠습니까?')) {
-          return
+      // 사업자등록번호 중복 체크
+      if (newClient.business_registration_number) {
+        try {
+          const { data: existingClientByBusiness, error: businessCheckError } = await supabase
+            .from('clients')
+            .select('id, name, business_registration_number')
+            .eq('business_registration_number', newClient.business_registration_number)
+            .single();
+          
+          if (businessCheckError && businessCheckError.code !== 'PGRST116') {
+            // PGRST116이 아닌 오류는 실제 오류
+            duplicateErrors.push(`${newClient.rowNum}행: 사업자등록번호 중복 검사 중 오류가 발생했습니다. (${businessCheckError.message})`)
+            duplicateClients.push(newClient)
+          } else if (existingClientByBusiness) {
+            // 중복 발견
+            duplicateErrors.push(`${newClient.rowNum}행: 동일한 사업자등록번호(${newClient.business_registration_number})로 이미 등록된 병의원이 있습니다. (${existingClientByBusiness.name})`)
+            duplicateClients.push(newClient)
+          }
+        } catch (businessError) {
+          duplicateErrors.push(`${newClient.rowNum}행: 사업자등록번호 중복 검사 중 예외가 발생했습니다.`)
+          duplicateClients.push(newClient)
         }
+      }
+    }
 
-        // 5단계: 중복 해결 방법 선택 (버튼 모달)
-        const duplicateChoice = await showDuplicateChoiceModal()
+    // 4단계: 중복 발견 시 처리
+    if (duplicateErrors.length > 0) {
+      console.log('중복 오류 발견:', duplicateErrors)
+      
+      // 중복 발견 시 계속 진행 여부 확인
+      if (!confirm('중복 오류가 발견되었습니다:\n\n' + duplicateErrors.join('\n') + '\n\n계속 등록 작업을 진행하시겠습니까?')) {
+        return
+      }
 
-        if (duplicateChoice === 'replace') {
-          // 교체 모드: 중복되는 기존 병의원들 삭제
-          for (const duplicateClient of duplicateClients) {
+      // 5단계: 중복 해결 방법 선택 (버튼 모달)
+      const duplicateChoice = await showDuplicateChoiceModal()
+
+      if (duplicateChoice === 'replace') {
+        // 교체 모드: 중복되는 기존 병의원들 삭제
+        for (const duplicateClient of duplicateClients) {
+          // 병의원 코드로 삭제
+          if (duplicateClient.client_code && duplicateClient.client_code.trim() !== '') {
+            const { error: deleteError } = await supabase
+              .from('clients')
+              .delete()
+              .eq('client_code', duplicateClient.client_code.trim())
+
+            if (deleteError) {
+              alert('기존 병의원 삭제 실패 (코드): ' + deleteError.message)
+              return
+            }
+          }
+          
+          // 사업자등록번호로 삭제
+          if (duplicateClient.business_registration_number) {
             const { error: deleteError } = await supabase
               .from('clients')
               .delete()
               .eq('business_registration_number', duplicateClient.business_registration_number)
 
             if (deleteError) {
-              alert('기존 병의원 삭제 실패: ' + deleteError.message)
+              alert('기존 병의원 삭제 실패 (사업자번호): ' + deleteError.message)
               return
             }
           }
-          // 로컬 데이터에서도 삭제
-          for (const duplicateClient of duplicateClients) {
-            const index = clients.value.findIndex(c =>
-              c.business_registration_number === duplicateClient.business_registration_number
-            )
+        }
+        
+        // 로컬 데이터에서도 삭제
+        for (const duplicateClient of duplicateClients) {
+          if (duplicateClient.client_code && duplicateClient.client_code.trim() !== '') {
+            const index = clients.value.findIndex(c => c.client_code === duplicateClient.client_code.trim())
             if (index > -1) {
               clients.value.splice(index, 1)
             }
           }
-        } else if (duplicateChoice === 'keep') {
-          // 기존 유지 모드: 중복되는 신규 병의원들 제외
-          const duplicateBusinessNumbers = duplicateClients.map(c => c.business_registration_number)
-          uploadData = uploadData.filter(item => !duplicateBusinessNumbers.includes(item.business_registration_number))
-        } else {
-          // cancel 모드: 업로드 취소
-          return
+          if (duplicateClient.business_registration_number) {
+            const index = clients.value.findIndex(c => c.business_registration_number === duplicateClient.business_registration_number)
+            if (index > -1) {
+              clients.value.splice(index, 1)
+            }
+          }
         }
+      } else if (duplicateChoice === 'keep') {
+        // 기존 유지 모드: 중복되는 신규 병의원들 제외
+        const duplicateItems = duplicateClients.map(c => c.rowNum)
+        uploadData = uploadData.filter(item => !duplicateItems.includes(item.rowNum))
+      } else {
+        // cancel 모드: 업로드 취소
+        return
       }
     }
 
