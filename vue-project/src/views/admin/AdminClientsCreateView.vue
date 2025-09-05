@@ -166,6 +166,45 @@ const handleSubmit = async () => {
     return;
   }
 
+  // 병의원 코드 중복 체크 (입력된 경우에만)
+  if (clientCode.value && clientCode.value.trim() !== '') {
+    try {
+      console.log('병의원 코드 중복 검사 시작...');
+      const { data: existingClientByCode, error: codeCheckError } = await supabase
+        .from('clients')
+        .select('id, name, client_code')
+        .eq('client_code', clientCode.value.trim())
+        .single();
+      
+      if (codeCheckError) {
+        if (codeCheckError.code === 'PGRST116') {
+          // 결과가 없는 경우 - 중복 없음
+          console.log('병의원 코드 중복 없음');
+        } else {
+          // 다른 모든 오류 (HTTP 406, 500 등) - 중단
+          console.error('병의원 코드 중복 검사 실패:', codeCheckError);
+          alert(`병의원 코드 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${codeCheckError.code}\n오류 메시지: ${codeCheckError.message}\n\n관리자에게 문의해주세요.`);
+          return;
+        }
+      } else if (existingClientByCode) {
+        alert(`동일한 병의원 코드로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClientByCode.name}\n병의원 코드: ${existingClientByCode.client_code}`);
+        setTimeout(() => {
+          const clientCodeInput = document.querySelector('input[v-model="clientCode"]');
+          if (clientCodeInput) {
+            clientCodeInput.focus();
+            clientCodeInput.select();
+          }
+        }, 100);
+        return;
+      }
+      console.log('병의원 코드 중복 검사 통과');
+    } catch (codeDuplicateCheckError) {
+      console.error('병의원 코드 중복 검사 중 예외 발생:', codeDuplicateCheckError);
+      alert('병의원 코드 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
+      return;
+    }
+  }
+
   // 사업자등록번호 중복 체크
   try {
     console.log('사업자등록번호 중복 검사 시작...');
