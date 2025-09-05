@@ -1,17 +1,16 @@
-// Vercel Serverless Function: /api/create-user.js
+// Express.js API Route: /api/create-user.js
 
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
+const express = require('express');
+const router = express.Router();
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://your-project.supabase.co',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || 'your-service-role-key'
 );
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+// POST /api/create-user
+router.post('/', async (req, res) => {
   const { email, password, company_name } = req.body;
 
   if (!email || !password) {
@@ -36,4 +35,6 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-} 
+});
+
+module.exports = router; 

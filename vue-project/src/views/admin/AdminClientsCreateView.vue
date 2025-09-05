@@ -166,6 +166,43 @@ const handleSubmit = async () => {
     return;
   }
 
+  // 사업자등록번호 중복 체크
+  try {
+    console.log('사업자등록번호 중복 검사 시작...');
+    const { data: existingClient, error: checkError } = await supabase
+      .from('clients')
+      .select('id, name')
+      .eq('business_registration_number', businessNumber.value)
+      .single();
+    
+    if (checkError) {
+      if (checkError.code === 'PGRST116') {
+        // 결과가 없는 경우 - 중복 없음
+        console.log('사업자등록번호 중복 없음');
+      } else {
+        // 다른 모든 오류 (HTTP 406, 500 등) - 중단
+        console.error('사업자등록번호 중복 검사 실패:', checkError);
+        alert(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
+        return;
+      }
+    } else if (existingClient) {
+      alert(`동일한 사업자등록번호로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClient.name}`);
+      setTimeout(() => {
+        const businessNumberInput = document.getElementById('businessNumber');
+        if (businessNumberInput) {
+          businessNumberInput.focus();
+          businessNumberInput.select();
+        }
+      }, 100);
+      return;
+    }
+    console.log('사업자등록번호 중복 검사 통과');
+  } catch (duplicateCheckError) {
+    console.error('사업자등록번호 중복 검사 중 예외 발생:', duplicateCheckError);
+    alert('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
+    return;
+  }
+
   // 현재 로그인한 사용자 정보 가져오기
   const { data: { session } } = await supabase.auth.getSession();
   const currentUserId = session?.user?.id;
