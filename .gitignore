@@ -155,3 +155,13 @@ docs/
 admin-scripts/
 test-data/
 test-scripts/
+
+# Database optimization and testing folders
+database-optimization/
+database-scripts/
+database-tests/
+
+# Backup files
+*.backup
+*_backup_*
+*backup*
