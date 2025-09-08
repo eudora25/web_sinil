@@ -49,14 +49,8 @@
           해당 정산월의 실적 데이터가 없습니다.
         </div>
         <div class="data-card-buttons" style="margin-left: auto;">
-           <button class="btn-primary" @click="changeReviewStatus" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing" style="margin-right: 1rem;">
+           <button class="btn-primary" @click="changeReviewStatus" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing">
              검수 상태 변경 ({{ selectedRows.length }}건)
-           </button>
-           <button class="btn-primary" @click="openBulkChangeModal" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing" style="margin-right: 1rem;">
-             일괄 변경 ({{ selectedRows.length }}건)
-           </button>
-           <button class="btn-warning" @click="excludeFromReview" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing">
-             검수 대상 제외 ({{ selectedRows.length }}건)
            </button>
         </div>
       </div>
@@ -86,6 +80,33 @@
           <template #empty>
             <div v-if="!loading">해당 정산월의 실적 데이터가 없습니다.</div>
           </template>
+
+          <Column header="" :headerStyle="{ width: '50px', textAlign: 'center' }" :frozen="true">
+            <template #header>
+              <div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%;">
+                <input
+                  type="checkbox"
+                  :checked="isAllSelected"
+                  :indeterminate="isIndeterminate"
+                  @change="toggleAllSelection"
+                  class="share-checkbox"
+                  style="margin: 0; transform: scale(1.2);"
+                />
+              </div>
+            </template>
+            <template #body="slotProps">
+              <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
+                <input
+                  type="checkbox"
+                  :checked="selectedRows.includes(slotProps.data)"
+                  :disabled="slotProps.data.review_action === '삭제'"
+                  @change="toggleRowSelection(slotProps.data)"
+                  class="share-checkbox"
+                  style="margin: 0; transform: scale(1.2);"
+                />
+              </div>
+            </template>
+          </Column>
 
           <Column header="No" :headerStyle="{ width: columnWidths.no }" :frozen="true">
             <template #body="slotProps">{{ slotProps.index + currentPageFirstIndex + 1 }}</template>
@@ -197,31 +218,6 @@
             </template>
           </Column>
 
-          <Column :headerStyle="{ width: columnWidths.checkbox, textAlign: 'center' }" :frozen="false">
-            <template #header>
-              <div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%;">
-                <input
-                  type="checkbox"
-                  :checked="isAllSelected"
-                  :indeterminate="isIndeterminate"
-                  @change="toggleAllSelection"
-                  class="share-checkbox"
-                />
-              </div>
-            </template>
-            <template #body="slotProps">
-              <div style="display: flex; justify-content: center; align-items: center;">
-                <input
-                  type="checkbox"
-                  :checked="selectedRows.includes(slotProps.data)"
-                  :disabled="slotProps.data.review_action === '삭제'"
-                  @change="toggleRowSelection(slotProps.data)"
-                  class="share-checkbox"
-                />
-              </div>
-            </template>
-          </Column>
-
           <Column field="prescription_type" header="처방구분" :headerStyle="{ width: columnWidths.prescription_type }" :sortable="true">
             <template #body="slotProps">
               <select
@@ -301,33 +297,21 @@
       </div>
     </div>
   </div>
-  <!-- 일괄 변경 항목 선택 모달 -->
-  <div v-if="showBulkChangeModal" class="modal-mask" style="position: fixed; z-index: 9999; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;">
-    <div class="modal-dialog" style="background: #fff; border-radius: 8px; padding: 32px 24px; min-width: 320px; box-shadow: 0 2px 16px rgba(0,0,0,0.15);">
-      <div style="font-size: 1.1em; margin-bottom: 16px;">일괄 변경할 항목을 선택해주세요.</div>
-      <select v-model="selectedBulkChangeType" style="width: 100%; margin-bottom: 24px; padding: 8px; font-size: 1em;">
-        <option value="">- 선택 -</option>
-        <option value="company_name">업체명</option>
-        <option value="prescription_type">처방구분</option>
-      </select>
-      <div style="display: flex; gap: 12px; justify-content: flex-end;">
-        <button class="btn-primary" @click="openBulkChangeValueModal" :disabled="!selectedBulkChangeType">확인</button>
-        <button class="btn-secondary" @click="closeBulkChangeModal">취소</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- 일괄 변경 값 선택 모달 -->
-  <div v-if="showBulkChangeValueModal" class="modal-mask" style="position: fixed; z-index: 9999; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;">
+  <!-- 검수 상태 변경 모달 -->
+  <div v-if="showStatusChangeModal" class="modal-mask" style="position: fixed; z-index: 9999; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;">
     <div class="modal-dialog" style="background: #fff; border-radius: 8px; padding: 32px 24px; min-width: 320px; box-shadow: 0 2px 16px rgba(0,0,0,0.15);">
-      <div style="font-size: 1.1em; margin-bottom: 16px;">일괄 변경할 {{ getBulkChangeTypeLabel() }}을 선택해주세요.</div>
-      <select v-model="selectedBulkChangeValue" style="width: 100%; margin-bottom: 24px; padding: 8px; font-size: 1em;">
-        <option value="">- 선택 -</option>
-        <option v-for="option in bulkChangeOptions" :key="option" :value="option">{{ option }}</option>
+      <div style="font-size: 1.1em; margin-bottom: 16px;">변경할 검수 상태를 선택해주세요.</div>
+      <div style="margin-bottom: 16px; color: #666; font-size: 0.9em;">
+        선택된 항목: {{ selectedRows.length }}건
+      </div>
+      <select v-model="selectedNewStatus" style="width: 100%; margin-bottom: 24px; padding: 8px; font-size: 1em;">
+        <option value="">- 상태 선택 -</option>
+        <option v-for="option in statusChangeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
       </select>
       <div style="display: flex; gap: 12px; justify-content: flex-end;">
-        <button class="btn-primary" @click="handleBulkChange">확인</button>
-        <button class="btn-secondary" @click="closeBulkChangeValueModal">취소</button>
+        <button class="btn-primary" @click="confirmStatusChange" :disabled="!selectedNewStatus">확인</button>
+        <button class="btn-secondary" @click="cancelStatusChange">취소</button>
       </div>
     </div>
   </div>
@@ -417,7 +401,7 @@ const statusOptions = ref([
   { value: null, label: '- 전체 -' },
   { value: '완료', label: '완료' },
   { value: '검수중', label: '검수중' },
-  { value: '대기', label: '신규' },
+  { value: '대기', label: '대기' },
 ]);
 const selectedStatus = ref('검수중');
 
@@ -441,11 +425,15 @@ const currentPageFirstIndex = ref(0);
 // 페이지당 행 수를 ref로 정의 (기본값을 더 작게 설정하여 부하 감소)
 const rowsPerPage = ref(100);
 
-// --- 일괄 변경 모달 관련 변수 ---
-const showBulkChangeModal = ref(false);
-const showBulkChangeValueModal = ref(false);
-const selectedBulkChangeType = ref('');
-const selectedBulkChangeValue = ref('');
+
+// --- 검수 상태 변경 모달 관련 변수 ---
+const showStatusChangeModal = ref(false);
+const selectedNewStatus = ref('');
+const statusChangeOptions = ref([
+  { value: '대기', label: '대기' },
+  { value: '검수중', label: '검수중' },
+  { value: '완료', label: '완료' }
+]);
 
 // --- Computed 속성 ---
 const isAnyEditing = computed(() => activeEditingRowId.value !== null);
@@ -482,20 +470,6 @@ const isIndeterminate = computed(() => {
   return selectedCount > 0 && selectedCount < currentPageRows.length;
 });
 
-// --- 일괄 변경 관련 computed 속성 ---
-const bulkChangeOptions = computed(() => {
-  if (!selectedBulkChangeType.value) return [];
-
-  switch (selectedBulkChangeType.value) {
-    case 'company_name':
-      // 전체 업체 목록 (user_type = user & approval_status = approved)
-      return allApprovedCompanies.value.map(company => company.company_name);
-    case 'prescription_type':
-      return prescriptionTypeOptions;
-    default:
-      return [];
-  }
-});
 
 const displayRows = computed(() => {
   let filteredRows = rows.value;
@@ -509,7 +483,7 @@ const displayRows = computed(() => {
   return filteredRows.map(row => ({
     ...row,
     isEditing: row.id === activeEditingRowId.value,
-    display_status: row.review_status === '대기' ? '신규' : row.review_status
+    display_status: row.review_status
   }));
 });
 
@@ -795,198 +769,14 @@ async function loadPerformanceData() {
     let shouldFetchByIds = false;
 
     // --- 데이터 처리 로직 ---
-    // 1. '신규' 선택 시: '대기' 상태인 데이터를 찾아 '검수중'으로 업데이트하고, 해당 데이터만 불러옵니다.
+    // 자동 상태 변경 기능 제거: 이제 상태 변경 없이 데이터만 조회합니다.
     if (selectedStatus.value === '대기') {
-      console.log("처리 방식: 신규");
-      let findQuery = supabase.from('performance_records').select('id').eq('review_status', '대기');
-      if (selectedSettlementMonth.value) findQuery = findQuery.eq('settlement_month', selectedSettlementMonth.value);
-      if (selectedCompanyId.value) findQuery = findQuery.eq('company_id', selectedCompanyId.value);
-      if (selectedHospitalId.value) findQuery = findQuery.eq('client_id', selectedHospitalId.value);
-
-      const { data: pendingRecords, error: findError } = await findQuery;
-      if (findError) throw findError;
-
-      console.log("pendingRecords 원본:", pendingRecords);
-
-      if (pendingRecords && pendingRecords.length > 0) {
-        // id가 유효한 값만 필터링 (더 강력한 검증)
-        const validRecords = pendingRecords.filter(r => {
-          const isValid = r && r.id !== null && r.id !== undefined && r.id !== '';
-          if (!isValid) {
-            console.warn("유효하지 않은 레코드 발견:", r);
-          }
-          return isValid;
-        });
-
-        console.log("필터링 후 validRecords:", validRecords);
-
-        if (validRecords.length === 0) {
-          console.log("유효한 ID를 가진 신규 데이터가 없습니다.");
-          rows.value = [];
-          originalRows.value = [];
-          loading.value = false;
-          return;
-        }
-
-        idsToFetch = validRecords.map(r => r.id);
-        shouldFetchByIds = true;
-
-        console.log("최종 idsToFetch:", idsToFetch);
-        console.log(`${idsToFetch.length}건의 신규 데이터를 '검수중'으로 변경합니다.`);
-        // review_status만 변경하므로 updated_at, updated_by는 갱신하지 않음
-        // 먼저 현재 데이터를 조회하여 updated_at 값을 가져옴
-        const { data: currentData, error: fetchError } = await supabase
-          .from('performance_records')
-          .select('id, updated_at, updated_by')
-          .in('id', idsToFetch);
-        if (fetchError) throw fetchError;
-
-        console.log("=== PATCH 요청 진단 시작 ===");
-        console.log("currentData 조회 결과:", currentData);
-        console.log("currentData 길이:", currentData?.length || 0);
-
-        if (currentData && currentData.length > 0) {
-          console.log("currentData 각 레코드 ID:", currentData.map(r => r.id));
-        }
-
-        // 각 레코드별로 개별 업데이트 (updated_at을 이전 값으로 유지)
-        const updates = currentData
-          .filter(record => {
-            // record.id 유효성 검증
-            const isValid = record && record.id !== null && record.id !== undefined && record.id !== '';
-            console.log(`레코드 ${record?.id} 유효성 검사:`, isValid, record);
-            if (!isValid) {
-              console.warn("PATCH 요청에서 유효하지 않은 record 발견:", record);
-            }
-            return isValid;
-          })
-          .map(record => {
-            console.log(`PATCH 요청 준비: ID=${record.id}, updated_at=${record.updated_at}, updated_by=${record.updated_by}`);
-            return supabase
-              .from('performance_records')
-              .update({
-                review_status: '검수중',
-                updated_at: record.updated_at,  // 이전 값으로 유지
-                updated_by: record.updated_by   // 이전 값으로 유지
-              })
-              .eq('id', record.id);
-          });
-
-        console.log("필터링 후 updates 배열 길이:", updates.length);
-
-        if (updates.length === 0) {
-          console.log("유효한 PATCH 요청이 없습니다.");
-        } else {
-          console.log(`${updates.length}건의 PATCH 요청을 실행합니다.`);
-          const results = await Promise.all(updates);
-
-          console.log("PATCH 요청 결과:", results);
-
-          // 실패한 요청들만 별도로 로그 출력
-          const failedResults = results.filter(res => res.error);
-          if (failedResults.length > 0) {
-            console.error("PATCH 요청 실패:", failedResults);
-            throw new Error(`PATCH 요청 중 ${failedResults.length}건이 실패했습니다.`);
-          } else {
-            console.log("모든 PATCH 요청이 성공했습니다.");
-          }
-        }
-        console.log("=== PATCH 요청 진단 완료 ===");
-      }
+      console.log("처리 방식: 대기 상태 데이터 조회 (자동 상태 변경 없음)");
+      // 자동 상태 변경 제거: 단순히 대기 상태 데이터만 조회
     }
-    // 2. '전체' 선택 시: 필터에 맞는 모든 데이터를 대상으로 '대기' 상태인 것을 '검수중'으로 업데이트하고, 전체를 불러옵니다.
     else if (!selectedStatus.value) {
-      console.log("처리 방식: 전체");
-      let findQuery = supabase.from('performance_records').select('id').eq('review_status', '대기');
-      if (selectedSettlementMonth.value) findQuery = findQuery.eq('settlement_month', selectedSettlementMonth.value);
-      if (selectedCompanyId.value) findQuery = findQuery.eq('company_id', selectedCompanyId.value);
-      if (selectedHospitalId.value) findQuery = findQuery.eq('client_id', selectedHospitalId.value);
-
-      const { data: pendingRecords, error: findError } = await findQuery;
-      if (findError) throw findError;
-
-      console.log("전체 선택 - pendingRecords 원본:", pendingRecords);
-
-      if (pendingRecords && pendingRecords.length > 0) {
-          // id가 유효한 값만 필터링 (더 강력한 검증)
-          const validRecords = pendingRecords.filter(r => {
-            const isValid = r && r.id !== null && r.id !== undefined && r.id !== '';
-            if (!isValid) {
-              console.warn("전체 선택 - 유효하지 않은 레코드 발견:", r);
-            }
-            return isValid;
-          });
-
-          console.log("전체 선택 - 필터링 후 validRecords:", validRecords);
-
-          if (validRecords.length === 0) {
-            console.log("유효한 ID를 가진 신규 데이터가 없습니다.");
-            // 전체 데이터를 조회하므로 빈 배열로 설정하지 않고 계속 진행
-          } else {
-            const idsToUpdate = validRecords.map(r => r.id);
-            console.log("전체 선택 - 최종 idsToUpdate:", idsToUpdate);
-            console.log(`전체 데이터 중 ${idsToUpdate.length}건의 신규 데이터를 '검수중'으로 변경합니다.`);
-            // review_status만 변경하므로 updated_at, updated_by는 갱신하지 않음
-            // 먼저 현재 데이터를 조회하여 updated_at 값을 가져옴
-            const { data: currentData, error: fetchError } = await supabase
-              .from('performance_records')
-              .select('id, updated_at, updated_by')
-              .in('id', idsToUpdate);
-            if (fetchError) throw fetchError;
-
-            console.log("=== 전체 선택 PATCH 요청 진단 시작 ===");
-            console.log("전체 선택 - currentData 조회 결과:", currentData);
-            console.log("전체 선택 - currentData 길이:", currentData?.length || 0);
-
-            if (currentData && currentData.length > 0) {
-              console.log("전체 선택 - currentData 각 레코드 ID:", currentData.map(r => r.id));
-            }
-
-            // 각 레코드별로 개별 업데이트 (updated_at을 이전 값으로 유지)
-            const updates = currentData
-              .filter(record => {
-                // record.id 유효성 검증
-                const isValid = record && record.id !== null && record.id !== undefined && record.id !== '';
-                console.log(`전체 선택 - 레코드 ${record?.id} 유효성 검사:`, isValid, record);
-                if (!isValid) {
-                  console.warn("전체 선택 - PATCH 요청에서 유효하지 않은 record 발견:", record);
-                }
-                return isValid;
-              })
-              .map(record => {
-                console.log(`전체 선택 - PATCH 요청 준비: ID=${record.id}, updated_at=${record.updated_at}, updated_by=${record.updated_by}`);
-                return supabase
-                  .from('performance_records')
-                  .update({
-                    review_status: '검수중',
-                    updated_at: record.updated_at,  // 이전 값으로 유지
-                    updated_by: record.updated_by   // 이전 값으로 유지
-                  })
-                  .eq('id', record.id);
-              });
-
-            console.log("전체 선택 - 필터링 후 updates 배열 길이:", updates.length);
-
-            if (updates.length === 0) {
-              console.log("전체 선택 - 유효한 PATCH 요청이 없습니다.");
-            } else {
-              console.log(`전체 선택 - ${updates.length}건의 PATCH 요청을 실행합니다.`);
-              const results = await Promise.all(updates);
-
-              console.log("전체 선택 - PATCH 요청 결과:", results);
-
-              // 실패한 요청들만 별도로 로그 출력
-              const failedResults = results.filter(res => res.error);
-              if (failedResults.length > 0) {
-                console.error("전체 선택 - PATCH 요청 실패:", failedResults);
-                throw new Error(`전체 선택 - PATCH 요청 중 ${failedResults.length}건이 실패했습니다.`);
-              } else {
-                console.log("전체 선택 - 모든 PATCH 요청이 성공했습니다.");
-              }
-            }
-            console.log("=== 전체 선택 PATCH 요청 진단 완료 ===");
-          }
-      }
+      console.log("처리 방식: 전체 데이터 조회 (자동 상태 변경 없음)");
+      // 자동 상태 변경 제거: 단순히 전체 데이터만 조회
     }
     // 3. '검수중' 또는 '완료' 선택 시: 상태 변경 없이 데이터만 불러옵니다.
 
@@ -1113,7 +903,7 @@ async function loadPerformanceData() {
         payment_amount: paymentAmount.toLocaleString(),
         registered_by_name: registrarMap.get(item.registered_by) || '관리자',
         updated_by_name: item.updated_by ? (updaterMap.get(item.updated_by) || '관리자') : '',
-        display_status: item.review_status === '대기' ? '신규' : item.review_status,
+        display_status: item.review_status,
       };
     });
 
@@ -1428,23 +1218,41 @@ function toggleRowSelection(row) {
   }
 }
 
-async function changeReviewStatus() {
-  if (!selectedRows.value || selectedRows.value.length === 0) return;
+function changeReviewStatus() {
+  if (!selectedRows.value || selectedRows.value.length === 0) {
+    alert("상태를 변경할 항목을 선택해주세요.");
+    return;
+  }
+  
+  // 상태 선택 모달 열기
+  showStatusChangeModal.value = true;
+  selectedNewStatus.value = '';
+}
 
-  if (window.confirm(`선택된 ${selectedRows.value.length}개 항목의 검수 상태를 변경하시겠습니까? ('검수중' ↔ '완료')`)) {
+async function confirmStatusChange() {
+  if (!selectedNewStatus.value) {
+    alert("변경할 상태를 선택해주세요.");
+    return;
+  }
+
+  if (!selectedRows.value || selectedRows.value.length === 0) {
+    alert("상태를 변경할 항목을 선택해주세요.");
+    return;
+  }
+
+  if (window.confirm(`선택된 ${selectedRows.value.length}개 항목의 상태를 '${selectedNewStatus.value}'로 변경하시겠습니까?`)) {
     loading.value = true;
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("로그인이 필요합니다.");
 
       const updates = selectedRows.value.map(record => {
-        const newStatus = record.review_status === '검수중' ? '완료' : '검수중';
         return supabase
           .from('performance_records')
           .update({
-            review_status: newStatus,
-            updated_at: record.updated_at,  // 이전 값으로 유지
-            updated_by: record.updated_by   // 이전 값으로 유지
+            review_status: selectedNewStatus.value,
+            updated_at: new Date().toISOString(),
+            updated_by: user.id
           })
           .eq('id', record.id);
       });
@@ -1456,8 +1264,12 @@ async function changeReviewStatus() {
         throw new Error(`다음 항목들의 상태 변경에 실패했습니다: ${errors.map(e=>e.error.message).join(', ')}`);
       }
 
-      alert(`${selectedRows.value.length}개 항목의 상태를 성공적으로 변경했습니다.`);
+      alert(`${selectedRows.value.length}개 항목의 상태를 '${selectedNewStatus.value}'로 성공적으로 변경했습니다.`);
       await loadPerformanceData(); // 데이터 새로고침
+      
+      // 모달 닫기
+      showStatusChangeModal.value = false;
+      selectedNewStatus.value = '';
     } catch (error) {
       console.error('상태 변경 오류:', error);
       alert(error.message);
@@ -1467,43 +1279,11 @@ async function changeReviewStatus() {
   }
 }
 
-const excludeFromReview = async () => {
-  if (!selectedRows.value || selectedRows.value.length === 0) {
-    alert("제외할 항목을 선택해주세요.");
-    return;
-  }
+function cancelStatusChange() {
+  showStatusChangeModal.value = false;
+  selectedNewStatus.value = '';
+}
 
-  const confirmMessage = `선택된 ${selectedRows.value.length}개 항목을 검수 대상에서 제외하시겠습니까? 해당 항목은 '대기' 상태로 돌아가며, 목록에서 사라집니다.`;
-  if (!confirm(confirmMessage)) {
-    return;
-  }
-
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const userUid = session?.user?.id;
-
-    const updates = selectedRows.value.map(row =>
-      supabase
-        .from('performance_records')
-        .update({ review_status: '대기', review_action: null, updated_by: userUid, updated_at: new Date().toISOString() })
-        .eq('id', row.id)
-    );
-    const results = await Promise.all(updates);
-    const errorResult = results.find(res => res.error);
-    if (errorResult) throw errorResult.error;
-
-    // 로컬 데이터 업데이트: 목록에서 제거
-    const idsToRemove = new Set(selectedRows.value.map(r => r.id));
-    rows.value = rows.value.filter(row => !idsToRemove.has(row.id));
-
-    selectedRows.value = [];
-    alert('선택한 항목들이 검수 대상에서 제외되었습니다.');
-
-  } catch (error) {
-    console.error('검수 제외 처리 중 오류:', error);
-    alert(`오류가 발생했습니다: ${error.message}`);
-  }
-};
 
 // --- 유틸리티 함수 ---
 // 회사-거래처 매핑에서 수수료율 등급 조회 함수
@@ -1631,7 +1411,7 @@ function getActionSeverity(action) {
 function getStatusSeverity(status) {
     if (status === '완료') return 'success';
     if (status === '검수중') return 'warning';
-    if (status === '신규') return 'info';
+    if (status === '대기') return 'info';
     return 'secondary';
 }
 
@@ -1831,152 +1611,6 @@ const prescriptionTypeOptionsForBulk = [
   '원외매출',
   '차감'
 ];
-// --- 일괄 변경 관련 함수들 ---
-function openBulkChangeModal() {
-  selectedBulkChangeType.value = '';
-  selectedBulkChangeValue.value = '';
-  showBulkChangeModal.value = true;
-}
-
-function closeBulkChangeModal() {
-  showBulkChangeModal.value = false;
-  selectedBulkChangeType.value = '';
-  selectedBulkChangeValue.value = '';
-}
-
-function openBulkChangeValueModal() {
-  if (!selectedBulkChangeType.value) return;
-  selectedBulkChangeValue.value = '';
-  showBulkChangeValueModal.value = true;
-}
-
-function closeBulkChangeValueModal() {
-  showBulkChangeValueModal.value = false;
-  selectedBulkChangeValue.value = '';
-}
-
-function getBulkChangeTypeLabel() {
-  switch (selectedBulkChangeType.value) {
-    case 'company_name':
-      return '업체명';
-    case 'prescription_type':
-      return '처방구분';
-    default:
-      return '';
-  }
-}
-
-async function handleBulkChange() {
-  if (!selectedRows.value || selectedRows.value.length === 0 || !selectedBulkChangeType.value || !selectedBulkChangeValue.value) return;
-
-  const ids = selectedRows.value.map(row => row.id);
-  const updateData = {};
-
-  try {
-    switch (selectedBulkChangeType.value) {
-      case 'company_name':
-        // 업체명 변경 시 company_id도 함께 업데이트
-        const selectedCompany = allApprovedCompanies.value.find(company => company.company_name === selectedBulkChangeValue.value);
-        if (selectedCompany) {
-          updateData.company_id = selectedCompany.id;
-
-          // 선택된 실적 기록들의 client_id를 가져와서 매핑 관계 확인 및 추가
-          console.log('=== 매핑 관계 추가 시작 ===');
-          console.log('선택된 업체:', selectedCompany);
-          console.log('선택된 실적 기록 ID들:', ids);
-
-          const { data: performanceRecords, error: fetchError } = await supabase
-            .from('performance_records')
-            .select('client_id')
-            .in('id', ids);
-
-          if (fetchError) {
-            throw new Error(`실적 기록 조회 실패: ${fetchError.message}`);
-          }
-
-          console.log('조회된 실적 기록들:', performanceRecords);
-
-          // 고유한 client_id 목록 생성
-          const uniqueClientIds = [...new Set(performanceRecords.map(record => record.client_id).filter(id => id))];
-          console.log('고유한 client_id 목록:', uniqueClientIds);
-
-          // 각 client_id에 대해 매핑 관계 확인 및 추가
-          for (const clientId of uniqueClientIds) {
-            console.log(`\n--- client_id ${clientId} 처리 시작 ---`);
-
-            // 기존 매핑 관계 확인
-            const { data: existingMapping, error: mappingError } = await supabase
-              .from('client_company_assignments')
-              .select('id')
-              .eq('client_id', clientId)
-              .eq('company_id', selectedCompany.id)
-              .single();
-
-            console.log('기존 매핑 관계 확인 결과:', { existingMapping, mappingError });
-
-            if (mappingError && mappingError.code !== 'PGRST116') { // PGRST116는 결과가 없는 경우
-              console.error(`매핑 관계 확인 오류 (client_id: ${clientId}, company_id: ${selectedCompany.id}):`, mappingError);
-            }
-
-            // 매핑 관계가 없으면 새로 추가
-            if (!existingMapping) {
-              console.log(`매핑 관계가 없으므로 새로 추가합니다. (client_id: ${clientId}, company_id: ${selectedCompany.id})`);
-
-              const currentUser = await supabase.auth.getUser();
-              console.log('현재 사용자:', currentUser.data.user);
-
-              const insertData = {
-                client_id: clientId,
-                company_id: selectedCompany.id,
-                created_by: currentUser.data.user?.id
-              };
-              console.log('삽입할 데이터:', insertData);
-
-              const { error: insertError } = await supabase
-                .from('client_company_assignments')
-                .insert(insertData);
-
-              if (insertError) {
-                console.error(`매핑 관계 추가 실패 (client_id: ${clientId}, company_id: ${selectedCompany.id}):`, insertError);
-                // 매핑 추가 실패해도 실적 기록 업데이트는 계속 진행
-              } else {
-                console.log(`매핑 관계 추가 완료 (client_id: ${clientId}, company_id: ${selectedCompany.id})`);
-              }
-            } else {
-              console.log(`이미 매핑 관계가 존재합니다. (client_id: ${clientId}, company_id: ${selectedCompany.id})`);
-            }
-          }
-          console.log('=== 매핑 관계 추가 완료 ===');
-        }
-        break;
-      case 'prescription_type':
-        updateData.prescription_type = selectedBulkChangeValue.value;
-        break;
-    }
-
-    // 모든 일괄 변경에 review_action을 '수정'으로 설정하고 updated_at, updated_by를 현재 시간과 사용자로 설정
-    updateData.review_action = '수정';
-    updateData.updated_at = new Date().toISOString();
-    updateData.updated_by = (await supabase.auth.getUser()).data.user?.id;
-
-    const { error } = await supabase
-      .from('performance_records')
-      .update(updateData)
-      .in('id', ids);
-
-    if (error) {
-      alert(`${getBulkChangeTypeLabel()} 변경 실패: ${error.message}`);
-    } else {
-      alert(`${getBulkChangeTypeLabel()}이 성공적으로 변경되었습니다.`);
-      await loadPerformanceData();
-    }
-  } catch (e) {
-    alert(`${getBulkChangeTypeLabel()} 변경 중 오류 발생: ${e.message}`);
-  } finally {
-    closeBulkChangeValueModal();
-    closeBulkChangeModal();
-  }
-}
 </script>
 
 <style scoped>
