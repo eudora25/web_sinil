@@ -49,8 +49,11 @@
           해당 정산월의 실적 데이터가 없습니다.
         </div>
         <div class="data-card-buttons" style="margin-left: auto;">
-           <button class="btn-primary" @click="changeReviewStatus" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing">
+           <button class="btn-primary" @click="changeReviewStatus" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing" style="margin-right: 1rem;">
              검수 상태 변경 ({{ selectedRows.length }}건)
+           </button>
+           <button class="btn-primary" @click="openBulkChangeModal" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing">
+             일괄 변경 ({{ selectedRows.length }}건)
            </button>
         </div>
       </div>
@@ -80,33 +83,6 @@
           <template #empty>
             <div v-if="!loading">해당 정산월의 실적 데이터가 없습니다.</div>
           </template>
-
-          <Column header="" :headerStyle="{ width: '50px', textAlign: 'center' }" :frozen="true">
-            <template #header>
-              <div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%;">
-                <input
-                  type="checkbox"
-                  :checked="isAllSelected"
-                  :indeterminate="isIndeterminate"
-                  @change="toggleAllSelection"
-                  class="share-checkbox"
-                  style="margin: 0; transform: scale(1.2);"
-                />
-              </div>
-            </template>
-            <template #body="slotProps">
-              <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
-                <input
-                  type="checkbox"
-                  :checked="selectedRows.includes(slotProps.data)"
-                  :disabled="slotProps.data.review_action === '삭제'"
-                  @change="toggleRowSelection(slotProps.data)"
-                  class="share-checkbox"
-                  style="margin: 0; transform: scale(1.2);"
-                />
-              </div>
-            </template>
-          </Column>
 
           <Column header="No" :headerStyle="{ width: columnWidths.no }" :frozen="true">
             <template #body="slotProps">{{ slotProps.index + currentPageFirstIndex + 1 }}</template>
@@ -218,6 +194,31 @@
             </template>
           </Column>
 
+          <Column :headerStyle="{ width: columnWidths.checkbox, textAlign: 'center' }" :frozen="true">
+            <template #header>
+              <div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%;">
+                <input
+                  type="checkbox"
+                  :checked="isAllSelected"
+                  :indeterminate="isIndeterminate"
+                  @change="toggleAllSelection"
+                  class="share-checkbox"
+                />
+              </div>
+            </template>
+            <template #body="slotProps">
+              <div style="display: flex; justify-content: center; align-items: center;">
+                <input
+                  type="checkbox"
+                  :checked="selectedRows.includes(slotProps.data)"
+                  :disabled="slotProps.data.review_action === '삭제'"
+                  @change="toggleRowSelection(slotProps.data)"
+                  class="share-checkbox"
+                />
+              </div>
+            </template>
+          </Column>
+
           <Column field="prescription_type" header="처방구분" :headerStyle="{ width: columnWidths.prescription_type }" :sortable="true">
             <template #body="slotProps">
               <select
@@ -294,6 +295,37 @@
             </Row>
           </ColumnGroup>
         </DataTable>
+      </div>
+    </div>
+  </div>
+
+  <!-- 일괄 변경 항목 선택 모달 -->
+  <div v-if="showBulkChangeModal" class="modal-mask" style="position: fixed; z-index: 9999; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;">
+    <div class="modal-dialog" style="background: #fff; border-radius: 8px; padding: 32px 24px; min-width: 320px; box-shadow: 0 2px 16px rgba(0,0,0,0.15);">
+      <div style="font-size: 1.1em; margin-bottom: 16px;">일괄 변경할 항목을 선택해주세요.</div>
+      <select v-model="selectedBulkChangeType" style="width: 100%; margin-bottom: 24px; padding: 8px; font-size: 1em;">
+        <option value="">- 선택 -</option>
+        <option value="company_name">업체명</option>
+        <option value="prescription_type">처방구분</option>
+      </select>
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button class="btn-primary" @click="openBulkChangeValueModal" :disabled="!selectedBulkChangeType">확인</button>
+        <button class="btn-secondary" @click="closeBulkChangeModal">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 일괄 변경 값 선택 모달 -->
+  <div v-if="showBulkChangeValueModal" class="modal-mask" style="position: fixed; z-index: 9999; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;">
+    <div class="modal-dialog" style="background: #fff; border-radius: 8px; padding: 32px 24px; min-width: 320px; box-shadow: 0 2px 16px rgba(0,0,0,0.15);">
+      <div style="font-size: 1.1em; margin-bottom: 16px;">일괄 변경할 {{ getBulkChangeTypeLabel() }}을 선택해주세요.</div>
+      <select v-model="selectedBulkChangeValue" style="width: 100%; margin-bottom: 24px; padding: 8px; font-size: 1em;">
+        <option value="">- 선택 -</option>
+        <option v-for="option in bulkChangeOptions" :key="option" :value="option">{{ option }}</option>
+      </select>
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button class="btn-primary" @click="handleBulkChange">확인</button>
+        <button class="btn-secondary" @click="closeBulkChangeValueModal">취소</button>
       </div>
     </div>
   </div>
@@ -425,6 +457,11 @@ const currentPageFirstIndex = ref(0);
 // 페이지당 행 수를 ref로 정의 (기본값을 더 작게 설정하여 부하 감소)
 const rowsPerPage = ref(100);
 
+// --- 일괄 변경 모달 관련 변수 ---
+const showBulkChangeModal = ref(false);
+const showBulkChangeValueModal = ref(false);
+const selectedBulkChangeType = ref('');
+const selectedBulkChangeValue = ref('');
 
 // --- 검수 상태 변경 모달 관련 변수 ---
 const showStatusChangeModal = ref(false);
@@ -470,6 +507,20 @@ const isIndeterminate = computed(() => {
   return selectedCount > 0 && selectedCount < currentPageRows.length;
 });
 
+// --- 일괄 변경 관련 computed 속성 ---
+const bulkChangeOptions = computed(() => {
+  if (!selectedBulkChangeType.value) return [];
+
+  switch (selectedBulkChangeType.value) {
+    case 'company_name':
+      // 전체 업체 목록 (user_type = user & approval_status = approved)
+      return allApprovedCompanies.value.map(company => company.company_name);
+    case 'prescription_type':
+      return prescriptionTypeOptions;
+    default:
+      return [];
+  }
+});
 
 const displayRows = computed(() => {
   let filteredRows = rows.value;
@@ -1611,6 +1662,153 @@ const prescriptionTypeOptionsForBulk = [
   '원외매출',
   '차감'
 ];
+
+// --- 일괄 변경 관련 함수들 ---
+function openBulkChangeModal() {
+  selectedBulkChangeType.value = '';
+  selectedBulkChangeValue.value = '';
+  showBulkChangeModal.value = true;
+}
+
+function closeBulkChangeModal() {
+  showBulkChangeModal.value = false;
+  selectedBulkChangeType.value = '';
+  selectedBulkChangeValue.value = '';
+}
+
+function openBulkChangeValueModal() {
+  if (!selectedBulkChangeType.value) return;
+  selectedBulkChangeValue.value = '';
+  showBulkChangeValueModal.value = true;
+}
+
+function closeBulkChangeValueModal() {
+  showBulkChangeValueModal.value = false;
+  selectedBulkChangeValue.value = '';
+}
+
+function getBulkChangeTypeLabel() {
+  switch (selectedBulkChangeType.value) {
+    case 'company_name':
+      return '업체명';
+    case 'prescription_type':
+      return '처방구분';
+    default:
+      return '';
+  }
+}
+
+async function handleBulkChange() {
+  if (!selectedRows.value || selectedRows.value.length === 0 || !selectedBulkChangeType.value || !selectedBulkChangeValue.value) return;
+
+  const ids = selectedRows.value.map(row => row.id);
+  const updateData = {};
+
+  try {
+    switch (selectedBulkChangeType.value) {
+      case 'company_name':
+        // 업체명 변경 시 company_id도 함께 업데이트
+        const selectedCompany = allApprovedCompanies.value.find(company => company.company_name === selectedBulkChangeValue.value);
+        if (selectedCompany) {
+          updateData.company_id = selectedCompany.id;
+
+          // 선택된 실적 기록들의 client_id를 가져와서 매핑 관계 확인 및 추가
+          console.log('=== 매핑 관계 추가 시작 ===');
+          console.log('선택된 업체:', selectedCompany);
+          console.log('선택된 실적 기록 ID들:', ids);
+
+          const { data: performanceRecords, error: fetchError } = await supabase
+            .from('performance_records')
+            .select('client_id')
+            .in('id', ids);
+
+          if (fetchError) {
+            throw new Error(`실적 기록 조회 실패: ${fetchError.message}`);
+          }
+
+          console.log('조회된 실적 기록들:', performanceRecords);
+
+          // 고유한 client_id 목록 생성
+          const uniqueClientIds = [...new Set(performanceRecords.map(record => record.client_id).filter(id => id))];
+          console.log('고유한 client_id 목록:', uniqueClientIds);
+
+          // 각 client_id에 대해 매핑 관계 확인 및 추가
+          for (const clientId of uniqueClientIds) {
+            console.log(`\n--- client_id ${clientId} 처리 시작 ---`);
+
+            // 기존 매핑 관계 확인
+            const { data: existingMapping, error: mappingError } = await supabase
+              .from('client_company_assignments')
+              .select('id')
+              .eq('client_id', clientId)
+              .eq('company_id', selectedCompany.id)
+              .single();
+
+            console.log('기존 매핑 관계 확인 결과:', { existingMapping, mappingError });
+
+            if (mappingError && mappingError.code !== 'PGRST116') { // PGRST116는 결과가 없는 경우
+              console.error(`매핑 관계 확인 오류 (client_id: ${clientId}, company_id: ${selectedCompany.id}):`, mappingError);
+            }
+
+            // 매핑 관계가 없으면 새로 추가
+            if (!existingMapping) {
+              console.log(`매핑 관계가 없으므로 새로 추가합니다. (client_id: ${clientId}, company_id: ${selectedCompany.id})`);
+
+              const currentUser = await supabase.auth.getUser();
+              console.log('현재 사용자:', currentUser.data.user);
+
+              const insertData = {
+                client_id: clientId,
+                company_id: selectedCompany.id,
+                created_by: currentUser.data.user?.id
+              };
+              console.log('삽입할 데이터:', insertData);
+
+              const { error: insertError } = await supabase
+                .from('client_company_assignments')
+                .insert(insertData);
+
+              if (insertError) {
+                console.error(`매핑 관계 추가 실패 (client_id: ${clientId}, company_id: ${selectedCompany.id}):`, insertError);
+                // 매핑 추가 실패해도 실적 기록 업데이트는 계속 진행
+              } else {
+                console.log(`매핑 관계 추가 완료 (client_id: ${clientId}, company_id: ${selectedCompany.id})`);
+              }
+            } else {
+              console.log(`이미 매핑 관계가 존재합니다. (client_id: ${clientId}, company_id: ${selectedCompany.id})`);
+            }
+          }
+          console.log('=== 매핑 관계 추가 완료 ===');
+        }
+        break;
+      case 'prescription_type':
+        updateData.prescription_type = selectedBulkChangeValue.value;
+        break;
+    }
+
+    // 모든 일괄 변경에 review_action을 '수정'으로 설정하고 updated_at, updated_by를 현재 시간과 사용자로 설정
+    updateData.review_action = '수정';
+    updateData.updated_at = new Date().toISOString();
+    updateData.updated_by = (await supabase.auth.getUser()).data.user?.id;
+
+    const { error } = await supabase
+      .from('performance_records')
+      .update(updateData)
+      .in('id', ids);
+
+    if (error) {
+      alert(`${getBulkChangeTypeLabel()} 변경 실패: ${error.message}`);
+    } else {
+      alert(`${getBulkChangeTypeLabel()}이 성공적으로 변경되었습니다.`);
+      await loadPerformanceData();
+    }
+  } catch (e) {
+    alert(`${getBulkChangeTypeLabel()} 변경 중 오류 발생: ${e.message}`);
+  } finally {
+    closeBulkChangeValueModal();
+    closeBulkChangeModal();
+  }
+}
 </script>
 
 <style scoped>
