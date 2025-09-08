@@ -283,6 +283,7 @@
               <Column footer="" footerClass="footer-cell" />
               <Column :footer="totalQuantity" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column :footer="totalPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+              <Column footer="" footerClass="footer-cell" :frozen="true" />
               <Column footer="" footerClass="footer-cell" />
               <Column footer="" footerClass="footer-cell" />
               <Column footer="" footerClass="footer-cell" />
