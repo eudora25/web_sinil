@@ -604,10 +604,15 @@ watch(prescriptionOffset, async () => {
     }
 });
 
-watch(selectedStatus, async () => {
+watch(selectedStatus, async (newStatus, oldStatus) => {
     // 상태가 변경되면 자동으로 데이터 로드
     if (selectedSettlementMonth.value) {
         await loadPerformanceData();
+    }
+    
+    // 상태가 '대기'로 변경되면 자동으로 '검수중'으로 변경
+    if (newStatus === '대기' && oldStatus !== '대기') {
+        await updateAllPendingToReviewing();
     }
 });
 
@@ -1276,9 +1281,74 @@ function changeReviewStatus() {
     return;
   }
   
-  // 상태 선택 모달 열기
-  showStatusChangeModal.value = true;
-  selectedNewStatus.value = '';
+  if (window.confirm(`선택된 ${selectedRows.value.length}개 항목의 상태를 '검수중'으로 변경하시겠습니까?`)) {
+    updateSelectedRowsStatus('검수중');
+  }
+}
+
+async function updateSelectedRowsStatus(newStatus) {
+  loading.value = true;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("로그인이 필요합니다.");
+
+    const updates = selectedRows.value.map(record => {
+      return supabase
+        .from('performance_records')
+        .update({
+          review_status: newStatus,
+          updated_at: new Date().toISOString(),
+          updated_by: user.id
+        })
+        .eq('id', record.id);
+    });
+
+    const results = await Promise.all(updates);
+    const errors = results.filter(res => res.error);
+
+    if (errors.length > 0) {
+      throw new Error(`다음 항목들의 상태 변경에 실패했습니다: ${errors.map(e=>e.error.message).join(', ')}`);
+    }
+
+    alert(`${selectedRows.value.length}개 항목의 상태를 '${newStatus}'로 성공적으로 변경했습니다.`);
+    await loadPerformanceData(); // 데이터 새로고침
+    
+    // 선택 해제
+    selectedRows.value = [];
+  } catch (error) {
+    console.error('상태 변경 오류:', error);
+    alert(`상태 변경 중 오류가 발생했습니다: ${error.message}`);
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function updateAllPendingToReviewing() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("로그인이 필요합니다.");
+
+    // 현재 필터 조건에 맞는 '대기' 상태의 모든 레코드를 '검수중'으로 변경
+    const { data, error } = await supabase
+      .from('performance_records')
+      .update({
+        review_status: '검수중',
+        updated_at: new Date().toISOString(),
+        updated_by: user.id
+      })
+      .eq('settlement_month', selectedSettlementMonth.value)
+      .eq('review_status', '대기')
+      .select('id');
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      console.log(`${data.length}개 항목이 자동으로 '검수중' 상태로 변경되었습니다.`);
+      await loadPerformanceData(); // 데이터 새로고침
+    }
+  } catch (error) {
+    console.error('자동 상태 변경 오류:', error);
+  }
 }
 
 async function confirmStatusChange() {
