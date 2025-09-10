@@ -607,6 +607,10 @@ watch(prescriptionOffset, async () => {
 watch(selectedStatus, async (newStatus, oldStatus) => {
     // 상태가 변경되면 자동으로 데이터 로드
     if (selectedSettlementMonth.value) {
+        // '대기' 선택 시 자동으로 '검수중'으로 변경하는 기능 복원
+        if (newStatus === '대기') {
+            await updateAllPendingToReviewing();
+        }
         await loadPerformanceData();
     }
 });
@@ -1334,6 +1338,35 @@ async function confirmStatusChange() {
 function cancelStatusChange() {
   showStatusChangeModal.value = false;
   selectedNewStatus.value = '';
+}
+
+// --- 자동 상태 변경 함수 ---
+async function updateAllPendingToReviewing() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("로그인이 필요합니다.");
+
+    // 현재 정산월의 '대기' 상태인 모든 레코드를 '검수중'으로 변경
+    const { error } = await supabase
+      .from('performance_records')
+      .update({
+        review_status: '검수중',
+        updated_at: new Date().toISOString(),
+        updated_by: user.id
+      })
+      .eq('settlement_month', selectedSettlementMonth.value)
+      .eq('review_status', '대기');
+
+    if (error) {
+      console.error('자동 상태 변경 실패:', error);
+      // 에러가 발생해도 사용자에게 알리지 않고 조용히 처리
+    } else {
+      console.log('대기 상태 항목들이 자동으로 검수중으로 변경되었습니다.');
+    }
+  } catch (err) {
+    console.error('자동 상태 변경 중 오류:', err);
+    // 에러가 발생해도 사용자에게 알리지 않고 조용히 처리
+  }
 }
 
 
