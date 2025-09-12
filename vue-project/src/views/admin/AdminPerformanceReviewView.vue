@@ -240,7 +240,7 @@
                 class="edit-mode-input"
                 @change="handleEditCalculations(slotProps.data, 'rate')"
               />
-              <span v-else>{{ slotProps.data.commission_rate ? `${(slotProps.data.commission_rate * 100).toFixed(1)}%` : '' }}</span>
+              <span v-else>{{ slotProps.data.commission_rate !== null && slotProps.data.commission_rate !== undefined ? `${(slotProps.data.commission_rate * 100).toFixed(1)}%` : '' }}</span>
             </template>
           </Column>
           <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :sortable="true">
