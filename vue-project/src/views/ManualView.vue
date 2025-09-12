@@ -4,7 +4,7 @@
       <!-- 고정될 헤더 영역 (제목 + 탭) -->
       <div class="manual-header">
         <div class="header-top">
-          <h1>{{ isAdminManual ? '신일제약 CSO 실적 관리 시스템 - 관리자 메뉴얼' : '신일제약 CSO 실적 관리 시스템 - 이용자 메뉴얼' }}</h1>
+          <h1>{{ isAdminManual ? '신일제약 CSO 실적 관리 시스템 - 관리자 매뉴얼' : '신일제약 CSO 실적 관리 시스템 - 이용자 매뉴얼' }}</h1>
           <!-- PDF 다운로드 버튼 : 일시 감추기 -->
           <!--
           <Button 
@@ -72,7 +72,7 @@ const downloadPDF = async () => {
     return;
   }
 
-  const title = isAdminManual.value ? '관리자 메뉴얼' : '이용자 메뉴얼';
+  const title = isAdminManual.value ? '관리자 매뉴얼' : '이용자 매뉴얼';
   const fileName = `${title}.pdf`;
 
   const pdf = new jsPDF('p', 'mm', 'a4');

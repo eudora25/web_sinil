@@ -20,7 +20,7 @@
       <div class="side-nav-manual">
         <a @click.prevent="goManual" href="#" class="side-nav-manual-link">
           <i class="pi pi-book side-nav-manual-icon"></i>
-          <span>{{ userRole === 'admin' ? '관리자 메뉴얼' : '이용자 메뉴얼' }}</span>
+          <span>{{ userRole === 'admin' ? '관리자 매뉴얼' : '이용자 매뉴얼' }}</span>
         </a>
       </div>
       <div class="side-nav-profile">
