@@ -240,7 +240,12 @@
                 class="edit-mode-input"
                 @change="handleEditCalculations(slotProps.data, 'rate')"
               />
-              <span v-else>{{ slotProps.data.commission_rate !== null && slotProps.data.commission_rate !== undefined ? `${(slotProps.data.commission_rate * 100).toFixed(1)}%` : '' }}</span>
+              <span v-else>{{ (() => {
+                const rate = slotProps.data.commission_rate;
+                console.log('수수료율 디버그:', { rate, type: typeof rate, isNull: rate === null, isUndefined: rate === undefined });
+                if (rate === null || rate === undefined) return '';
+                return `${(rate * 100).toFixed(1)}%`;
+              })() }}</span>
             </template>
           </Column>
           <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :sortable="true">
