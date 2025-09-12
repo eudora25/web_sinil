@@ -1297,7 +1297,10 @@ async function savePerformanceData() {
       remarks: row.remarks,
       registered_by: currentUserUid, // 실제 등록한 사용자 ID (관리자 또는 일반사용자)
         review_status: reviewStatus,
-        commission_rate: Number((Number(row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '')) / 100).toFixed(3)) || commissionRate
+        commission_rate: (() => {
+          const calculatedRate = Number((Number(row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '')) / 100).toFixed(3));
+          return isNaN(calculatedRate) ? commissionRate : calculatedRate;
+        })()
       };
     });
     const { error } = await supabase.from('performance_records').insert(dataToInsert);
@@ -1332,7 +1335,10 @@ async function savePerformanceData() {
           prescription_qty: Number(row.prescription_qty),
           prescription_type: row.prescription_type,
           remarks: row.remarks,
-          commission_rate: Number((Number(row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '')) / 100).toFixed(3)) || commissionRate,
+          commission_rate: (() => {
+            const calculatedRate = Number((Number(row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '')) / 100).toFixed(3));
+            return isNaN(calculatedRate) ? commissionRate : calculatedRate;
+          })(),
           review_status: reviewStatus,
           updated_by: currentUserUid,
           updated_at: new Date().toISOString()
