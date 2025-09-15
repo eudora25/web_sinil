@@ -23,15 +23,35 @@
           <label>업체</label>
           <select v-model="selectedCompanyId" class="select_200px">
             <option value="">- 전체 -</option>
-            <option v-for="company in companies" :key="company.id" :value="company.id">{{ company.company_name }}</option>
+            <option v-for="company in monthlyCompanies" :key="company.id" :value="company.id">{{ company.company_name }}</option>
           </select>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <label>병의원</label>
-          <select v-model="selectedHospitalId" class="select_240px">
-            <option value="">- 전체 -</option>
-            <option v-for="hospital in hospitals" :key="hospital.id" :value="hospital.id">{{ hospital.name }}</option>
-          </select>
+          <div class="hospital-search-container" style="position: relative;">
+            <input
+              v-model="hospitalSearchText"
+              @input="handleHospitalSearch"
+              @focus="handleHospitalFocus"
+              @blur="delayedHideHospitalDropdown"
+              placeholder="병의원명을 입력하세요..."
+              class="select_240px"
+              autocomplete="off"
+            />
+            <div v-if="showHospitalDropdown && filteredHospitals.length > 0" class="hospital-dropdown">
+              <div
+                v-for="hospital in filteredHospitals"
+                :key="hospital.id"
+                :class="['hospital-dropdown-item', { selected: selectedHospitalId === hospital.id }]"
+                @mousedown.prevent="selectHospital(hospital)"
+              >
+                {{ hospital.name }}
+              </div>
+            </div>
+            <div v-if="showHospitalDropdown && filteredHospitals.length === 0 && hospitalSearchText.trim()" class="hospital-dropdown">
+              <div class="hospital-dropdown-item no-results">검색 결과가 없습니다.</div>
+            </div>
+          </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <label style="font-weight:400;">검수</label>
@@ -195,11 +215,16 @@ const currentPageFirstIndex = ref(0);
 
 // 업체 관련
 const selectedCompanyId = ref(''); // 선택된 업체 ID
-const companies = ref([]); // 업체 목록
+const companies = ref([]); // 업체 목록 (기존 호환성)
+const monthlyCompanies = ref([]); // 해당 월의 모든 승인된 업체 목록
 
 // 병의원 관련
 const selectedHospitalId = ref(''); // 빈 문자열로 초기화 (전체)
-const hospitals = ref([]);
+const hospitals = ref([]); // 기존 호환성
+const allHospitals = ref([]); // 모든 병의원 목록
+const hospitalSearchText = ref(''); // 병의원 검색 텍스트
+const showHospitalDropdown = ref(false); // 병의원 드롭다운 표시 여부
+const filteredHospitals = ref([]); // 필터링된 병의원 목록
 
 // 실적 데이터
 const performanceRecords = ref([]); // DB에서 가져온 실적 데이터
@@ -285,11 +310,10 @@ watch(prescriptionOffset, (val) => {
 });
 
 watch(selectedCompanyId, () => {
-  // 병의원 선택 초기화
-  selectedHospitalId.value = '';
+  // 업체가 변경되어도 병의원 선택은 유지
+  // selectedHospitalId.value = ''; // 이 줄을 제거하여 병의원 선택 유지
   
   if (selectedSettlementMonth.value) {
-    fetchHospitals();
     fetchPerformanceRecords();
   }
 });
@@ -322,11 +346,12 @@ async function fetchAvailableMonths() {
 async function fetchCompanies() {
   if (!selectedSettlementMonth.value) {
     companies.value = [];
+    monthlyCompanies.value = [];
     return;
   }
   
   try {
-    // 선택된 정산월에 실적을 제출한 업체들만 조회
+    // === 기존 방식: 해당 월에 실적을 제출한 업체들만 조회 (호환성 유지) ===
     let query = supabase
       .from('performance_records')
       .select(`
@@ -365,6 +390,22 @@ async function fetchCompanies() {
     
     // 업체명으로 정렬
     companies.value = uniqueCompanies.sort((a, b) => a.company_name.localeCompare(b.company_name));
+    
+    // === 새로운 방식: 모든 승인된 업체를 별도로 쿼리 ===
+    const { data: allCompanies, error: allCompaniesError } = await supabase
+      .from('companies')
+      .select('id, company_name, company_group, assigned_pharmacist_contact')
+      .eq('status', '승인')
+      .order('company_name', { ascending: true });
+    
+    if (allCompaniesError) {
+      console.error('전체 업체 조회 오류:', allCompaniesError);
+      monthlyCompanies.value = [];
+    } else {
+      monthlyCompanies.value = allCompanies || [];
+      console.log(`전체 승인된 업체 ${monthlyCompanies.value.length}개 로드 완료`);
+    }
+    
   } catch (err) {
     console.error('업체 조회 예외:', err);
   }
@@ -373,10 +414,12 @@ async function fetchCompanies() {
 async function fetchHospitals() {
   if (!selectedSettlementMonth.value) {
     hospitals.value = [];
+    allHospitals.value = [];
     return;
   }
   
   try {
+    // === 기존 방식: 해당 월에 실적을 제출한 병의원들만 조회 (호환성 유지) ===
     let query = supabase
       .from('performance_records')
       .select(`
@@ -418,6 +461,37 @@ async function fetchHospitals() {
 
     // 이름순으로 정렬
     hospitals.value = uniqueHospitals.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // === 전체 병의원 리스트: 모든 병의원을 별도로 쿼리 (중복 제거) ===
+    try {
+      const { data: hospitals, error: hospitalError } = await supabase
+        .from('clients')
+        .select('id, name, business_registration_number')
+        .order('name', { ascending: true });
+
+      if (hospitalError) {
+        console.error('전체 병의원 로딩 실패:', hospitalError);
+        allHospitals.value = [];
+      } else {
+        // 사업자등록번호 기준으로 중복 제거 (같은 사업자등록번호 중 가장 늦게 생성된 것만 유지)
+        const uniqueHospitals = [];
+        const businessNumberMap = new Map();
+        
+        hospitals.forEach(hospital => {
+          const businessNumber = hospital.business_registration_number;
+          if (!businessNumber || !businessNumberMap.has(businessNumber)) {
+            businessNumberMap.set(businessNumber, hospital);
+            uniqueHospitals.push(hospital);
+          }
+        });
+        
+        allHospitals.value = uniqueHospitals;
+        console.log(`전체 병의원 ${hospitals.length}개 → 중복 제거 후 ${allHospitals.value.length}개 로드 완료`);
+      }
+    } catch (err) {
+      console.error('병의원 데이터 로딩 오류:', err);
+      allHospitals.value = [];
+    }
     
   } catch (err) {
     console.error('병의원 조회 예외:', err);
@@ -809,6 +883,58 @@ const downloadExcel = async () => {
   window.URL.revokeObjectURL(url)
 };
 
+// 병의원 검색 관련 함수들
+function handleHospitalSearch() {
+  const searchTerm = hospitalSearchText.value.toLowerCase().trim();
+  
+  if (!searchTerm) {
+    // 검색어가 없으면 모든 병의원 표시 (최대 100개)
+    filteredHospitals.value = allHospitals.value.slice(0, 100);
+    // "- 전체 -" 옵션 추가
+    if (filteredHospitals.value.length > 0) {
+      filteredHospitals.value.unshift({ id: '', name: '- 전체 -' });
+    }
+  } else {
+    // 검색어가 있으면 필터링
+    filteredHospitals.value = allHospitals.value
+      .filter(hospital => hospital.name.toLowerCase().includes(searchTerm))
+      .slice(0, 100); // 최대 100개로 제한
+  }
+  
+  // 현재 선택된 병의원이 검색 결과에 없으면 선택 해제
+  if (selectedHospitalId.value && !filteredHospitals.value.find(h => h.id === selectedHospitalId.value)) {
+    selectedHospitalId.value = '';
+    hospitalSearchText.value = '';
+  }
+  
+  showHospitalDropdown.value = true;
+}
+
+function selectHospital(hospital) {
+  selectedHospitalId.value = hospital.id;
+  hospitalSearchText.value = hospital.name;
+  showHospitalDropdown.value = false;
+  
+  // 실적 데이터 다시 로드
+  if (selectedSettlementMonth.value) {
+    fetchPerformanceRecords();
+  }
+}
+
+function handleHospitalFocus() {
+  // 포커스 시 드롭다운 표시
+  if (allHospitals.value.length > 0) {
+    handleHospitalSearch();
+  }
+}
+
+function delayedHideHospitalDropdown() {
+  // 약간의 지연을 두어 클릭 이벤트가 처리되도록 함
+  setTimeout(() => {
+    showHospitalDropdown.value = false;
+  }, 200);
+}
+
 // 마운트
 onMounted(() => {
   fetchAvailableMonths();
@@ -829,5 +955,50 @@ onMounted(() => {
 :deep(.p-datatable-tfoot > tr > td) {
     background: #f8f9fa !important;
     font-weight: bold;
+}
+
+/* 병의원 검색 드롭다운 스타일 */
+.hospital-search-container {
+  position: relative;
+}
+
+.hospital-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-top: none;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.hospital-dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+
+.hospital-dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+.hospital-dropdown-item.selected {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.hospital-dropdown-item.no-results {
+  color: #999;
+  font-style: italic;
+  cursor: default;
+}
+
+.hospital-dropdown-item.no-results:hover {
+  background-color: transparent;
 }
 </style>
