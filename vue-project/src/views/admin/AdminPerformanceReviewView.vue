@@ -31,7 +31,7 @@
             <input
               v-model="hospitalSearchText"
               @input="handleHospitalSearch"
-              @focus="showHospitalDropdown = true"
+              @focus="handleHospitalFocus"
               @blur="delayedHideHospitalDropdown"
               placeholder="병의원명을 입력하세요..."
               class="select_240px"
@@ -47,7 +47,7 @@
                 {{ hospital.name }}
               </div>
             </div>
-            <div v-if="showHospitalDropdown && filteredHospitals.length === 0 && hospitalSearchText" class="hospital-dropdown">
+            <div v-if="showHospitalDropdown && filteredHospitals.length === 0 && hospitalSearchText.trim()" class="hospital-dropdown">
               <div class="hospital-dropdown-item no-results">검색 결과가 없습니다.</div>
             </div>
           </div>
@@ -647,7 +647,8 @@ watch(selectedSettlementMonth, async (newMonth) => {
 });
 
 watch(selectedCompanyId, async () => {
-    selectedHospitalId.value = null;
+    // 업체가 변경되어도 병의원 선택은 유지
+    // selectedHospitalId.value = null; // 이 줄을 제거하여 병의원 선택 유지
     // 업체가 변경되면 자동으로 데이터 로드
     if (selectedSettlementMonth.value) {
         await loadPerformanceData();
@@ -683,6 +684,13 @@ watch(selectedHospitalId, async () => {
 });
 
 // --- 병의원 검색 관련 함수들 ---
+function handleHospitalFocus() {
+    // 포커스 시 드롭다운 표시 (입력이 있거나 선택된 병의원이 있을 때)
+    if (hospitalSearchText.value.trim() || selectedHospitalId.value) {
+        handleHospitalSearch();
+    }
+}
+
 function handleHospitalSearch() {
     const searchTerm = hospitalSearchText.value.toLowerCase().trim();
     
@@ -695,19 +703,25 @@ function handleHospitalSearch() {
     }
     
     if (!searchTerm) {
-        // 검색어가 없으면 "전체" 옵션과 함께 전체 병의원 표시
-        filteredHospitals.value = [
-            { id: null, name: '- 전체 -' },
-            ...allHospitals.value.slice(0, 99) // 성능을 위해 최대 99개만 표시 (전체 옵션 포함해서 100개)
-        ];
+        // 검색어가 없으면 드롭다운 숨김 (단, 선택된 병의원이 있으면 표시)
+        if (selectedHospitalId.value) {
+            // 선택된 병의원이 있으면 전체 목록 표시
+            filteredHospitals.value = [
+                { id: null, name: '- 전체 -' },
+                ...allHospitals.value.slice(0, 99)
+            ];
+            showHospitalDropdown.value = true;
+        } else {
+            showHospitalDropdown.value = false;
+            filteredHospitals.value = [];
+        }
     } else {
-        // 검색어가 있으면 필터링
+        // 검색어가 있으면 필터링하고 드롭다운 표시
         filteredHospitals.value = allHospitals.value
             .filter(hospital => hospital.name.toLowerCase().includes(searchTerm))
             .slice(0, 100); // 성능을 위해 최대 100개만 표시
+        showHospitalDropdown.value = true;
     }
-    
-    showHospitalDropdown.value = true;
 }
 
 function selectHospital(hospital) {
@@ -764,9 +778,6 @@ onMounted(async () => {
     await loadPerformanceData();
   }
 
-  // 병의원 검색 초기화
-  handleHospitalSearch();
-
   // 실제 선택된 처방월 값으로 fetchProducts 호출
   if (prescriptionOffset.value !== null) {
     const prescriptionMonth = getPrescriptionMonth(selectedSettlementMonth.value, prescriptionOffset.value);
@@ -811,19 +822,47 @@ async function fetchFilterOptions(settlementMonth) {
         monthlyCompanies.value = [];
     }
 
-    // === 전체 병의원 리스트: 모든 병의원을 별도로 쿼리 ===
+    // === 전체 병의원 리스트: 모든 병의원을 별도로 쿼리 (중복 제거) ===
     try {
         const { data: hospitals, error: hospitalError } = await supabase
             .from('clients')
-            .select('id, name')
+            .select('id, name, business_registration_number')
             .order('name', { ascending: true });
 
         if (hospitalError) {
             console.error('전체 병의원 로딩 실패:', hospitalError);
             allHospitals.value = [];
         } else {
-            allHospitals.value = hospitals || [];
-            console.log(`5. 전체 병의원 ${allHospitals.value.length}개 로드 완료`);
+            // 사업자등록번호 기준으로 중복 제거 (같은 사업자등록번호 중 가장 늦게 생성된 것만 유지)
+            const uniqueHospitals = [];
+            const businessNumberMap = new Map();
+            
+            hospitals.forEach(hospital => {
+                const businessNumber = hospital.business_registration_number;
+                if (!businessNumber || !businessNumberMap.has(businessNumber)) {
+                    businessNumberMap.set(businessNumber, hospital);
+                    uniqueHospitals.push(hospital);
+                }
+            });
+            
+            allHospitals.value = uniqueHospitals;
+            console.log(`5. 전체 병의원 ${hospitals.length}개 → 중복 제거 후 ${allHospitals.value.length}개 로드 완료`);
+            
+            // 같은 이름의 병의원이 있는지 확인 (디버깅용)
+            const nameCounts = {};
+            (hospitals || []).forEach(hospital => {
+                nameCounts[hospital.name] = (nameCounts[hospital.name] || 0) + 1;
+            });
+            
+            Object.entries(nameCounts).forEach(([name, count]) => {
+                if (count > 1) {
+                    console.log(`같은 이름의 병의원이 ${count}개 있습니다: ${name}`);
+                    const duplicates = (hospitals || []).filter(h => h.name === name);
+                    duplicates.forEach(h => {
+                        console.log(`  - ID: ${h.id}, Name: ${h.name}`);
+                    });
+                }
+            });
         }
     } catch (err) {
         console.error('병의원 데이터 로딩 오류:', err);
