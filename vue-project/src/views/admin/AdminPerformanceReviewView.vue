@@ -1109,8 +1109,8 @@ async function loadPerformanceData() {
         paymentAmount = Math.round(prescriptionAmount * (item.commission_rate || 0));
         // 구간수수료율은 데이터베이스에서 가져온 값 사용 (기본값 0)
         sectionCommissionRate = item.section_commission_rate || 0;
-        const sectionCommissionAmount = Math.round(paymentAmount * sectionCommissionRate);
-        // 실지급액은 지급액에 구간수수료를 더한 금액
+        const sectionCommissionAmount = Math.round(prescriptionAmount * sectionCommissionRate);
+        // 실지급액은 지급액에 (처방액 × 구간수수료율)을 더한 금액
         actualPayment = paymentAmount + sectionCommissionAmount;
       }
 
@@ -1572,7 +1572,8 @@ async function handleEditCalculations(rowData, field) {
   if (field === 'section_commission' || field === 'qty' || field === 'rate') {
     const sectionCommissionRate = Number(rowData.section_commission_modify) || 0;
     const paymentAmount = rowData.payment_amount_modify;
-    const sectionCommissionAmount = Math.round(paymentAmount * sectionCommissionRate);
+    const prescriptionAmount = rowData.prescription_amount_modify;
+    const sectionCommissionAmount = Math.round(prescriptionAmount * sectionCommissionRate);
     rowData.actual_payment_modify = paymentAmount + sectionCommissionAmount;
   }
 }
