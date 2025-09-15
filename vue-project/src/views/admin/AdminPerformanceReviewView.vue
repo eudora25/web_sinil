@@ -339,7 +339,7 @@
               <Column footer="" footerClass="footer-cell" />
               <Column footer="" footerClass="footer-cell" />
               <Column :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-              <Column :footer="totalSectionCommission" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+              <Column footer="" footerClass="footer-cell" />
               <Column :footer="totalActualPayment" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column footer="" footerClass="footer-cell" />
               <Column footer="" footerClass="footer-cell" />
@@ -480,12 +480,13 @@ const totalPaymentAmount = computed(() => {
   return total.toLocaleString();
 });
 
-const totalSectionCommission = computed(() => {
-  const total = displayRows.value
-    .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
-    .reduce((sum, row) => sum + (Number(String(row.section_commission || 0).replace(/,/g, '')) || 0), 0);
-  return total.toLocaleString();
-});
+// 구간수수료율 합계는 표시하지 않음
+// const totalSectionCommission = computed(() => {
+//   const total = displayRows.value
+//     .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
+//     .reduce((sum, row) => sum + (Number(String(row.section_commission || 0).replace(/,/g, '')) || 0), 0);
+//   return total.toLocaleString();
+// });
 
 const totalActualPayment = computed(() => {
   const total = displayRows.value
