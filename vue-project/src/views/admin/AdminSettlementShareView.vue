@@ -697,6 +697,8 @@ async function saveCommission() {
         section_commission_rate: rate / 100, // 퍼센트를 소수점으로 변환
         share_enabled: selectedCompany.value.is_shared || false,
         notice_individual: selectedCompany.value.notice_individual || null
+      }, {
+        onConflict: 'settlement_month,company_id'
       });
     
     if (error) throw error;
