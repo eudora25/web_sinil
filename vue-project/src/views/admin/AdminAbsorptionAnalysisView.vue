@@ -30,6 +30,7 @@
               @input="handleCompanySearch"
               @focus="handleCompanyFocus"
               @blur="delayedHideCompanyDropdown"
+              @keydown="handleCompanyKeydown"
               :placeholder="selectedCompanyId === 'ALL' ? '업체명을 입력하세요...' : ''"
               class="select_200px"
               autocomplete="off"
@@ -37,16 +38,22 @@
             <div v-if="showCompanyDropdown && filteredCompanies.length > 0" class="company-dropdown">
               <!-- 전체 옵션 -->
               <div
-                :class="['company-dropdown-item', { selected: selectedCompanyId === 'ALL' }]"
+                :class="['company-dropdown-item', { 
+                  selected: selectedCompanyId === 'ALL', 
+                  highlighted: companyHighlightedIndex === 0 
+                }]"
                 @mousedown.prevent="selectCompany({ id: 'ALL', company_name: '전체' })"
               >
                 전체
               </div>
               <!-- 업체 목록 -->
               <div
-                v-for="company in filteredCompanies"
+                v-for="(company, index) in filteredCompanies"
                 :key="company.id"
-                :class="['company-dropdown-item', { selected: selectedCompanyId === company.id }]"
+                :class="['company-dropdown-item', { 
+                  selected: selectedCompanyId === company.id,
+                  highlighted: companyHighlightedIndex === index + 1
+                }]"
                 @mousedown.prevent="selectCompany(company)"
               >
                 {{ company.company_name }}
@@ -66,15 +73,30 @@
               @input="handleHospitalSearch"
               @focus="handleHospitalFocus"
               @blur="delayedHideHospitalDropdown"
-              placeholder="병의원명을 입력하세요..."
+              @keydown="handleHospitalKeydown"
+              :placeholder="selectedHospitalId === 'ALL' ? '병의원명을 입력하세요...' : ''"
               class="select_240px"
               autocomplete="off"
             />
             <div v-if="showHospitalDropdown && filteredHospitals.length > 0" class="hospital-dropdown">
+              <!-- 전체 옵션 -->
               <div
-                v-for="hospital in filteredHospitals"
+                :class="['hospital-dropdown-item', { 
+                  selected: selectedHospitalId === 'ALL', 
+                  highlighted: hospitalHighlightedIndex === 0 
+                }]"
+                @mousedown.prevent="selectHospital({ id: 'ALL', name: '전체' })"
+              >
+                전체
+              </div>
+              <!-- 병의원 목록 -->
+              <div
+                v-for="(hospital, index) in filteredHospitals"
                 :key="hospital.id"
-                :class="['hospital-dropdown-item', { selected: selectedHospitalId === hospital.id }]"
+                :class="['hospital-dropdown-item', { 
+                  selected: selectedHospitalId === hospital.id,
+                  highlighted: hospitalHighlightedIndex === index + 1
+                }]"
                 @mousedown.prevent="selectHospital(hospital)"
               >
                 {{ hospital.name }}
@@ -350,9 +372,11 @@ const allCompanies = ref([]); // 전체 업체 목록
 const companySearchText = ref(''); // 업체 검색 텍스트
 const showCompanyDropdown = ref(false); // 업체 드롭다운 표시 여부
 const filteredCompanies = ref([]); // 필터링된 업체 목록
+const companyHighlightedIndex = ref(-1); // 업체 드롭다운 하이라이트 인덱스
 const hospitalSearchText = ref('');
 const showHospitalDropdown = ref(false);
 const filteredHospitals = ref([]);
+const hospitalHighlightedIndex = ref(-1); // 병의원 드롭다운 하이라이트 인덱스
 
 // 필터 선택값
 const selectedSettlementMonth = ref('');
@@ -653,10 +677,6 @@ function handleHospitalSearch() {
     if (!searchTerm) {
         // 검색어가 없으면 모든 병의원 표시 (최대 100개)
         filteredHospitals.value = allHospitals.value.slice(0, 100);
-        // "- 전체 -" 옵션 추가
-        if (filteredHospitals.value.length > 0) {
-            filteredHospitals.value.unshift({ id: 'ALL', name: '- 전체 -' });
-        }
     } else {
         // 검색어가 있으면 필터링
         filteredHospitals.value = allHospitals.value
@@ -664,12 +684,7 @@ function handleHospitalSearch() {
             .slice(0, 100); // 최대 100개로 제한
     }
     
-    // 현재 선택된 병의원이 검색 결과에 없으면 선택 해제
-    if (selectedHospitalId.value && selectedHospitalId.value !== 'ALL' && !filteredHospitals.value.find(h => h.id === selectedHospitalId.value)) {
-        selectedHospitalId.value = 'ALL';
-        hospitalSearchText.value = '';
-    }
-    
+    hospitalHighlightedIndex.value = -1; // 검색 시 하이라이트 초기화
     showHospitalDropdown.value = true;
 }
 
@@ -682,11 +697,73 @@ function selectHospital(hospital) {
         hospitalSearchText.value = hospital.name;
     }
     showHospitalDropdown.value = false;
+    hospitalHighlightedIndex.value = -1;
     
     // 분석 데이터 다시 로드
     if (selectedSettlementMonth.value) {
         loadAbsorptionAnalysisResults();
     }
+}
+
+// 병의원 키보드 네비게이션
+function handleHospitalKeydown(event) {
+  if (!showHospitalDropdown.value) return;
+  
+  const totalItems = filteredHospitals.value.length + 1; // +1 for "전체" option
+  
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      hospitalHighlightedIndex.value = Math.min(hospitalHighlightedIndex.value + 1, totalItems - 1);
+      scrollToHighlightedHospital();
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      hospitalHighlightedIndex.value = Math.max(hospitalHighlightedIndex.value - 1, -1);
+      scrollToHighlightedHospital();
+      break;
+    case 'Enter':
+      event.preventDefault();
+      if (hospitalHighlightedIndex.value === 0) {
+        // "전체" 선택
+        selectHospital({ id: 'ALL', name: '전체' });
+      } else if (hospitalHighlightedIndex.value > 0) {
+        // 병의원 선택
+        const hospitalIndex = hospitalHighlightedIndex.value - 1;
+        if (hospitalIndex < filteredHospitals.value.length) {
+          selectHospital(filteredHospitals.value[hospitalIndex]);
+        }
+      }
+      break;
+    case 'Escape':
+      event.preventDefault();
+      showHospitalDropdown.value = false;
+      hospitalHighlightedIndex.value = -1;
+      break;
+  }
+}
+
+// 병의원 드롭다운 스크롤 함수
+function scrollToHighlightedHospital() {
+  nextTick(() => {
+    const dropdown = document.querySelector('.hospital-dropdown');
+    if (!dropdown) return;
+    
+    const highlightedItem = dropdown.querySelector('.hospital-dropdown-item.highlighted');
+    if (!highlightedItem) return;
+    
+    const dropdownRect = dropdown.getBoundingClientRect();
+    const itemRect = highlightedItem.getBoundingClientRect();
+    
+    // 항목이 드롭다운 상단을 벗어나면 스크롤
+    if (itemRect.top < dropdownRect.top) {
+      highlightedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    // 항목이 드롭다운 하단을 벗어나면 스크롤
+    else if (itemRect.bottom > dropdownRect.bottom) {
+      highlightedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  });
 }
 
 function handleHospitalFocus() {
@@ -738,6 +815,7 @@ function handleCompanySearch() {
             .slice(0, 100); // 최대 100개로 제한
     }
     
+    companyHighlightedIndex.value = -1; // 검색 시 하이라이트 초기화
     showCompanyDropdown.value = true;
 }
 
@@ -745,9 +823,71 @@ function selectCompany(company) {
     selectedCompanyId.value = company.id;
     companySearchText.value = company.id === 'ALL' ? '' : company.company_name;
     showCompanyDropdown.value = false;
+    companyHighlightedIndex.value = -1;
     
     // 실적 데이터 다시 로드
     loadAbsorptionAnalysisResults();
+}
+
+// 업체 키보드 네비게이션
+function handleCompanyKeydown(event) {
+  if (!showCompanyDropdown.value) return;
+  
+  const totalItems = filteredCompanies.value.length + 1; // +1 for "전체" option
+  
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      companyHighlightedIndex.value = Math.min(companyHighlightedIndex.value + 1, totalItems - 1);
+      scrollToHighlightedCompany();
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      companyHighlightedIndex.value = Math.max(companyHighlightedIndex.value - 1, -1);
+      scrollToHighlightedCompany();
+      break;
+    case 'Enter':
+      event.preventDefault();
+      if (companyHighlightedIndex.value === 0) {
+        // "전체" 선택
+        selectCompany({ id: 'ALL', company_name: '전체' });
+      } else if (companyHighlightedIndex.value > 0) {
+        // 업체 선택
+        const companyIndex = companyHighlightedIndex.value - 1;
+        if (companyIndex < filteredCompanies.value.length) {
+          selectCompany(filteredCompanies.value[companyIndex]);
+        }
+      }
+      break;
+    case 'Escape':
+      event.preventDefault();
+      showCompanyDropdown.value = false;
+      companyHighlightedIndex.value = -1;
+      break;
+  }
+}
+
+// 업체 드롭다운 스크롤 함수
+function scrollToHighlightedCompany() {
+  nextTick(() => {
+    const dropdown = document.querySelector('.company-dropdown');
+    if (!dropdown) return;
+    
+    const highlightedItem = dropdown.querySelector('.company-dropdown-item.highlighted');
+    if (!highlightedItem) return;
+    
+    const dropdownRect = dropdown.getBoundingClientRect();
+    const itemRect = highlightedItem.getBoundingClientRect();
+    
+    // 항목이 드롭다운 상단을 벗어나면 스크롤
+    if (itemRect.top < dropdownRect.top) {
+      highlightedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    // 항목이 드롭다운 하단을 벗어나면 스크롤
+    else if (itemRect.bottom > dropdownRect.bottom) {
+      highlightedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  });
 }
 
 function handleCompanyFocus() {
@@ -1972,6 +2112,7 @@ async function checkReanalysisNeeded() {
   border-top: none;
   max-height: 200px;
   overflow-y: auto;
+  scroll-behavior: smooth;
   z-index: 1000;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
@@ -1989,6 +2130,11 @@ async function checkReanalysisNeeded() {
 
 .hospital-dropdown-item.selected {
   background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.hospital-dropdown-item.highlighted {
+  background-color: #f0f8ff;
   color: #1976d2;
 }
 
@@ -2017,6 +2163,7 @@ async function checkReanalysisNeeded() {
   border-top: none;
   max-height: 200px;
   overflow-y: auto;
+  scroll-behavior: smooth;
   z-index: 1000;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
@@ -2034,6 +2181,11 @@ async function checkReanalysisNeeded() {
 
 .company-dropdown-item.selected {
   background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.company-dropdown-item.highlighted {
+  background-color: #f0f8ff;
   color: #1976d2;
 }
 
