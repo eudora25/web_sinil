@@ -156,6 +156,30 @@ const handleSubmit = async () => {
     return;
   }
 
+  // 사업자등록번호 중복 확인
+  const { data: existingPharmacy, error: checkError } = await supabase
+    .from('pharmacies')
+    .select('id, name')
+    .eq('business_registration_number', businessNumber.value)
+    .single();
+
+  if (checkError && checkError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
+    alert('중복 확인 중 오류가 발생했습니다: ' + checkError.message);
+    return;
+  }
+
+  if (existingPharmacy) {
+    alert(`이미 등록된 사업자등록번호입니다.\n등록된 약국: ${existingPharmacy.name}`);
+    setTimeout(() => {
+      const businessNumberInput = document.getElementById('businessNumber');
+      if (businessNumberInput) {
+        businessNumberInput.focus();
+        businessNumberInput.select();
+      }
+    }, 100);
+    return;
+  }
+
   // 현재 사용자 정보 가져오기
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {

@@ -48,7 +48,7 @@
             @change="handleFileUpload"
             style="display: none"
           />
-          <button class="btn-save" @click="goCreate">개별 등록</button>
+          <button class="btn-save" @click="openCreateModal">개별 등록</button>
         </div>
       </div>
       <DataTable
@@ -231,11 +231,63 @@
         <div class="loading-text">등록 진행중입니다...</div>
       </div>
     </div>
+
+    <!-- 문전약국 등록 모달 -->
+    <div v-if="showCreateModal" class="modal-overlay" @click="closeCreateModal">
+      <div class="modal-content modal-large" @click.stop>
+        <div class="modal-header">
+          <h2>문전약국 등록</h2>
+          <button class="modal-close-btn" @click="closeCreateModal">×</button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="handleCreateSubmit" class="form-grid">
+            <div class="form-group">
+              <label>약국코드</label>
+              <input v-model="newPharmacy.pharmacy_code" type="text" />
+            </div>
+            <div class="form-group">
+              <label>약국명<span class="required">*</span></label>
+              <input v-model="newPharmacy.name" type="text" required />
+            </div>
+            <div class="form-group">
+              <label>사업자등록번호<span class="required">*</span></label>
+              <input 
+                v-model="newPharmacy.business_registration_number" 
+                type="text" 
+                required 
+                @input="formatBusinessNumberModal"
+                @keypress="allowOnlyNumbers"
+                @keydown="handleBackspace"
+              />
+            </div>
+            <div class="form-group">
+              <label>주소</label>
+              <input v-model="newPharmacy.address" type="text" />
+            </div>
+            <div class="form-group">
+              <label>상태</label>
+              <select v-model="newPharmacy.status">
+                <option value="active">활성</option>
+                <option value="inactive">비활성</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>비고</label>
+              <input v-model="newPharmacy.remarks" type="text" />
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-save" @click="handleCreateSubmit" :disabled="!isCreateFormValid">등록</button>
+          <button class="btn-close" @click="closeCreateModal">취소</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
@@ -266,6 +318,17 @@ const searchInput = ref('');
 const searchKeyword = ref('');
 const router = useRouter()
 const fileInput = ref(null)
+
+// 모달 관련 변수
+const showCreateModal = ref(false)
+const newPharmacy = ref({
+  pharmacy_code: '',
+  name: '',
+  business_registration_number: '',
+  address: '',
+  remarks: '',
+  status: 'active'
+})
 const currentPageFirstIndex = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(50)
@@ -276,6 +339,106 @@ function goCreate() {
 }
 function goToDetail(id) {
   router.push(`/admin/pharmacies/${id}`)
+}
+
+// 모달 관련 함수들
+function openCreateModal() {
+  showCreateModal.value = true
+  // 폼 초기화
+  newPharmacy.value = {
+    pharmacy_code: '',
+    name: '',
+    business_registration_number: '',
+    address: '',
+    remarks: '',
+    status: 'active'
+  }
+}
+
+function closeCreateModal() {
+  showCreateModal.value = false
+}
+
+// 폼 유효성 검사
+const isCreateFormValid = computed(() => {
+  return newPharmacy.value.name && newPharmacy.value.name.trim() !== '' &&
+         newPharmacy.value.business_registration_number && newPharmacy.value.business_registration_number.trim() !== ''
+})
+
+// 모달에서 사업자등록번호 포맷팅
+function formatBusinessNumberModal(event) {
+  let value = event.target.value.replace(/[^0-9]/g, '')
+  if (value.length >= 3) {
+    value = value.substring(0, 3) + '-' + value.substring(3)
+  }
+  if (value.length >= 6) {
+    value = value.substring(0, 6) + '-' + value.substring(6)
+  }
+  newPharmacy.value.business_registration_number = value
+}
+
+// 모달에서 등록 처리
+async function handleCreateSubmit() {
+  // 필수 필드 검증
+  if (!newPharmacy.value.name || newPharmacy.value.name.trim() === '') {
+    alert('약국명은 필수 입력 항목입니다.')
+    return
+  }
+
+  if (!newPharmacy.value.business_registration_number || newPharmacy.value.business_registration_number.trim() === '') {
+    alert('사업자등록번호는 필수 입력 항목입니다.')
+    return
+  }
+
+  // 사업자등록번호 형식 검증 (10자리 숫자)
+  const businessNumberDigits = newPharmacy.value.business_registration_number.replace(/[^0-9]/g, '')
+  if (businessNumberDigits.length !== 10) {
+    alert('사업자등록번호는 10자리여야 합니다.')
+    return
+  }
+
+  // 사업자등록번호 중복 확인
+  const { data: existingPharmacy, error: checkError } = await supabase
+    .from('pharmacies')
+    .select('id, name')
+    .eq('business_registration_number', newPharmacy.value.business_registration_number)
+    .single()
+
+  if (checkError && checkError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
+    alert('중복 확인 중 오류가 발생했습니다: ' + checkError.message)
+    return
+  }
+
+  if (existingPharmacy) {
+    alert(`이미 등록된 사업자등록번호입니다.\n등록된 약국: ${existingPharmacy.name}`)
+    return
+  }
+
+  // 현재 사용자 정보 가져오기
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    alert('로그인 정보가 없습니다. 다시 로그인해주세요.')
+    return
+  }
+
+  const dataToInsert = {
+    pharmacy_code: newPharmacy.value.pharmacy_code,
+    name: newPharmacy.value.name,
+    business_registration_number: newPharmacy.value.business_registration_number,
+    address: newPharmacy.value.address,
+    remarks: newPharmacy.value.remarks,
+    status: newPharmacy.value.status,
+    created_by: user.id
+  }
+
+  const { error } = await supabase.from('pharmacies').insert([dataToInsert])
+  if (error) {
+    alert('등록 실패: ' + error.message)
+  } else {
+    alert('등록되었습니다.')
+    closeCreateModal()
+    await fetchPharmacies() // 목록 새로고침
+  }
 }
 
 // 서버 사이드 페이징으로 데이터 조회
@@ -697,65 +860,34 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 3단계: 기존 데이터가 있을 때만 사업자등록번호 중복 체크
-    if (hasExistingData) {
-      const duplicateErrors = []
-      const duplicatePharmacies = []
+    // 3단계: 사업자등록번호 중복 체크 및 자동 제외
+    const duplicateErrors = []
+    const duplicatePharmacies = []
+    const skippedRows = []
 
-      for (const newPharmacy of uploadData) {
-        if (newPharmacy.business_registration_number) {
-          // 기존 데이터에서 동일한 사업자등록번호 중복 확인
-          const existingPharmacy = pharmacies.value.find(p =>
-            p.business_registration_number === newPharmacy.business_registration_number
-          )
+    for (const newPharmacy of uploadData) {
+      if (newPharmacy.business_registration_number) {
+        // 기존 데이터에서 동일한 사업자등록번호 중복 확인
+        const existingPharmacy = pharmacies.value.find(p =>
+          p.business_registration_number === newPharmacy.business_registration_number
+        )
 
-          if (existingPharmacy) {
-            duplicateErrors.push(`${newPharmacy.rowNum}행: 이미 동일한 사업자등록번호의 약국이 등록되어 있습니다.`)
-            duplicatePharmacies.push(newPharmacy)
-          }
+        if (existingPharmacy) {
+          duplicateErrors.push(`${newPharmacy.rowNum}행: 이미 등록된 사업자등록번호 (${existingPharmacy.name})`)
+          duplicatePharmacies.push(newPharmacy)
+          skippedRows.push(newPharmacy.rowNum)
         }
       }
+    }
 
-      if (duplicateErrors.length > 0) {
-        // 4단계: 중복 발견 시 계속 진행 여부 확인
-        if (!confirm('중복 오류:\n' + duplicateErrors.join('\n') + '\n\n계속 등록 작업을 진행하시겠습니까?')) {
-          return
-        }
-
-        // 5단계: 중복 해결 방법 선택 (버튼 모달)
-        const duplicateChoice = await showDuplicateChoiceModal()
-
-        if (duplicateChoice === 'replace') {
-          // 교체 모드: 중복되는 기존 약국들 삭제
-          for (const duplicatePharmacy of duplicatePharmacies) {
-            const { error: deleteError } = await supabase
-              .from('pharmacies')
-              .delete()
-              .eq('business_registration_number', duplicatePharmacy.business_registration_number)
-
-            if (deleteError) {
-              alert('기존 약국 삭제 실패: ' + deleteError.message)
-              return
-            }
-          }
-          // 로컬 데이터에서도 삭제
-          for (const duplicatePharmacy of duplicatePharmacies) {
-            const index = pharmacies.value.findIndex(p =>
-              p.business_registration_number === duplicatePharmacy.business_registration_number
-            )
-            if (index > -1) {
-              pharmacies.value.splice(index, 1)
-            }
-          }
-        } else if (duplicateChoice === 'keep') {
-          // 기존 유지 모드: 중복되는 신규 약국들 제외
-          const duplicateBusinessNumbers = duplicatePharmacies.map(p => p.business_registration_number)
-          uploadData = uploadData.filter(item => !duplicateBusinessNumbers.includes(item.business_registration_number))
-        } else {
-          // cancel 모드: 업로드 취소
-          return
-        }
-      }
+    // 중복된 항목들을 자동으로 제외
+    if (duplicatePharmacies.length > 0) {
+      const duplicateBusinessNumbers = duplicatePharmacies.map(p => p.business_registration_number)
+      uploadData = uploadData.filter(item => !duplicateBusinessNumbers.includes(item.business_registration_number))
+      
+      // 중복 제외 안내 메시지
+      const skippedMessage = `중복된 사업자등록번호로 인해 ${skippedRows.length}건이 자동으로 제외되었습니다:\n${duplicateErrors.join('\n')}`
+      console.log(skippedMessage)
     }
 
     // 최종 등록
@@ -775,7 +907,11 @@ const handleFileUpload = async (event) => {
     if (error) {
       alert('업로드 실패: ' + error.message)
     } else {
-      alert(`${insertData.length}건의 문전약국 데이터가 업로드되었습니다.`)
+      let message = `${insertData.length}건의 문전약국 데이터가 업로드되었습니다.`
+      if (skippedRows.length > 0) {
+        message += `\n\n중복으로 인해 ${skippedRows.length}건이 제외되었습니다.`
+      }
+      alert(message)
       await fetchPharmacies() // 목록 새로고침
     }
   } catch (error) {
