@@ -2654,12 +2654,12 @@ select option:focus {
 /* 클릭 가능한 금액 스타일 */
 .clickable-amount {
   cursor: pointer;
-  color: var(--primary-blue);
+  color: var(--text-primary);
   text-decoration: underline;
   transition: color 0.2s ease;
 }
 
 .clickable-amount:hover {
-  color: var(--primary-blue-dark);
+  color: var(--text-secondary);
   text-decoration: none;
 }
