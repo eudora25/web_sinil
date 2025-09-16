@@ -2650,3 +2650,16 @@ select option:focus {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* 클릭 가능한 금액 스타일 */
+.clickable-amount {
+  cursor: pointer;
+  color: var(--primary-blue);
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.clickable-amount:hover {
+  color: var(--primary-blue-dark);
+  text-decoration: none;
+}

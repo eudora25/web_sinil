@@ -80,7 +80,11 @@
                 </button>
               </div>
               <div v-else>
-                <span :title="Math.round(slotProps.data.section_commission_amount || 0).toLocaleString()">
+                <span 
+                  class="clickable-amount"
+                  :title="Math.round(slotProps.data.section_commission_amount || 0).toLocaleString() + ' (클릭하여 수정)'"
+                  @click="openCommissionEditModal(slotProps.data)"
+                >
                   {{ Math.round(slotProps.data.section_commission_amount || 0).toLocaleString() }}
                 </span>
               </div>
@@ -400,7 +404,7 @@ async function loadSettlementData() {
           total_records: 0,
           total_prescription_amount: 0, // 총 처방액: 실적이 등록된 모든 제품의 처방액 합계
           payment_prescription_amount: 0, // 지급 처방액: 수수료가 지급되는 제품의 처방액 합계
-          section_commission_amount: 0, // 구간 수수료: (지급 처방액)*구간 수수료율*0.01
+          section_commission_amount: 0, // 구간 수수료: (지급 처방액)*구간 수수료율
           payment_amount: 0, // 지급액: 수수료 합계
           total_payment_amount: 0, // 총 지급액: 구간 수수료+지급액
           section_commission_rate: 0, // 구간 수수료율
@@ -464,8 +468,8 @@ async function loadSettlementData() {
     const finalSummary = Array.from(summaryMap.values()).map(s => {
       s.client_count = s.client_count.size;
       
-      // 구간 수수료 계산: (지급 처방액) * 구간 수수료율 * 0.01
-      s.section_commission_amount = Math.round((s.payment_prescription_amount || 0) * (s.section_commission_rate || 0) * 0.01);
+      // 구간 수수료 계산: (지급 처방액) * 구간 수수료율
+      s.section_commission_amount = Math.round((s.payment_prescription_amount || 0) * (s.section_commission_rate || 0));
       
       // 총 지급액 계산: 구간 수수료 + 지급액
       s.total_payment_amount = (s.section_commission_amount || 0) + (s.payment_amount || 0);
@@ -669,6 +673,12 @@ function openCommissionModal(companyData) {
   showCommissionModal.value = true;
 }
 
+function openCommissionEditModal(companyData) {
+  selectedCompany.value = companyData;
+  commissionRate.value = Math.round((companyData.section_commission_rate || 0) * 100).toString();
+  showCommissionModal.value = true;
+}
+
 function closeCommissionModal() {
   showCommissionModal.value = false;
   selectedCompany.value = null;
@@ -707,8 +717,8 @@ async function saveCommission() {
     const company = companySummary.value.find(c => c.company_id === selectedCompany.value.company_id);
     if (company) {
       company.section_commission_rate = rate / 100;
-      // 구간 수수료 계산: (지급 처방액) * 구간 수수료율 * 0.01
-      company.section_commission_amount = Math.round((company.payment_prescription_amount || 0) * (rate / 100) * 0.01);
+      // 구간 수수료 계산: (지급 처방액) * 구간 수수료율
+      company.section_commission_amount = Math.round((company.payment_prescription_amount || 0) * (rate / 100));
       // 총 지급액 재계산: 구간 수수료 + 지급액
       company.total_payment_amount = (company.section_commission_amount || 0) + (company.payment_amount || 0);
     }
