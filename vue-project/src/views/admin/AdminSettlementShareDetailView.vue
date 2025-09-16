@@ -111,8 +111,8 @@ import ExcelJS from 'exceljs';
 
 const route = useRoute();
 const router = useRouter();
-const month = ref(route.query.month);
-const companyId = ref(route.query.company_id);
+const month = ref(route.query?.month);
+const companyId = ref(route.query?.company_id);
 
 const companyInfo = ref({});
 const detailRows = ref([]);
@@ -136,12 +136,22 @@ const columnWidths = {
 };
 
 onMounted(async () => {
+  if (!month.value || !companyId.value) {
+    alert('잘못된 접근입니다. 정산 공유 페이지에서 다시 접근해주세요.');
+    router.push('/admin/settlement-share');
+    return;
+  }
   await loadDetailData();
 });
 
 async function loadDetailData() {
   if (!month.value || !companyId.value) return;
   loading.value = true;
+  console.log('정산 공유 상세 데이터 로딩 시작:', { 
+    month: month.value, 
+    companyId: companyId.value,
+    filter: 'review_status=완료 AND commission_rate>0'
+  });
   try {
     // 전체 데이터 조회 (클라이언트 사이드 페이지네이션)
     let allData = [];
@@ -150,7 +160,7 @@ async function loadDetailData() {
     
     while (true) {
       const { data, error } = await supabase
-        .from('performance_records_absorption')
+        .from('performance_records')
         .select(`
           *,
           clients ( name ),
@@ -158,6 +168,8 @@ async function loadDetailData() {
         `)
         .eq('settlement_month', month.value)
         .eq('company_id', companyId.value)
+        .eq('review_status', '완료')
+        .gt('commission_rate', 0)  // 수수료율이 0보다 큰 건만 조회
         .range(from, from + batchSize - 1)
         .order('created_at', { ascending: false });
       
@@ -176,14 +188,12 @@ async function loadDetailData() {
       from += batchSize;
     }
     
-    if (!allData || allData.length === 0) {
-        detailRows.value = [];
-        loading.value = false;
-        return;
-    }
+    console.log('조회된 데이터 개수:', allData.length);
     
     // 데이터 가공 (약가, 처방액, 지급액 계산)
-    let mappedData = allData.map(row => {
+    let mappedData = [];
+    if (allData && allData.length > 0) {
+        mappedData = allData.map(row => {
       // 데이터 매핑 시
       const qty = row.prescription_qty ?? 0;
       const price = row.products?.price ?? 0;
@@ -231,22 +241,38 @@ async function loadDetailData() {
         payment_amount: Math.round(row.payment_amount).toLocaleString()
       };
       return formattedRow;
-    });
-
-    // 업체 정보 설정
-    if (allData.length > 0) {
-      const { data: cInfo, error: cError } = await supabase
-        .from('companies')
-        .select('company_name, business_registration_number, representative_name, business_address')
-        .eq('id', companyId.value)
-        .single();
-      if(cError) throw cError;
-      companyInfo.value = cInfo;
+        });
+        detailRows.value = mappedData;
+    } else {
+        console.log('수수료율이 있는 완료된 실적 데이터가 없습니다.');
+        detailRows.value = [];
     }
+
+    // 업체 정보 설정 (데이터가 없어도 업체 정보는 조회)
+    console.log('업체 정보 조회 시작:', companyId.value);
+    const { data: cInfo, error: cError } = await supabase
+      .from('companies')
+      .select('company_name, business_registration_number, representative_name, business_address')
+      .eq('id', companyId.value)
+      .single();
+    
+    if(cError) {
+      console.error('업체 정보 조회 오류:', cError);
+      throw cError;
+    }
+    
+    console.log('업체 정보 조회 성공:', cInfo);
+    companyInfo.value = cInfo;
 
   } catch (err) {
     console.error('상세 데이터 조회 오류:', err);
-    alert('상세 데이터를 불러오는 중 오류가 발생했습니다.');
+    console.error('오류 상세:', { 
+      message: err.message, 
+      code: err.code, 
+      details: err.details,
+      hint: err.hint 
+    });
+    alert('상세 데이터를 불러오는 중 오류가 발생했습니다: ' + err.message);
     detailRows.value = [];
   } finally {
     loading.value = false;

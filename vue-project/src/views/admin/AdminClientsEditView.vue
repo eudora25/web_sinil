@@ -249,7 +249,7 @@ const handleSubmit = async () => {
 
 function goDetail() {
   // from 쿼리 파라미터가 있으면 함께 전달
-  const from = route.query.from;
+  const from = route.query?.from;
   if (from) {
     router.push(`/admin/clients/${route.params.id}?from=${from}`);
   } else {

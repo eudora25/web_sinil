@@ -564,7 +564,7 @@ const downloadExcel = async () => {
 }
 
 function goList() {
-  const from = route.query.from === 'pending' ? 'pending' : 'approved';
+  const from = route.query?.from === 'pending' ? 'pending' : 'approved';
   router.push(`/admin/companies/${from}`);
 }
 

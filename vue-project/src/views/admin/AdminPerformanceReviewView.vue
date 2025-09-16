@@ -995,17 +995,17 @@ onMounted(async () => {
   }
 
   // URL 쿼리 파라미터 처리
-  if (route.query.settlementMonth) {
-    selectedSettlementMonth.value = route.query.settlementMonth;
+  if (route.query?.settlementMonth) {
+    selectedSettlementMonth.value = route.query?.settlementMonth;
     await fetchFilterOptions(selectedSettlementMonth.value);
   }
 
-  if (route.query.company) {
-    selectedCompanyId.value = route.query.company;
+  if (route.query?.company) {
+    selectedCompanyId.value = route.query?.company;
   }
 
-  if (route.query.status) {
-    selectedStatus.value = route.query.status;
+  if (route.query?.status) {
+    selectedStatus.value = route.query?.status;
   }
 
   // 화면 진입 시 자동으로 데이터 로드

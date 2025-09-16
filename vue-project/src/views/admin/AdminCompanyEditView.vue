@@ -192,7 +192,7 @@ const approvalStatusOptions = [
 ];
 
 const breadcrumbSubMenu = computed(() => {
-  if (route.query.from === 'pending') return '미승인 업체';
+  if (route.query?.from === 'pending') return '미승인 업체';
   return '승인 업체';
 });
 
@@ -360,11 +360,11 @@ onMounted(async () => {
 
 function goDetail() {
   // from 쿼리 파라미터가 있으면 함께 전달
-  const from = route.query.from;
+  const from = route.query?.from;
   if (from) {
     router.push(`/admin/companies/${route.params.id}?from=${from}`);
   } else {
-    const fromDefault = route.query.from === 'pending' ? 'pending' : 'approved';
+    const fromDefault = route.query?.from === 'pending' ? 'pending' : 'approved';
     router.push(`/admin/companies/${route.params.id}?from=${fromDefault}`);
   }
 }

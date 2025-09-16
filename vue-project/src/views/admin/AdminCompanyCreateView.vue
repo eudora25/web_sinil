@@ -329,19 +329,19 @@ const handleBackspace = (event) => {
 };
 
 const breadcrumbSubMenu = computed(() => {
-  if (route.query.from === 'pending') return '미승인 업체'
+  if (route.query?.from === 'pending') return '미승인 업체'
   return '승인 업체'
 })
 
 function getListPath() {
   // 쿼리 또는 라우트에서 listType(approved/pending) 확인
-  const type = route.query.from
+  const type = route.query?.from
   if (type === 'pending') return '/admin/companies/pending'
   return '/admin/companies/approved'
 }
 
 function goList() {
-  const from = route.query.from === 'pending' ? 'pending' : 'approved';
+  const from = route.query?.from === 'pending' ? 'pending' : 'approved';
   router.push(`/admin/companies/${from}`);
 }
 
@@ -545,7 +545,7 @@ const handleSubmit = async () => {
             console.log('✅ 회사 정보 생성됨:', data.company.id);
     
     alert('등록되었습니다.');
-    const from = route.query.from === 'pending' ? 'pending' : 'approved';
+    const from = route.query?.from === 'pending' ? 'pending' : 'approved';
     router.push(`/admin/companies/${from}`);
   } catch (err) {
     let errorMessage = '업체 등록 중 오류가 발생했습니다.';

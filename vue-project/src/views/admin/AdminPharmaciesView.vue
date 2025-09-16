@@ -860,34 +860,77 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 3단계: 사업자등록번호 중복 체크 및 자동 제외
+    // 3단계: 사업자등록번호 중복 체크
     const duplicateErrors = []
     const duplicatePharmacies = []
-    const skippedRows = []
+
+    // 데이터베이스에서 모든 사업자등록번호 조회
+    const { data: existingPharmacies, error: fetchError } = await supabase
+      .from('pharmacies')
+      .select('business_registration_number, name')
+
+    if (fetchError) {
+      alert('기존 데이터 조회 중 오류가 발생했습니다: ' + fetchError.message)
+      return
+    }
+
+    // 기존 사업자등록번호를 Set으로 변환하여 빠른 검색
+    const existingBusinessNumbers = new Set(existingPharmacies.map(p => p.business_registration_number))
+    const existingPharmacyMap = new Map(existingPharmacies.map(p => [p.business_registration_number, p.name]))
 
     for (const newPharmacy of uploadData) {
       if (newPharmacy.business_registration_number) {
-        // 기존 데이터에서 동일한 사업자등록번호 중복 확인
-        const existingPharmacy = pharmacies.value.find(p =>
-          p.business_registration_number === newPharmacy.business_registration_number
-        )
-
-        if (existingPharmacy) {
-          duplicateErrors.push(`${newPharmacy.rowNum}행: 이미 등록된 사업자등록번호 (${existingPharmacy.name})`)
+        // 데이터베이스에서 동일한 사업자등록번호 중복 확인
+        if (existingBusinessNumbers.has(newPharmacy.business_registration_number)) {
+          const existingName = existingPharmacyMap.get(newPharmacy.business_registration_number)
+          duplicateErrors.push(`${newPharmacy.rowNum}행: 이미 등록된 사업자등록번호 (${existingName})`)
           duplicatePharmacies.push(newPharmacy)
-          skippedRows.push(newPharmacy.rowNum)
         }
       }
     }
 
-    // 중복된 항목들을 자동으로 제외
-    if (duplicatePharmacies.length > 0) {
-      const duplicateBusinessNumbers = duplicatePharmacies.map(p => p.business_registration_number)
-      uploadData = uploadData.filter(item => !duplicateBusinessNumbers.includes(item.business_registration_number))
+    // 4단계: 중복 발견 시 처리
+    if (duplicateErrors.length > 0) {
+      console.log('중복 오류 발견:', duplicateErrors)
       
-      // 중복 제외 안내 메시지
-      const skippedMessage = `중복된 사업자등록번호로 인해 ${skippedRows.length}건이 자동으로 제외되었습니다:\n${duplicateErrors.join('\n')}`
-      console.log(skippedMessage)
+      // 중복 발견 시 계속 진행 여부 확인
+      const duplicateCount = duplicateErrors.length
+      if (!confirm(`중복 오류가 ${duplicateCount}건 발견되었습니다:\n\n` + duplicateErrors.join('\n') + `\n\n계속 등록 작업을 진행하시겠습니까?`)) {
+        return
+      }
+
+      // 5단계: 중복 해결 방법 선택 (버튼 모달)
+      const duplicateChoice = await showDuplicateChoiceModal()
+
+      if (duplicateChoice === 'replace') {
+        // 교체 모드: 중복되는 기존 약국들 삭제
+        for (const duplicatePharmacy of duplicatePharmacies) {
+          const { error: deleteError } = await supabase
+            .from('pharmacies')
+            .delete()
+            .eq('business_registration_number', duplicatePharmacy.business_registration_number)
+
+          if (deleteError) {
+            alert('기존 약국 삭제 실패: ' + deleteError.message)
+            return
+          }
+        }
+        
+        // 로컬 데이터에서도 삭제
+        for (const duplicatePharmacy of duplicatePharmacies) {
+          const index = pharmacies.value.findIndex(p => p.business_registration_number === duplicatePharmacy.business_registration_number)
+          if (index > -1) {
+            pharmacies.value.splice(index, 1)
+          }
+        }
+      } else if (duplicateChoice === 'keep') {
+        // 기존 유지 모드: 중복되는 신규 약국들 제외
+        const duplicateItems = duplicatePharmacies.map(p => p.rowNum)
+        uploadData = uploadData.filter(item => !duplicateItems.includes(item.rowNum))
+      } else {
+        // cancel 모드: 업로드 취소
+        return
+      }
     }
 
     // 최종 등록
@@ -907,11 +950,7 @@ const handleFileUpload = async (event) => {
     if (error) {
       alert('업로드 실패: ' + error.message)
     } else {
-      let message = `${insertData.length}건의 문전약국 데이터가 업로드되었습니다.`
-      if (skippedRows.length > 0) {
-        message += `\n\n중복으로 인해 ${skippedRows.length}건이 제외되었습니다.`
-      }
-      alert(message)
+      alert(`${insertData.length}건의 문전약국 데이터가 업로드되었습니다.`)
       await fetchPharmacies() // 목록 새로고침
     }
   } catch (error) {

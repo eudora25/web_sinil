@@ -5,9 +5,9 @@
       <div style="display:flex; align-items:center; flex:1;">
         <Button icon="pi pi-arrow-left" severity="secondary" text rounded @click="goBackToList" style="margin-right:12px;" />
         <div>
-          <div style="font-size:1.1rem; font-weight:700;">{{ route.query.clientName }}</div>
+          <div style="font-size:1.1rem; font-weight:700;">{{ route.query?.clientName }}</div>
           <div style="font-size:0.88rem; color:#444;">
-            {{ route.query.businessRegistrationNumber }} / {{ route.query.address }}
+            {{ route.query?.businessRegistrationNumber }} / {{ route.query?.address }}
           </div>
         </div>
       </div>
@@ -293,7 +293,7 @@ const route = useRoute();
 const router = useRouter();
 
 // 정산월 정보를 이전 화면에서 전달받음
-const selectedSettlementMonth = ref(route.params.settlementMonth || route.query.settlementMonth || '');
+const selectedSettlementMonth = ref(route.params.settlementMonth || route.query?.settlementMonth || '');
 
 // 처방월 옵션을 설정
 const prescriptionOffset = ref(1); // 1: -1M, 2: -2M, 3: -3M
@@ -510,13 +510,13 @@ function checkEditStatus() {
 // 해당 거래처의 실적 상태 확인
 async function checkPerformanceEditStatus() {
   try {
-    const clientId = route.query.clientId;
+    const clientId = route.query?.clientId;
     if (!clientId || !selectedSettlementMonth.value || !prescriptionMonth.value) {
       return;
     }
 
     // 관리자가 companyId로 접근하는 경우 기간 체크 우회
-    if (route.query.companyId && isAdminUser.value) {
+    if (route.query?.companyId && isAdminUser.value) {
       reviewStatus.value = '대기';
       checkEditStatus();
       return;
@@ -589,8 +589,8 @@ watch(
 async function fetchProducts(prescriptionMonth) {
   try {
     // 1. 현재 사용자/관리자의 업체 정보 확인
-    const clientId = route.query.clientId;
-    const companyId = route.query.companyId;
+    const clientId = route.query?.clientId;
+    const companyId = route.query?.companyId;
     let currentCompanyId;
 
     if (companyId) {
@@ -712,8 +712,8 @@ async function applySelectedProduct(product, rowIndex) {
   inputRows.value[rowIndex].commission_rate_e = product.commission_rate_e;
   
   // 등급에 맞는 수수료율 자동 설정
-  const clientId = route.query.clientId;
-  const companyId = route.query.companyId;
+  const clientId = route.query?.clientId;
+  const companyId = route.query?.companyId;
   let myCompany;
   
   if (companyId) {
@@ -1213,8 +1213,8 @@ async function getCommissionGradeForClientCompany(companyId, clientId) {
 
 // 실적 저장로직 - 기존 데이터를 삭제 후 새로 저장
 async function savePerformanceData() {
-  const clientId = route.query.clientId;
-  const settlementMonth = route.query.settlementMonth;
+  const clientId = route.query?.clientId;
+  const settlementMonth = route.query?.settlementMonth;
   if (!settlementMonth || !clientId) {
     throw new Error('정산월이나 병원이 선택되지 않았습니다.');
   }
@@ -1227,7 +1227,7 @@ async function savePerformanceData() {
   }
 
   // 관리자가 전달한 companyId 확인 (관리자가 대신 등록하는 경우)
-  let companyId = route.query.companyId;
+  let companyId = route.query?.companyId;
   let myCompany;
   
   if (companyId) {
@@ -1270,7 +1270,7 @@ async function savePerformanceData() {
     const grade = await getCommissionGradeForClientCompany(myCompany.id, Number(clientId));
     
     // 관리자가 입력하는 경우 바로 완료 상태로 저장
-    const reviewStatus = (route.query.companyId && isAdminUser.value) ? '완료' : '대기';
+    const reviewStatus = (route.query?.companyId && isAdminUser.value) ? '완료' : '대기';
     
     const       dataToInsert = rowsToInsert.map(row => {
       let commissionRate = 0;
@@ -1312,7 +1312,7 @@ async function savePerformanceData() {
     const grade = await getCommissionGradeForClientCompany(myCompany.id, Number(clientId));
     
     // 관리자가 입력하는 경우 바로 완료 상태로 저장
-    const reviewStatus = (route.query.companyId && isAdminUser.value) ? '완료' : '대기';
+    const reviewStatus = (route.query?.companyId && isAdminUser.value) ? '완료' : '대기';
     
     const updatePromises = rowsToUpdate.map(row => {
       let commissionRate = 0;
@@ -1371,8 +1371,8 @@ async function onSave() {
   }
   
   // clientId, settlementMonth를 query에서 찾음
-  const clientId = route.query.clientId;
-  const settlementMonth = route.query.settlementMonth;
+  const clientId = route.query?.clientId;
+  const settlementMonth = route.query?.settlementMonth;
   if (!settlementMonth || !clientId) {
     alert('정산월이나 병원이 선택되지 않았습니다.');
     return;
@@ -1404,7 +1404,7 @@ async function onSave() {
     // 4. 성공 메시지
     alert(`${savedCount}건의 실적이 저장되었습니다.`);
     // 5. 저장 후 실적 목록 화면으로 이동
-    if (route.query.companyId) {
+    if (route.query?.companyId) {
       // 관리자가 대신 등록한 경우
       router.push('/admin/performance/register');
     } else {
@@ -1427,7 +1427,7 @@ async function onSave() {
 
 // 클라이언트 정산 비고 정보 가져오기
 async function loadClientSettlementRemarks() {
-  const clientId = route.query.clientId;
+  const clientId = route.query?.clientId;
   if (!clientId) return;
   
   try {
@@ -1452,14 +1452,14 @@ async function loadClientSettlementRemarks() {
 
 // 기존 실적 데이터 불러오기
 async function loadExistingData() {
-  const clientId = route.query.clientId;
-  const settlementMonth = route.query.settlementMonth;
+  const clientId = route.query?.clientId;
+  const settlementMonth = route.query?.settlementMonth;
   
   if (!clientId || !settlementMonth) return;
   
   try {
     // 관리자가 전달한 companyId 확인 (관리자가 대신 등록하는 경우)
-    let companyId = route.query.companyId;
+    let companyId = route.query?.companyId;
     let myCompany;
     
     if (companyId) {
@@ -1922,7 +1922,7 @@ function goBackToList() {
   // 변경사항이 있으면 확인 후 이동
   if (hasUnsavedChanges.value) {
     if (confirmAndLeave()) {
-      if (route.query.companyId) {
+      if (route.query?.companyId) {
         // 관리자가 대신 등록한 경우
         router.push('/admin/performance/register');
       } else {
@@ -1932,7 +1932,7 @@ function goBackToList() {
     }
   } else {
     // 변경사항이 없으면 바로 이동
-    if (route.query.companyId) {
+    if (route.query?.companyId) {
       // 관리자가 대신 등록한 경우
       router.push('/admin/performance/register');
     } else {
@@ -1952,8 +1952,8 @@ async function fetchProductsForMonth(month) {
 
   try {
     // 1. 현재 사용자/관리자의 업체 정보 확인
-    const clientId = route.query.clientId;
-    const companyId = route.query.companyId;
+    const clientId = route.query?.clientId;
+    const companyId = route.query?.companyId;
     let currentCompanyId;
 
     if (companyId) {

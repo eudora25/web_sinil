@@ -136,7 +136,7 @@ onMounted(async () => {
 
 function goEdit() {
   // from 쿼리 파라미터가 있으면 함께 전달
-  const from = route.query.from;
+  const from = route.query?.from;
   if (from) {
     router.push(`/admin/pharmacies/${route.params.id}/edit?from=${from}`);
   } else {
@@ -145,7 +145,7 @@ function goEdit() {
 }
 function goList() {
   // 이전 화면이 문전약국 지정인지 확인
-  if (route.query.from === 'admin-clients-assign-pharmacies') {
+  if (route.query?.from === 'admin-clients-assign-pharmacies') {
     router.push('/admin/clients/assign-pharmacies');
   } else {
     router.push('/admin/pharmacies');

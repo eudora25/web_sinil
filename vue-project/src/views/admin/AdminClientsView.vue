@@ -1002,51 +1002,37 @@ const handleFileUpload = async (event) => {
     const duplicateErrors = []
     const duplicateClients = []
 
+    // 데이터베이스에서 모든 기존 데이터 조회
+    const { data: existingClients, error: fetchError } = await supabase
+      .from('clients')
+      .select('client_code, business_registration_number, name')
+
+    if (fetchError) {
+      alert('기존 데이터 조회 중 오류가 발생했습니다: ' + fetchError.message)
+      return
+    }
+
+    // 기존 데이터를 Set과 Map으로 변환하여 빠른 검색
+    const existingClientCodes = new Set(existingClients.map(c => c.client_code).filter(code => code && code.trim() !== ''))
+    const existingBusinessNumbers = new Set(existingClients.map(c => c.business_registration_number).filter(num => num))
+    const existingClientCodeMap = new Map(existingClients.filter(c => c.client_code && c.client_code.trim() !== '').map(c => [c.client_code, c.name]))
+    const existingBusinessNumberMap = new Map(existingClients.filter(c => c.business_registration_number).map(c => [c.business_registration_number, c.name]))
+
     for (const newClient of uploadData) {
       // 병의원 코드 중복 체크 (입력된 경우에만)
       if (newClient.client_code && newClient.client_code.trim() !== '') {
-        try {
-          const { data: existingClientByCode, error: codeCheckError } = await supabase
-            .from('clients')
-            .select('id, name, client_code')
-            .eq('client_code', newClient.client_code.trim())
-            .single();
-          
-          if (codeCheckError && codeCheckError.code !== 'PGRST116') {
-            // PGRST116이 아닌 오류는 실제 오류
-            duplicateErrors.push(`${newClient.rowNum}행: 병의원 코드 중복 검사 중 오류가 발생했습니다. (${codeCheckError.message})`)
-            duplicateClients.push(newClient)
-          } else if (existingClientByCode) {
-            // 중복 발견
-            duplicateErrors.push(`${newClient.rowNum}행: 동일한 병의원 코드(${newClient.client_code})로 이미 등록된 병의원이 있습니다. (${existingClientByCode.name})`)
-            duplicateClients.push(newClient)
-          }
-        } catch (codeError) {
-          duplicateErrors.push(`${newClient.rowNum}행: 병의원 코드 중복 검사 중 예외가 발생했습니다.`)
+        if (existingClientCodes.has(newClient.client_code.trim())) {
+          const existingName = existingClientCodeMap.get(newClient.client_code.trim())
+          duplicateErrors.push(`${newClient.rowNum}행: 동일한 병의원 코드(${newClient.client_code})로 이미 등록된 병의원이 있습니다. (${existingName})`)
           duplicateClients.push(newClient)
         }
       }
 
       // 사업자등록번호 중복 체크
       if (newClient.business_registration_number) {
-        try {
-          const { data: existingClientByBusiness, error: businessCheckError } = await supabase
-            .from('clients')
-            .select('id, name, business_registration_number')
-            .eq('business_registration_number', newClient.business_registration_number)
-            .single();
-          
-          if (businessCheckError && businessCheckError.code !== 'PGRST116') {
-            // PGRST116이 아닌 오류는 실제 오류
-            duplicateErrors.push(`${newClient.rowNum}행: 사업자등록번호 중복 검사 중 오류가 발생했습니다. (${businessCheckError.message})`)
-            duplicateClients.push(newClient)
-          } else if (existingClientByBusiness) {
-            // 중복 발견
-            duplicateErrors.push(`${newClient.rowNum}행: 동일한 사업자등록번호(${newClient.business_registration_number})로 이미 등록된 병의원이 있습니다. (${existingClientByBusiness.name})`)
-            duplicateClients.push(newClient)
-          }
-        } catch (businessError) {
-          duplicateErrors.push(`${newClient.rowNum}행: 사업자등록번호 중복 검사 중 예외가 발생했습니다.`)
+        if (existingBusinessNumbers.has(newClient.business_registration_number)) {
+          const existingName = existingBusinessNumberMap.get(newClient.business_registration_number)
+          duplicateErrors.push(`${newClient.rowNum}행: 동일한 사업자등록번호(${newClient.business_registration_number})로 이미 등록된 병의원이 있습니다. (${existingName})`)
           duplicateClients.push(newClient)
         }
       }
@@ -1057,7 +1043,8 @@ const handleFileUpload = async (event) => {
       console.log('중복 오류 발견:', duplicateErrors)
       
       // 중복 발견 시 계속 진행 여부 확인
-      if (!confirm('중복 오류가 발견되었습니다:\n\n' + duplicateErrors.join('\n') + '\n\n계속 등록 작업을 진행하시겠습니까?')) {
+      const duplicateCount = duplicateErrors.length
+      if (!confirm(`중복 오류가 ${duplicateCount}건 발견되었습니다:\n\n` + duplicateErrors.join('\n') + `\n\n계속 등록 작업을 진행하시겠습니까?`)) {
         return
       }
 
