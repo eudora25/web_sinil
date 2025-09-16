@@ -21,9 +21,38 @@
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <label>업체</label>
-          <select v-model="selectedCompanyId" class="select_200px">
-            <option v-for="company in companyOptions" :key="company.id" :value="company.id">{{ company.company_name }}</option>
-          </select>
+          <div class="company-search-container" style="position: relative;">
+            <input
+              v-model="companySearchText"
+              @input="handleCompanySearch"
+              @focus="handleCompanyFocus"
+              @blur="delayedHideCompanyDropdown"
+              :placeholder="selectedCompanyId === '' ? '업체명을 입력하세요...' : ''"
+              class="select_200px"
+              autocomplete="off"
+            />
+            <div v-if="showCompanyDropdown && filteredCompanies.length > 0" class="company-dropdown">
+              <!-- 전체 옵션 -->
+              <div
+                :class="['company-dropdown-item', { selected: selectedCompanyId === '' }]"
+                @mousedown.prevent="selectCompany({ id: '', company_name: '전체' })"
+              >
+                전체
+              </div>
+              <!-- 업체 목록 -->
+              <div
+                v-for="company in filteredCompanies"
+                :key="company.id"
+                :class="['company-dropdown-item', { selected: selectedCompanyId === company.id }]"
+                @mousedown.prevent="selectCompany(company)"
+              >
+                {{ company.company_name }}
+              </div>
+            </div>
+            <div v-if="showCompanyDropdown && filteredCompanies.length === 0 && companySearchText.trim()" class="company-dropdown">
+              <div class="company-dropdown-item no-results">검색 결과가 없습니다</div>
+            </div>
+          </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <label>병의원</label>
@@ -518,6 +547,12 @@ const hospitalSearchText = ref('');
 const showHospitalDropdown = ref(false);
 const filteredHospitals = ref([]);
 
+// 업체 검색 관련
+const allCompanies = ref([]); // 전체 업체 목록
+const companySearchText = ref(''); // 업체 검색 텍스트
+const showCompanyDropdown = ref(false); // 업체 드롭다운 표시 여부
+const filteredCompanies = ref([]); // 필터링된 업체 목록
+
 // --- 상태 관리: 데이터 테이블 ---
 const loading = ref(true);
 const rows = ref([]);
@@ -648,8 +683,16 @@ watch(selectedSettlementMonth, async (newMonth) => {
 });
 
 watch(selectedCompanyId, async () => {
-    // 업체가 변경되어도 병의원 선택은 유지
-    // selectedHospitalId.value = null; // 이 줄을 제거하여 병의원 선택 유지
+    // 업체가 변경되면 검색 텍스트도 업데이트
+    if (selectedCompanyId.value === null || selectedCompanyId.value === '') {
+        companySearchText.value = '';
+    } else {
+        const selectedCompany = allCompanies.value.find(c => c.id === selectedCompanyId.value);
+        if (selectedCompany) {
+            companySearchText.value = selectedCompany.company_name;
+        }
+    }
+    
     // 업체가 변경되면 자동으로 데이터 로드
     if (selectedSettlementMonth.value) {
         await loadPerformanceData();
@@ -742,6 +785,67 @@ function delayedHideHospitalDropdown() {
     }, 200);
 }
 
+// === 업체 검색 관련 함수들 ===
+async function fetchAllCompanies() {
+  try {
+    const { data: companies, error } = await supabase
+      .from('companies')
+      .select('id, company_name, company_group, assigned_pharmacist_contact')
+      .eq('user_type', 'user')
+      .eq('approval_status', 'approved')
+      .order('company_name', { ascending: true });
+
+    if (error) throw error;
+    
+    allCompanies.value = companies || [];
+    console.log('전체 업체 목록 로드 완료:', allCompanies.value.length);
+  } catch (err) {
+    console.error('전체 업체 목록 로딩 실패:', err);
+    allCompanies.value = [];
+  }
+}
+
+function handleCompanySearch() {
+  const searchTerm = companySearchText.value.toLowerCase().trim();
+  
+  if (!searchTerm) {
+    // 검색어가 없으면 모든 업체 표시 (최대 100개)
+    filteredCompanies.value = allCompanies.value.slice(0, 100);
+  } else {
+    // 검색어가 있으면 필터링
+    filteredCompanies.value = allCompanies.value
+      .filter(company => 
+        company.company_name.toLowerCase().includes(searchTerm)
+      )
+      .slice(0, 100); // 최대 100개로 제한
+  }
+  
+  showCompanyDropdown.value = true;
+}
+
+function selectCompany(company) {
+  selectedCompanyId.value = company.id;
+  companySearchText.value = company.id === '' ? '' : company.company_name;
+  showCompanyDropdown.value = false;
+  
+  // 실적 데이터 다시 로드
+  fetchPerformanceRecords();
+}
+
+function handleCompanyFocus() {
+  // 포커스 시 드롭다운 표시
+  if (allCompanies.value.length > 0) {
+    handleCompanySearch();
+  }
+}
+
+function delayedHideCompanyDropdown() {
+  // 약간의 지연을 두어 클릭 이벤트가 처리되도록 함
+  setTimeout(() => {
+    showCompanyDropdown.value = false;
+  }, 200);
+}
+
 // 페이지 변경 시 선택된 행 상태 초기화
 watch(currentPageFirstIndex, () => {
   // 페이지가 변경되면 선택된 행 초기화
@@ -754,6 +858,8 @@ const route = useRoute();
 onMounted(async () => {
   console.log("1. onMounted 시작");
   await fetchAvailableMonths();
+  // 전체 업체 목록도 로드 (검색용)
+  await fetchAllCompanies();
   if (availableMonths.value.length > 0) {
     selectedSettlementMonth.value = availableMonths.value[0].settlement_month;
     console.log(`2. 기본 정산월 선택됨: ${selectedSettlementMonth.value}`);
@@ -2127,6 +2233,50 @@ async function handleBulkChange() {
 }
 
 .hospital-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+/* 업체 검색 드롭다운 스타일 */
+.company-search-container {
+  position: relative;
+}
+
+.company-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.company-dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.company-dropdown-item:hover {
+  background-color: #f0f0f0;
+}
+
+.company-dropdown-item.selected {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.company-dropdown-item.no-results {
+  color: #999;
+  font-style: italic;
+  cursor: default;
+}
+
+.company-dropdown-item:last-child {
   border-bottom: none;
 }
 </style>
