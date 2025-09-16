@@ -326,32 +326,6 @@
               <span v-else>{{ slotProps.data.payment_amount }}</span>
             </template>
           </Column>
-          <Column field="section_commission" header="구간수수료율" :headerStyle="{ width: columnWidths.section_commission }" :sortable="true">
-            <template #body="slotProps">
-              <input
-                v-if="slotProps.data.isEditing"
-                v-model="slotProps.data.section_commission_modify"
-                type="number"
-                step="0.01"
-                min="0"
-                max="1"
-                class="edit-mode-input"
-                style="text-align: center;"
-                @change="handleEditCalculations(slotProps.data, 'section_commission')"
-              />
-              <span v-else style="display: block; text-align: center;">{{ (() => {
-                const rate = slotProps.data.section_commission;
-                if (rate === null || rate === undefined) return '';
-                return `${(rate * 100).toFixed(1)}%`;
-              })() }}</span>
-            </template>
-          </Column>
-          <Column field="actual_payment" header="실지급액" :headerStyle="{ width: columnWidths.actual_payment }" :sortable="true">
-            <template #body="slotProps">
-              <span v-if="slotProps.data.isEditing" style="display: block; text-align: right;">{{ slotProps.data.actual_payment_modify?.toLocaleString() }}</span>
-              <span v-else style="display: block; text-align: right;">{{ slotProps.data.actual_payment }}</span>
-            </template>
-          </Column>
           <Column field="remarks" header="비고" :headerStyle="{ width: columnWidths.remarks }" :sortable="true">
             <template #body="slotProps">
               <input
@@ -499,8 +473,6 @@ const columnWidths = {
   prescription_type: '6%',
   commission_rate: '5%',
   payment_amount: '6%',
-  section_commission: '6%',
-  actual_payment: '6%',
   remarks: '10%',
   created_date: '7%',
   created_by: '8%',
@@ -539,12 +511,6 @@ const totalPaymentAmount = computed(() => {
 //   return total.toLocaleString();
 // });
 
-const totalActualPayment = computed(() => {
-  const total = displayRows.value
-    .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
-    .reduce((sum, row) => sum + (Number(String(row.actual_payment || 0).replace(/,/g, '')) || 0), 0);
-  return total.toLocaleString();
-});
 
 // --- 기존 데이터 및 필터 변수들 ---
 const availableMonths = ref([]);
@@ -1355,17 +1321,10 @@ async function loadPerformanceData() {
       // 삭제 처리된 건은 처방액과 지급액을 0으로 표시
       let prescriptionAmount = 0;
       let paymentAmount = 0;
-      let sectionCommissionRate = 0;
-      let actualPayment = 0;
 
       if (item.review_action !== '삭제') {
         prescriptionAmount = Math.round(item.prescription_qty * (item.products?.price || 0));
         paymentAmount = Math.round(prescriptionAmount * (item.commission_rate || 0));
-        // 구간수수료율은 데이터베이스에서 가져온 값 사용 (기본값 0)
-        sectionCommissionRate = item.section_commission_rate || 0;
-        const sectionCommissionAmount = Math.round(prescriptionAmount * sectionCommissionRate);
-        // 실지급액은 지급액에 (처방액 × 구간수수료율)을 더한 금액
-        actualPayment = paymentAmount + sectionCommissionAmount;
       }
 
       return {
@@ -1378,8 +1337,6 @@ async function loadPerformanceData() {
         price: item.products?.price ? Math.round(item.products.price).toLocaleString() : '0',
         prescription_amount: prescriptionAmount.toLocaleString(),
         payment_amount: paymentAmount.toLocaleString(),
-        section_commission: sectionCommissionRate,
-        actual_payment: actualPayment.toLocaleString(),
         registered_by_name: registrarMap.get(item.registered_by) || '관리자',
         updated_by_name: item.updated_by ? (updaterMap.get(item.updated_by) || '관리자') : '',
         display_status: item.review_status,
@@ -1426,7 +1383,6 @@ function startEdit(rowData) {
       prescription_qty_modify: originalRow.prescription_qty,
       prescription_type_modify: originalRow.prescription_type,
       commission_rate_modify: originalRow.commission_rate,
-      section_commission_modify: originalRow.section_commission,
       remarks_modify: originalRow.remarks,
       price_for_calc: parseFloat(String(originalRow.price || '0').replace(/,/g, '')) || 0,
       showProductSearchList: false,
@@ -1481,7 +1437,6 @@ async function saveEdit(rowData) {
       prescription_qty: Number(rowData.prescription_qty_modify) || 0,
       prescription_type: rowData.prescription_type_modify,
       commission_rate: Number(rowData.commission_rate_modify) || 0,
-      section_commission_rate: Number(rowData.section_commission_modify) || 0,
       remarks: rowData.remarks_modify,
       review_status: '완료',
       updated_at: new Date().toISOString(),
@@ -1558,7 +1513,6 @@ function addRowBelow(referenceRow) {
     insurance_code: '',
     prescription_qty_modify: null,
     commission_rate_modify: null,
-    section_commission_modify: 0,
     remarks_modify: '',
 
     // --- 계산을 위한 초기값 ---
@@ -1822,14 +1776,6 @@ async function handleEditCalculations(rowData, field) {
   rowData.prescription_amount_modify = prescriptionAmount;
   rowData.payment_amount_modify = Math.round(prescriptionAmount * rate);
   
-  // 구간수수료율 변경 시 실지급액 재계산
-  if (field === 'section_commission' || field === 'qty' || field === 'rate') {
-    const sectionCommissionRate = Number(rowData.section_commission_modify) || 0;
-    const paymentAmount = rowData.payment_amount_modify;
-    const prescriptionAmount = rowData.prescription_amount_modify;
-    const sectionCommissionAmount = Math.round(prescriptionAmount * sectionCommissionRate);
-    rowData.actual_payment_modify = paymentAmount + sectionCommissionAmount;
-  }
 }
 
 function handleProductNameInput(rowData, event) {
