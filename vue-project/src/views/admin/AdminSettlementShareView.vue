@@ -30,6 +30,10 @@
         scrollable 
         scrollHeight="calc(100vh - 220px)"
         class="admin-settlement-share-table"
+        :pt="{
+          wrapper: { style: 'min-width: 2000px;' },
+          table: { style: 'min-width: 2000px;' }
+        }"
       >
         <template #empty>
           <div v-if="!loading">조회된 데이터가 없습니다.</div>
@@ -58,24 +62,41 @@
               </span>
             </template>
         </Column>
+        <Column field="payment_prescription_amount" header="지급 처방액" :headerStyle="{ width: columnWidths.payment_prescription_amount }" :sortable="true">
+            <template #body="slotProps">
+              <span :title="Math.round(slotProps.data.payment_prescription_amount || 0).toLocaleString()">
+                {{ Math.round(slotProps.data.payment_prescription_amount || 0).toLocaleString() }}
+              </span>
+            </template>
+        </Column>
+        <Column field="section_commission_amount" header="구간 수수료" :headerStyle="{ width: columnWidths.section_commission_amount }" :sortable="true">
+            <template #body="slotProps">
+              <div v-if="slotProps.data.section_commission_rate === 0 || slotProps.data.section_commission_rate === null">
+                <button 
+                  class="btn-commission-input" 
+                  @click="openCommissionModal(slotProps.data)"
+                >
+                  입력하기
+                </button>
+              </div>
+              <div v-else>
+                <span :title="Math.round(slotProps.data.section_commission_amount || 0).toLocaleString()">
+                  {{ Math.round(slotProps.data.section_commission_amount || 0).toLocaleString() }}
+                </span>
+              </div>
+            </template>
+        </Column>
+        <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :sortable="true">
+            <template #body="slotProps">
+              <span :title="Math.round(slotProps.data.payment_amount || 0).toLocaleString()">
+                {{ Math.round(slotProps.data.payment_amount || 0).toLocaleString() }}
+              </span>
+            </template>
+        </Column>
         <Column field="total_payment_amount" header="총 지급액" :headerStyle="{ width: columnWidths.total_payment_amount }" :sortable="true">
             <template #body="slotProps">
               <span :title="Math.round(slotProps.data.total_payment_amount || 0).toLocaleString()">
                 {{ Math.round(slotProps.data.total_payment_amount || 0).toLocaleString() }}
-              </span>
-            </template>
-        </Column>
-        <Column field="section_commission_rate" header="구간수수료율" :headerStyle="{ width: columnWidths.section_commission_rate }" :sortable="true">
-            <template #body="slotProps">
-              <span title="0.0%">
-                0.0%
-              </span>
-            </template>
-        </Column>
-        <Column field="actual_payment_amount" header="실지급액" :headerStyle="{ width: columnWidths.actual_payment_amount }" :sortable="true">
-            <template #body="slotProps">
-              <span :title="Math.round(slotProps.data.actual_payment_amount || 0).toLocaleString()">
-                {{ Math.round(slotProps.data.actual_payment_amount || 0).toLocaleString() }}
               </span>
             </template>
         </Column>
@@ -118,9 +139,10 @@
             <Column :footer="totalClientCount" footerClass="footer-cell" footerStyle="text-align:center !important;" />
             <Column :footer="totalRecordsCount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+            <Column footer="0" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+            <Column footer="0" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+            <Column footer="0" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-            <Column footer="0.0%" footerClass="footer-cell" footerStyle="text-align:center !important;" />
-            <Column :footer="totalActualPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :colspan="3" footerClass="footer-cell" />
           </Row>
         </ColumnGroup>
@@ -156,6 +178,40 @@
         </div>
       </div>
     </div>
+
+    <!-- 구간 수수료 모달 -->
+    <div v-if="showCommissionModal" class="modal-overlay" @click="closeCommissionModal">
+      <div class="modal-content modal-center" @click.stop>
+        <div class="modal-header">
+          <h2>{{ selectedCompany?.company_name }} - 구간 수수료율</h2>
+          <button class="modal-close-btn" @click="closeCommissionModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">지급 처방액</label>
+            <div style="padding: 10px; background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; font-weight: 600;">
+              {{ Math.round(selectedCompany?.payment_prescription_amount || 0).toLocaleString() }}원
+            </div>
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">구간 수수료율 (%)</label>
+            <input
+              v-model="commissionRate"
+              type="number"
+              step="1"
+              min="0"
+              max="100"
+              placeholder="0"
+              style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-save" @click="saveCommission">저장</button>
+          <button class="btn-close" @click="closeCommissionModal">닫기</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -178,9 +234,10 @@ const columnWidths = {
   client_count: '7%',
   total_records: '7%',
   total_prescription_amount: '8%',
+  payment_prescription_amount: '8%',
+  section_commission_amount: '8%',
+  payment_amount: '8%',
   total_payment_amount: '8%',
-  section_commission_rate: '7%',
-  actual_payment_amount: '8%',
   notice_individual: '6%',
   detail: '5%',
   share: '5%'
@@ -201,6 +258,10 @@ const shareChanges = ref({}); // 공유 상태 변경 사항 추적
 const showNoticeModal = ref(false);
 const selectedCompany = ref(null);
 const noticeContent = ref('');
+
+// 구간 수수료 모달 관련
+const showCommissionModal = ref(false);
+const commissionRate = ref('');
 
 // --- 계산된 속성 (합계) ---
 const totalClientCount = computed(() => {
@@ -225,10 +286,6 @@ const totalPaymentAmount = computed(() => {
 
 // 구간수수료율은 현재 데이터베이스에 없으므로 제거
 
-const totalActualPaymentAmount = computed(() => {
-  const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.actual_payment_amount || 0)), 0);
-  return total.toLocaleString();
-});
 
 // --- 헤더 체크박스 상태 관리 ---
 const isAllShared = computed(() => {
@@ -341,10 +398,12 @@ async function loadSettlementData() {
           manager_name: record.company.assigned_pharmacist_contact,
           client_count: new Set(),
           total_records: 0,
-          total_prescription_amount: 0,
-          total_payment_amount: 0,
-          total_section_commission_rate: 0,
-          actual_payment_amount: 0,
+          total_prescription_amount: 0, // 총 처방액: 실적이 등록된 모든 제품의 처방액 합계
+          payment_prescription_amount: 0, // 지급 처방액: 수수료가 지급되는 제품의 처방액 합계
+          section_commission_amount: 0, // 구간 수수료: (지급 처방액)*구간 수수료율*0.01
+          payment_amount: 0, // 지급액: 수수료 합계
+          total_payment_amount: 0, // 총 지급액: 구간 수수료+지급액
+          section_commission_rate: 0, // 구간 수수료율
           is_shared: false, // 기본값
           settlement_share_id: null, // 기본값
           notice_individual: null // 기본값
@@ -357,11 +416,16 @@ async function loadSettlementData() {
       summary.client_count.add(record.client_id);
       summary.total_records += 1;
       
-      // 총 처방액과 총 지급액은 삭제되지 않은 건만 포함
+      // 처방액 계산 (모든 건 포함)
+      const prescriptionAmount = Math.round((record.prescription_qty || 0) * (record.product?.price || 0));
+      summary.total_prescription_amount += prescriptionAmount;
+      
+      // 삭제되지 않은 건만 지급액 계산에 포함
       if (record.review_action !== '삭제') {
-        // 처방액과 지급액을 계산 (개별 건을 먼저 원단위로 반올림)
-        const prescriptionAmount = Math.round((record.prescription_qty || 0) * (record.product?.price || 0));
-        // 수수료율이 퍼센트(%)인지 소수점인지 확인하여 계산
+        // 지급 처방액: 수수료가 지급되는 제품의 처방액 합계
+        summary.payment_prescription_amount += prescriptionAmount;
+        
+        // 지급액: 수수료 합계
         let paymentAmount;
         if (record.commission_rate && record.commission_rate > 1) {
           // 수수료율이 1보다 크면 퍼센트(%) 단위로 간주
@@ -370,19 +434,7 @@ async function loadSettlementData() {
           // 수수료율이 1 이하면 소수점 단위로 간주
           paymentAmount = Math.round(prescriptionAmount * (record.commission_rate || 0));
         }
-        
-        // 구간수수료율은 현재 데이터베이스에 없으므로 기본값 0으로 설정
-        const sectionCommissionRate = 0;
-        const sectionCommissionAmount = 0;
-        const actualPaymentAmount = paymentAmount + sectionCommissionAmount;
-        
-        summary.total_prescription_amount += prescriptionAmount;
-        summary.total_payment_amount += paymentAmount;
-        summary.total_section_commission_rate += sectionCommissionRate;
-        summary.actual_payment_amount += actualPaymentAmount;
-        
-        // 디버깅용 로그
-        console.log(`회사: ${record.company.company_name}, 처방액: ${prescriptionAmount}, 지급액: ${paymentAmount}, 구간수수료율: ${sectionCommissionRate}, 구간수수료액: ${sectionCommissionAmount}, 실지급액: ${actualPaymentAmount}`);
+        summary.payment_amount += paymentAmount;
       }
     }
 
@@ -401,6 +453,7 @@ async function loadSettlementData() {
         if (summaryMap.has(share.company_id)) {
           const summary = summaryMap.get(share.company_id);
           summary.is_shared = share.share_enabled;
+          summary.section_commission_rate = share.section_commission_rate || 0;
           summary.settlement_share_id = share.id;
           summary.notice_individual = share.notice_individual;
         }
@@ -410,8 +463,13 @@ async function loadSettlementData() {
     // 4. 최종 데이터를 생성하고 정렬합니다.
     const finalSummary = Array.from(summaryMap.values()).map(s => {
       s.client_count = s.client_count.size;
-      // 구간수수료율을 평균으로 계산 (처방건수로 나누기)
-      s.section_commission_rate = s.total_records > 0 ? s.total_section_commission_rate / s.total_records : 0;
+      
+      // 구간 수수료 계산: (지급 처방액) * 구간 수수료율 * 0.01
+      s.section_commission_amount = Math.round((s.payment_prescription_amount || 0) * (s.section_commission_rate || 0) * 0.01);
+      
+      // 총 지급액 계산: 구간 수수료 + 지급액
+      s.total_payment_amount = (s.section_commission_amount || 0) + (s.payment_amount || 0);
+      
       return s;
     });
 
@@ -458,6 +516,7 @@ function toggleAllShares() {
     onShareChange(company, newShareState);
   });
 }
+
 
 async function saveShareStatus() {
   if (Object.keys(shareChanges.value).length === 0) {
@@ -597,6 +656,69 @@ async function saveNotice() {
   }
 }
 
+// 구간 수수료 모달 관련 함수들
+function openCommissionModal(companyData) {
+  // 이미 구간 수수료율이 입력된 경우 수정 불가
+  if (companyData.section_commission_rate && companyData.section_commission_rate > 0) {
+    alert('구간 수수료율은 최초 입력 이후 수정할 수 없습니다.');
+    return;
+  }
+  
+  selectedCompany.value = companyData;
+  commissionRate.value = '';
+  showCommissionModal.value = true;
+}
+
+function closeCommissionModal() {
+  showCommissionModal.value = false;
+  selectedCompany.value = null;
+  commissionRate.value = '';
+}
+
+async function saveCommission() {
+  if (!selectedCompany.value || !commissionRate.value) {
+    alert('구간 수수료율을 입력해주세요.');
+    return;
+  }
+  
+  try {
+    const rate = parseInt(commissionRate.value);
+    if (isNaN(rate) || rate < 0 || rate > 100 || !Number.isInteger(parseFloat(commissionRate.value))) {
+      alert('구간 수수료율은 0~100 사이의 정수여야 합니다.');
+      return;
+    }
+    
+    // settlement_share 테이블에 구간 수수료율 저장 (기존 공유 상태 유지)
+    const { error } = await supabase
+      .from('settlement_share')
+      .upsert({
+        settlement_month: selectedMonth.value,
+        company_id: selectedCompany.value.company_id,
+        section_commission_rate: rate / 100, // 퍼센트를 소수점으로 변환
+        share_enabled: selectedCompany.value.is_shared || false,
+        notice_individual: selectedCompany.value.notice_individual || null
+      });
+    
+    if (error) throw error;
+    
+    // 로컬 데이터 업데이트
+    const company = companySummary.value.find(c => c.company_id === selectedCompany.value.company_id);
+    if (company) {
+      company.section_commission_rate = rate / 100;
+      // 구간 수수료 계산: (지급 처방액) * 구간 수수료율 * 0.01
+      company.section_commission_amount = Math.round((company.payment_prescription_amount || 0) * (rate / 100) * 0.01);
+      // 총 지급액 재계산: 구간 수수료 + 지급액
+      company.total_payment_amount = (company.section_commission_amount || 0) + (company.payment_amount || 0);
+    }
+    
+    alert('구간 수수료율이 저장되었습니다.');
+    closeCommissionModal();
+  } catch (err) {
+    console.error('구간 수수료율 저장 오류:', err);
+    alert(`구간 수수료율 저장 중 오류가 발생했습니다: ${err.message}`);
+  }
+}
+
 onBeforeRouteLeave((to, from, next) => {
   if (Object.keys(shareChanges.value).length > 0) {
     if (confirm('저장하지 않은 변경사항이 있습니다. 페이지를 떠나시겠습니까?')) {
@@ -632,6 +754,21 @@ function formatDateTime(dateTimeString) {
 <style scoped>
 .action-buttons-group {
     display: flex;
+}
+
+.btn-commission-input {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-commission-input:hover {
+  background-color: #0056b3;
 }
 
 </style>

@@ -701,7 +701,7 @@ select option:focus {
 /* 테이블 바디 */
 .p-datatable .p-datatable-tbody > tr > td {
   padding: 0 0.5rem !important;
-  height: 2.3rem !important;
+  height: 1.8rem !important;
   color: var(--text-primary) !important;
   border-right: 1px solid var(--border-secondary) !important;
   white-space: normal !important;
@@ -713,9 +713,25 @@ select option:focus {
 /* 테이블 헤더 */
 .p-datatable .p-datatable-thead > tr > th {
   background: var(--bg-secondary) !important;
-  border-bottom: 2px solid var(--border-primary) !important;
+  border-bottom: 1px solid var(--border-primary) !important;
   text-align: center !important;
-  vertical-align: middle !important;  
+  vertical-align: middle !important;
+  height: 1.8rem !important;
+  padding: 0 0.5rem !important;
+}
+
+/* PrimeVue DataTable 헤더 셀 높이 강제 조정 */
+.p-datatable-header-cell {
+  height: 1.8rem !important;
+  padding: 0 0.5rem !important;
+}
+
+/* 헤더 컨텐츠 영역 높이 조정 */
+.p-datatable-column-header-content {
+  height: 1.8rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 /* 테이블 바디 */

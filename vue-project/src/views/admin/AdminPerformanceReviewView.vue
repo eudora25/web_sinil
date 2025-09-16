@@ -265,6 +265,12 @@
               <span v-else>{{ slotProps.data.prescription_amount }}</span>
             </template>
           </Column>
+          <Column field="payment_prescription_amount" header="지급 처방액" :headerStyle="{ width: columnWidths.payment_prescription_amount }" :sortable="true">
+            <template #body="slotProps">
+              <span v-if="slotProps.data.isEditing">{{ slotProps.data.payment_prescription_amount_modify?.toLocaleString() }}</span>
+              <span v-else>{{ slotProps.data.payment_prescription_amount }}</span>
+            </template>
+          </Column>
 
           <Column :headerStyle="{ width: columnWidths.checkbox, textAlign: 'center' }" :frozen="true">
             <template #header>
@@ -360,6 +366,7 @@
               <Column footer="" footerClass="footer-cell" />
               <Column :footer="totalQuantity" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column :footer="totalPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+              <Column :footer="totalPaymentPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column footer="" footerClass="footer-cell" :frozen="true" />
               <Column footer="" footerClass="footer-cell" />
               <Column footer="" footerClass="footer-cell" />
@@ -469,6 +476,7 @@ const columnWidths = {
   price: '5%',
   prescription_qty: '5%',
   prescription_amount: '6%',
+  payment_prescription_amount: '6%',
   checkbox: '3%',
   prescription_type: '6%',
   commission_rate: '5%',
@@ -493,6 +501,13 @@ const totalPrescriptionAmount = computed(() => {
   const total = displayRows.value
     .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
     .reduce((sum, row) => sum + (Number(String(row.prescription_amount).replace(/,/g, '')) || 0), 0);
+  return total.toLocaleString();
+});
+
+const totalPaymentPrescriptionAmount = computed(() => {
+  const total = displayRows.value
+    .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
+    .reduce((sum, row) => sum + (Number(String(row.payment_prescription_amount).replace(/,/g, '')) || 0), 0);
   return total.toLocaleString();
 });
 
@@ -1318,12 +1333,18 @@ async function loadPerformanceData() {
 
     // 데이터 가공: Join된 객체를 펼치고, 화면 표시에 필요한 값을 설정
     rows.value = allData.map(item => {
-      // 삭제 처리된 건은 처방액과 지급액을 0으로 표시
-      let prescriptionAmount = 0;
+      // 처방액 계산 (모든 건 포함)
+      const prescriptionAmount = Math.round(item.prescription_qty * (item.products?.price || 0));
+      
+      // 삭제 처리된 건은 지급 처방액과 지급액을 0으로 표시
+      let paymentPrescriptionAmount = 0;
       let paymentAmount = 0;
 
       if (item.review_action !== '삭제') {
-        prescriptionAmount = Math.round(item.prescription_qty * (item.products?.price || 0));
+        // 수수료율이 0이면 지급 처방액도 0
+        if (item.commission_rate && item.commission_rate > 0) {
+          paymentPrescriptionAmount = prescriptionAmount; // 지급 처방액: 수수료가 지급되는 제품의 처방액
+        }
         paymentAmount = Math.round(prescriptionAmount * (item.commission_rate || 0));
       }
 
@@ -1336,6 +1357,7 @@ async function loadPerformanceData() {
         insurance_code: item.products?.insurance_code || '',
         price: item.products?.price ? Math.round(item.products.price).toLocaleString() : '0',
         prescription_amount: prescriptionAmount.toLocaleString(),
+        payment_prescription_amount: paymentPrescriptionAmount.toLocaleString(),
         payment_amount: paymentAmount.toLocaleString(),
         registered_by_name: registrarMap.get(item.registered_by) || '관리자',
         updated_by_name: item.updated_by ? (updaterMap.get(item.updated_by) || '관리자') : '',
@@ -1768,12 +1790,14 @@ async function handleEditCalculations(rowData, field) {
           rowData.commission_rate_modify = commissionRate;
       }
   }
-  // 처방액, 지급액 계산
+  // 처방액, 지급 처방액, 지급액 계산
   const qty = Number(rowData.prescription_qty_modify) || 0;
   const price = Number(rowData.price_for_calc) || 0;
   const rate = Number(rowData.commission_rate_modify) || 0;
   const prescriptionAmount = Math.round(qty * price);
   rowData.prescription_amount_modify = prescriptionAmount;
+  // 수수료율이 0이면 지급 처방액도 0
+  rowData.payment_prescription_amount_modify = (rate > 0) ? prescriptionAmount : 0;
   rowData.payment_amount_modify = Math.round(prescriptionAmount * rate);
   
 }
@@ -2030,6 +2054,8 @@ async function updateProductInfoForMonthChange(rowData) {
       const price = Number(productData.price) || 0;
       if (!isNaN(qty) && !isNaN(price) && price > 0) {
         reactiveRow.prescription_amount_modify = qty * price;
+        // 수수료율이 0이면 지급 처방액도 0
+        reactiveRow.payment_prescription_amount_modify = (commissionRate > 0) ? reactiveRow.prescription_amount_modify : 0;
         reactiveRow.payment_amount_modify = reactiveRow.prescription_amount_modify * (commissionRate / 100);
       }
     }
