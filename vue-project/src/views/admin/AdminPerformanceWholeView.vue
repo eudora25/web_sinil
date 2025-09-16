@@ -22,8 +22,7 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <label>업체</label>
           <select v-model="selectedCompanyId" class="select_200px">
-            <option value="">- 전체 -</option>
-            <option v-for="company in monthlyCompanies" :key="company.id" :value="company.id">{{ company.company_name }}</option>
+            <option v-for="company in companyOptions" :key="company.id" :value="company.id">{{ company.company_name }}</option>
           </select>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -237,6 +236,13 @@ const displayRows = computed(() => {
   return rows;
 });
 
+const companyOptions = computed(() => {
+  const options = [{ id: '', company_name: '- 전체 -' }, ...monthlyCompanies.value];
+  console.log('companyOptions computed:', options);
+  console.log('monthlyCompanies.value:', monthlyCompanies.value);
+  return options;
+});
+
 // 유틸리티 함수들
 function getPrescriptionMonth(settlementMonth, offset) {
   if (!settlementMonth) return '';
@@ -283,7 +289,9 @@ watch(selectedSettlementMonth, () => {
     fetchPerformanceRecords();
   } else {
     companies.value = [];
+    monthlyCompanies.value = [];
     hospitals.value = [];
+    allHospitals.value = [];
     rawRows.value = [];
     performanceRecords.value = [];
   }
@@ -344,58 +352,58 @@ async function fetchAvailableMonths() {
 }
 
 async function fetchCompanies() {
-  if (!selectedSettlementMonth.value) {
-    companies.value = [];
-    monthlyCompanies.value = [];
-    return;
-  }
+  console.log('fetchCompanies 호출됨, selectedSettlementMonth:', selectedSettlementMonth.value);
   
   try {
     // === 기존 방식: 해당 월에 실적을 제출한 업체들만 조회 (호환성 유지) ===
-    let query = supabase
-      .from('performance_records')
-      .select(`
-        company_id,
-        companies!inner(*)
-      `)
-      .eq('settlement_month', selectedSettlementMonth.value);
-    
-    // 처방월 필터링 (0이 아닐 때만)
-    if (prescriptionOffset.value !== 0) {
-      query = query.eq('prescription_month', prescriptionMonth.value);
-    }
+    if (selectedSettlementMonth.value) {
+      let query = supabase
+        .from('performance_records')
+        .select(`
+          company_id,
+          companies!inner(*)
+        `)
+        .eq('settlement_month', selectedSettlementMonth.value);
       
-    const { data, error } = await query;
-      
-    if (error) {
-      console.error('업체 조회 오류:', error);
-      return;
-    }
-    
-    // 중복 제거하여 고유한 업체들만 추출
-    const uniqueCompanies = [];
-    const companyIds = new Set();
-    
-    data?.forEach(record => {
-      if (!companyIds.has(record.company_id)) {
-        companyIds.add(record.company_id);
-        uniqueCompanies.push({
-          id: record.companies.id,
-          company_name: record.companies.company_name,
-          company_group: record.companies.company_group,
-          assigned_pharmacist_contact: record.companies.assigned_pharmacist_contact
-        });
+      // 처방월 필터링 (0이 아닐 때만)
+      if (prescriptionOffset.value !== 0) {
+        query = query.eq('prescription_month', prescriptionMonth.value);
       }
-    });
+        
+      const { data, error } = await query;
+        
+      if (error) {
+        console.error('업체 조회 오류:', error);
+      } else {
+        // 중복 제거하여 고유한 업체들만 추출
+        const uniqueCompanies = [];
+        const companyIds = new Set();
+        
+        data?.forEach(record => {
+          if (!companyIds.has(record.company_id)) {
+            companyIds.add(record.company_id);
+            uniqueCompanies.push({
+              id: record.companies.id,
+              company_name: record.companies.company_name,
+              company_group: record.companies.company_group,
+              assigned_pharmacist_contact: record.companies.assigned_pharmacist_contact
+            });
+          }
+        });
+        
+        // 업체명으로 정렬
+        companies.value = uniqueCompanies.sort((a, b) => a.company_name.localeCompare(b.company_name));
+      }
+    } else {
+      companies.value = [];
+    }
     
-    // 업체명으로 정렬
-    companies.value = uniqueCompanies.sort((a, b) => a.company_name.localeCompare(b.company_name));
-    
-    // === 새로운 방식: 모든 승인된 업체를 별도로 쿼리 ===
+    // === 새로운 방식: 모든 승인된 업체를 별도로 쿼리 (정산월과 관계없이) ===
     const { data: allCompanies, error: allCompaniesError } = await supabase
       .from('companies')
       .select('id, company_name, company_group, assigned_pharmacist_contact')
-      .eq('status', '승인')
+      .eq('user_type', 'user')
+      .eq('approval_status', 'approved')
       .order('company_name', { ascending: true });
     
     if (allCompaniesError) {
@@ -403,7 +411,7 @@ async function fetchCompanies() {
       monthlyCompanies.value = [];
     } else {
       monthlyCompanies.value = allCompanies || [];
-      console.log(`전체 승인된 업체 ${monthlyCompanies.value.length}개 로드 완료`);
+      console.log(`전체 승인된 업체 ${monthlyCompanies.value.length}개 로드 완료:`, monthlyCompanies.value);
     }
     
   } catch (err) {
@@ -936,9 +944,17 @@ function delayedHideHospitalDropdown() {
 }
 
 // 마운트
-onMounted(() => {
-  fetchAvailableMonths();
+onMounted(async () => {
+  await fetchAvailableMonths();
+  // 정산월과 관계없이 항상 업체 목록을 로드
+  await fetchCompanies();
+  
+  // 정산월이 설정되면 병의원도 로드
+  if (selectedSettlementMonth.value) {
+    await fetchHospitals();
+  }
 });
+
 </script>
 
 <style scoped>

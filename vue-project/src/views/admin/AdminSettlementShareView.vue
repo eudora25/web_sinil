@@ -65,6 +65,20 @@
               </span>
             </template>
         </Column>
+        <Column field="section_commission_rate" header="구간수수료율" :headerStyle="{ width: columnWidths.section_commission_rate }" :sortable="true">
+            <template #body="slotProps">
+              <span title="0.0%">
+                0.0%
+              </span>
+            </template>
+        </Column>
+        <Column field="actual_payment_amount" header="실지급액" :headerStyle="{ width: columnWidths.actual_payment_amount }" :sortable="true">
+            <template #body="slotProps">
+              <span :title="Math.round(slotProps.data.actual_payment_amount || 0).toLocaleString()">
+                {{ Math.round(slotProps.data.actual_payment_amount || 0).toLocaleString() }}
+              </span>
+            </template>
+        </Column>
         <Column header="개별 전달사항" :headerStyle="{ width: columnWidths.notice_individual }">
           <template #body="slotProps">
             <button 
@@ -105,6 +119,8 @@
             <Column :footer="totalRecordsCount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+            <Column footer="0.0%" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+            <Column :footer="totalActualPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :colspan="3" footerClass="footer-cell" />
           </Row>
         </ColumnGroup>
@@ -153,19 +169,21 @@ import { useRouter, onBeforeRouteLeave } from 'vue-router';
 import { supabase } from '@/supabase';
 
 const columnWidths = {
-  no: '4%',
-  company_group: '8%',
-  company_name: '12%',
-  business_registration_number: '10%',
-  representative_name: '8%',
-  manager_name: '8%',
-  client_count: '9%',
-  total_records: '9%',
-  total_prescription_amount: '9%',
-  total_payment_amount: '9%',
-  notice_individual: '8%',
-  detail: '6%',
-  share: '6%'
+  no: '3%',
+  company_group: '6%',
+  company_name: '10%',
+  business_registration_number: '8%',
+  representative_name: '6%',
+  manager_name: '6%',
+  client_count: '7%',
+  total_records: '7%',
+  total_prescription_amount: '8%',
+  total_payment_amount: '8%',
+  section_commission_rate: '7%',
+  actual_payment_amount: '8%',
+  notice_individual: '6%',
+  detail: '5%',
+  share: '5%'
 };
 
 const loading = ref(true);
@@ -202,6 +220,13 @@ const totalPrescriptionAmount = computed(() => {
 
 const totalPaymentAmount = computed(() => {
   const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.total_payment_amount || 0)), 0);
+  return total.toLocaleString();
+});
+
+// 구간수수료율은 현재 데이터베이스에 없으므로 제거
+
+const totalActualPaymentAmount = computed(() => {
+  const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.actual_payment_amount || 0)), 0);
   return total.toLocaleString();
 });
 
@@ -269,7 +294,7 @@ async function loadSettlementData() {
     
     while (true) {
     const { data: records, error: recordsError } = await supabase
-      .from('performance_records_absorption')
+      .from('performance_records')
       .select(`
         id,
         company_id,
@@ -318,6 +343,8 @@ async function loadSettlementData() {
           total_records: 0,
           total_prescription_amount: 0,
           total_payment_amount: 0,
+          total_section_commission_rate: 0,
+          actual_payment_amount: 0,
           is_shared: false, // 기본값
           settlement_share_id: null, // 기본값
           notice_individual: null // 기본값
@@ -344,11 +371,18 @@ async function loadSettlementData() {
           paymentAmount = Math.round(prescriptionAmount * (record.commission_rate || 0));
         }
         
+        // 구간수수료율은 현재 데이터베이스에 없으므로 기본값 0으로 설정
+        const sectionCommissionRate = 0;
+        const sectionCommissionAmount = 0;
+        const actualPaymentAmount = paymentAmount + sectionCommissionAmount;
+        
         summary.total_prescription_amount += prescriptionAmount;
         summary.total_payment_amount += paymentAmount;
+        summary.total_section_commission_rate += sectionCommissionRate;
+        summary.actual_payment_amount += actualPaymentAmount;
         
         // 디버깅용 로그
-        console.log(`회사: ${record.company.company_name}, 처방액: ${prescriptionAmount}, 지급액: ${paymentAmount}, 누적 처방액: ${summary.total_prescription_amount}, 누적 지급액: ${summary.total_payment_amount}`);
+        console.log(`회사: ${record.company.company_name}, 처방액: ${prescriptionAmount}, 지급액: ${paymentAmount}, 구간수수료율: ${sectionCommissionRate}, 구간수수료액: ${sectionCommissionAmount}, 실지급액: ${actualPaymentAmount}`);
       }
     }
 
@@ -376,6 +410,8 @@ async function loadSettlementData() {
     // 4. 최종 데이터를 생성하고 정렬합니다.
     const finalSummary = Array.from(summaryMap.values()).map(s => {
       s.client_count = s.client_count.size;
+      // 구간수수료율을 평균으로 계산 (처방건수로 나누기)
+      s.section_commission_rate = s.total_records > 0 ? s.total_section_commission_rate / s.total_records : 0;
       return s;
     });
 
@@ -588,6 +624,8 @@ function formatDateTime(dateTimeString) {
   const minutes = String(date.getUTCMinutes()).padStart(2, '0');
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
+
+// formatSectionCommissionRate 함수는 현재 사용하지 않으므로 제거
 
 </script>
 
