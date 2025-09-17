@@ -13,14 +13,44 @@
             <option v-for="month in availableMonths" :key="month" :value="month">{{ month }}</option>
           </select>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px">
+        <div style="display: flex; align-items: center; gap: 8px;">
           <label>업체</label>
-          <select v-model="selectedCompanyId" class="select_200px">
-            <option value="">- 선택 -</option>
-            <option v-for="company in availableCompanies" :key="company.id" :value="company.id">
-              {{ company.company_name }}
-            </option>
-          </select>
+          <div class="company-search-container" style="position: relative;">
+            <input
+              v-model="companySearchText"
+              @input="handleCompanySearch"
+              @focus="handleCompanyFocus"
+              @blur="delayedHideCompanyDropdown"
+              @keydown="handleCompanyKeydown"
+              :placeholder="selectedCompanyId === '' ? '업체명을 입력하세요...' : ''"
+              class="select_200px"
+              autocomplete="off"
+            />
+            <div v-if="showCompanyDropdown && filteredCompanies.length > 0" class="company-dropdown">
+              <!-- 전체 옵션 -->
+              <div
+                :class="['company-dropdown-item', { 
+                  selected: selectedCompanyId === '', 
+                  highlighted: companyHighlightedIndex === 0 
+                }]"
+                @mousedown.prevent="selectCompany({ id: '', company_name: '전체' })"
+              >
+                전체
+              </div>
+              <!-- 업체 목록 -->
+              <div
+                v-for="(company, index) in filteredCompanies"
+                :key="company.id"
+                :class="['company-dropdown-item', { 
+                  selected: selectedCompanyId === company.id, 
+                  highlighted: companyHighlightedIndex === index + 1 
+                }]"
+                @mousedown.prevent="selectCompany(company)"
+              >
+                {{ company.company_name }}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -455,6 +485,12 @@ const clientList = ref([])
 const isInputPeriod = ref(false)
 const loading = ref(false)
 const router = useRouter()
+
+// 업체 검색 관련 변수들
+const companySearchText = ref('')
+const showCompanyDropdown = ref(false)
+const filteredCompanies = ref([])
+const companyHighlightedIndex = ref(-1)
 const detailModalVisible = ref(false)
 const selectedClient = ref(null)
 const clientFiles = ref([])
@@ -883,6 +919,16 @@ async function uploadFiles() {
 
 // 업체 선택 시 데이터 새로고침 + sessionStorage에 저장
 watch(selectedCompanyId, async () => {
+  // 업체가 변경되면 검색 텍스트도 업데이트
+  if (selectedCompanyId.value === '') {
+    companySearchText.value = '';
+  } else {
+    const selectedCompany = availableCompanies.value.find(c => c.id === selectedCompanyId.value);
+    if (selectedCompany) {
+      companySearchText.value = selectedCompany.company_name;
+    }
+  }
+  
   // 선택된 업체 ID를 sessionStorage에 저장
   if (selectedCompanyId.value) {
     sessionStorage.setItem('admin_selected_company_id', selectedCompanyId.value);
@@ -1074,4 +1120,157 @@ async function downloadExcel() {
   link.click()
   window.URL.revokeObjectURL(url)
 }
-</script> 
+
+// 업체 검색 관련 함수들
+function handleCompanySearch() {
+  const searchTerm = companySearchText.value.toLowerCase().trim();
+  
+  if (!searchTerm) {
+    // 검색어가 없으면 모든 업체 표시 (최대 100개)
+    filteredCompanies.value = availableCompanies.value.slice(0, 100);
+  } else {
+    // 검색어가 있으면 필터링
+    filteredCompanies.value = availableCompanies.value
+      .filter(company => 
+        company.company_name.toLowerCase().includes(searchTerm)
+      )
+      .slice(0, 100); // 최대 100개로 제한
+  }
+  
+  companyHighlightedIndex.value = -1; // 검색 시 하이라이트 초기화
+  showCompanyDropdown.value = true;
+}
+
+function selectCompany(company) {
+  selectedCompanyId.value = company.id;
+  companySearchText.value = company.id === '' ? '' : company.company_name;
+  showCompanyDropdown.value = false;
+  companyHighlightedIndex.value = -1;
+  
+  // 병의원 데이터 다시 로드
+  fetchClients();
+}
+
+function handleCompanyFocus() {
+  showCompanyDropdown.value = true;
+  handleCompanySearch();
+}
+
+function handleCompanyKeydown(event) {
+  if (!showCompanyDropdown.value) return;
+  
+  const totalItems = filteredCompanies.value.length + 1; // +1 for "전체" option
+  
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      companyHighlightedIndex.value = Math.min(companyHighlightedIndex.value + 1, totalItems - 1);
+      scrollToHighlightedCompany();
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      companyHighlightedIndex.value = Math.max(companyHighlightedIndex.value - 1, -1);
+      scrollToHighlightedCompany();
+      break;
+    case 'Enter':
+      event.preventDefault();
+      if (companyHighlightedIndex.value === 0) {
+        // "전체" 선택
+        selectCompany({ id: '', company_name: '전체' });
+      } else if (companyHighlightedIndex.value > 0) {
+        // 업체 선택
+        const companyIndex = companyHighlightedIndex.value - 1;
+        if (companyIndex < filteredCompanies.value.length) {
+          selectCompany(filteredCompanies.value[companyIndex]);
+        }
+      }
+      break;
+    case 'Escape':
+      event.preventDefault();
+      showCompanyDropdown.value = false;
+      companyHighlightedIndex.value = -1;
+      break;
+  }
+}
+
+function scrollToHighlightedCompany() {
+  nextTick(() => {
+    const dropdown = document.querySelector('.company-dropdown');
+    if (!dropdown) return;
+    
+    const highlightedItem = dropdown.querySelector('.company-dropdown-item.highlighted');
+    if (!highlightedItem) return;
+    
+    const dropdownRect = dropdown.getBoundingClientRect();
+    const itemRect = highlightedItem.getBoundingClientRect();
+    
+    // 항목이 드롭다운 상단을 벗어나면 스크롤
+    if (itemRect.top < dropdownRect.top) {
+      highlightedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    // 항목이 드롭다운 하단을 벗어나면 스크롤
+    else if (itemRect.bottom > dropdownRect.bottom) {
+      highlightedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  });
+}
+
+function delayedHideCompanyDropdown() {
+  // 약간의 지연을 두어 클릭 이벤트가 처리되도록 함
+  setTimeout(() => {
+    showCompanyDropdown.value = false;
+  }, 200);
+}
+</script>
+
+<style scoped>
+/* 업체 검색 드롭다운 스타일 */
+.company-search-container {
+  position: relative;
+}
+
+.company-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-top: none;
+  max-height: 200px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  z-index: 1000;
+}
+
+.company-dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+
+.company-dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+.company-dropdown-item.selected {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.company-dropdown-item.highlighted {
+  background-color: #f0f8ff;
+  color: #1976d2;
+}
+
+.company-dropdown-item.no-results {
+  color: #999;
+  font-style: italic;
+  cursor: default;
+}
+
+.company-dropdown-item.no-results:hover {
+  background-color: transparent;
+}
+</style> 

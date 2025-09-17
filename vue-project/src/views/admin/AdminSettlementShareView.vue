@@ -83,7 +83,9 @@
         </Column>
         <Column field="section_commission_amount" header="구간 수수료" :headerStyle="{ width: columnWidths.section_commission_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
-              <div v-if="slotProps.data.section_commission_rate === null || slotProps.data.section_commission_rate === 0">
+              <!-- 디버깅용: 실제 값 확인 -->
+              <!-- {{ console.log('section_commission_rate:', slotProps.data.section_commission_rate, 'type:', typeof slotProps.data.section_commission_rate) }} -->
+              <div v-if="slotProps.data.section_commission_rate == null || slotProps.data.section_commission_rate == 0">
                 <button 
                   class="btn-commission-input" 
                   @click="openCommissionModal(slotProps.data)"
