@@ -197,7 +197,9 @@ async function loadDetailData() {
       // 데이터 매핑 시
       const qty = row.prescription_qty ?? 0;
       const price = row.products?.price ?? 0;
-      const prescriptionAmount = Math.round(qty * price);
+      // review_action이 '삭제'인 경우 처방수량을 0으로 설정
+      const finalQty = row.review_action === '삭제' ? 0 : qty;
+      const prescriptionAmount = Math.round(finalQty * price);
       const commissionRate = row.commission_rate ?? 0;
       const paymentAmount = Math.round(prescriptionAmount * commissionRate);
       
@@ -207,13 +209,13 @@ async function loadDetailData() {
         product_name_display: row.products?.product_name || 'N/A',
         insurance_code: row.products?.insurance_code || 'N/A',
         price: price,
-        prescription_qty: qty,
+        prescription_qty: finalQty,
         prescription_amount: prescriptionAmount,
         payment_amount: paymentAmount,
         commission_rate: `${((commissionRate || 0) * 100).toFixed(1)}%`,
         // 합계 계산용 원본 숫자값 보존
         _raw_price: price,
-        _raw_qty: qty,
+        _raw_qty: finalQty,
         _raw_prescription_amount: prescriptionAmount,
         _raw_payment_amount: paymentAmount,
       };
