@@ -73,6 +73,14 @@
               </span>
             </template>
         </Column>
+        <Column field="section_commission_rate" header="구간 수수료율" :headerStyle="{ width: columnWidths.section_commission_rate }" :bodyStyle="{ textAlign: 'center !important' }" :sortable="true">
+            <template #body="slotProps">
+              <span v-if="slotProps.data.section_commission_rate !== null && slotProps.data.section_commission_rate !== undefined">
+                {{ (slotProps.data.section_commission_rate * 100).toFixed(1) }}%
+              </span>
+              <span v-else style="color: #999;">-</span>
+            </template>
+        </Column>
         <Column field="section_commission_amount" header="구간 수수료" :headerStyle="{ width: columnWidths.section_commission_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
               <div v-if="slotProps.data.section_commission_rate === null || slotProps.data.section_commission_rate === 0">
@@ -92,14 +100,6 @@
                   {{ Math.round(slotProps.data.section_commission_amount || 0).toLocaleString() }}
                 </span>
               </div>
-            </template>
-        </Column>
-        <Column field="section_commission_rate" header="구간 수수료율" :headerStyle="{ width: columnWidths.section_commission_rate }" :bodyStyle="{ textAlign: 'center !important' }" :sortable="true">
-            <template #body="slotProps">
-              <span v-if="slotProps.data.section_commission_rate !== null && slotProps.data.section_commission_rate !== undefined">
-                {{ (slotProps.data.section_commission_rate * 100).toFixed(1) }}%
-              </span>
-              <span v-else style="color: #999;">-</span>
             </template>
         </Column>
         <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
@@ -157,8 +157,8 @@
             <Column :footer="totalRecordsCount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPaymentPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-            <Column :footer="totalSectionCommissionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column footer="" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+            <Column :footer="totalSectionCommissionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPaymentAmountOnly" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :colspan="3" footerClass="footer-cell" />
@@ -466,8 +466,10 @@ async function loadSettlementData() {
       
       // 삭제되지 않은 건만 지급액 계산에 포함
       if (record.review_action !== '삭제') {
-        // 지급 처방액: 수수료가 지급되는 제품의 처방액 합계
-        summary.payment_prescription_amount += prescriptionAmount;
+        // 지급 처방액: 수수료율이 있고 0보다 큰 제품의 처방액만 합계
+        if (record.commission_rate !== null && record.commission_rate !== undefined && record.commission_rate > 0) {
+          summary.payment_prescription_amount += prescriptionAmount;
+        }
         
         // 지급액: 수수료 합계
         let paymentAmount;

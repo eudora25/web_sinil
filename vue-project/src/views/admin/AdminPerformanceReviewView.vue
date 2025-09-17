@@ -1341,11 +1341,15 @@ async function loadPerformanceData() {
       let paymentAmount = 0;
 
       if (item.review_action !== '삭제') {
-        // 수수료율이 0이면 지급 처방액도 0
-        if (item.commission_rate && item.commission_rate > 0) {
+        // 수수료율이 있고 0보다 클 때만 지급 처방액 계산
+        if (item.commission_rate !== null && item.commission_rate !== undefined && item.commission_rate > 0) {
           paymentPrescriptionAmount = prescriptionAmount; // 지급 처방액: 수수료가 지급되는 제품의 처방액
+          paymentAmount = Math.round(prescriptionAmount * item.commission_rate);
+        } else {
+          // 수수료율이 없거나 0인 경우 지급 처방액과 지급액 모두 0
+          paymentPrescriptionAmount = 0;
+          paymentAmount = 0;
         }
-        paymentAmount = Math.round(prescriptionAmount * (item.commission_rate || 0));
       }
 
       return {
@@ -1810,8 +1814,14 @@ async function handleEditCalculations(rowData, field) {
   const price = Number(rowData.price_for_calc) || 0;
   const rate = Number(rowData.commission_rate_modify) || 0;
   const prescriptionAmount = Math.round(qty * price);
-  const paymentPrescriptionAmount = (rate > 0) ? prescriptionAmount : 0;
-  const paymentAmount = Math.round(prescriptionAmount * rate);
+  // 수수료율이 있고 0보다 클 때만 지급 처방액과 지급액 계산
+  let paymentPrescriptionAmount = 0;
+  let paymentAmount = 0;
+  
+  if (rate !== null && rate !== undefined && rate > 0) {
+    paymentPrescriptionAmount = prescriptionAmount;
+    paymentAmount = Math.round(prescriptionAmount * rate);
+  }
   
   // 화면 표시용 포맷팅된 값
   rowData.prescription_amount_modify = prescriptionAmount;

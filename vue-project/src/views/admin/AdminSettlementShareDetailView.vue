@@ -18,6 +18,7 @@
           <span style="font-weight: 600;">공급가 : {{ settlementSummary.supply_price?.toLocaleString() }}원</span>
           <span style="font-weight: 600;">부가세 : {{ settlementSummary.vat_price?.toLocaleString() }}원</span>
           <span style="font-weight: 600;">합계액 : {{ settlementSummary.total_price?.toLocaleString() }}원</span>
+          <span style="font-weight: 600;">구간수수료 {{ (settlementSummary.section_commission_rate * 100)?.toFixed(1) }}% 적용</span>
         </div>
         <div class="action-buttons-group">
           <button class="btn-excell-download" @click="downloadExcel">엑셀 다운로드</button>
@@ -118,6 +119,7 @@ const companyInfo = ref({});
 const detailRows = ref([]);
 const loading = ref(true);
 const currentPageFirstIndex = ref(0);
+const sectionCommissionRate = ref(0);
 
 
 
@@ -266,6 +268,22 @@ async function loadDetailData() {
     console.log('업체 정보 조회 성공:', cInfo);
     companyInfo.value = cInfo;
 
+    // 구간수수료율 조회
+    console.log('구간수수료율 조회 시작:', { month: month.value, companyId: companyId.value });
+    const { data: shareData, error: shareError } = await supabase
+      .from('settlement_share')
+      .select('section_commission_rate')
+      .eq('settlement_month', month.value)
+      .eq('company_id', companyId.value)
+      .single();
+    
+    if (shareError && shareError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
+      console.error('구간수수료율 조회 오류:', shareError);
+    } else {
+      sectionCommissionRate.value = shareData?.section_commission_rate || 0;
+      console.log('구간수수료율 조회 성공:', sectionCommissionRate.value);
+    }
+
   } catch (err) {
     console.error('상세 데이터 조회 오류:', err);
     console.error('오류 상세:', { 
@@ -321,6 +339,7 @@ const settlementSummary = computed(() => {
     total_price: Math.round(totalPrice),
     supply_price: supplyPrice,
     vat_price: vatPrice,
+    section_commission_rate: sectionCommissionRate.value,
   };
 });
 
