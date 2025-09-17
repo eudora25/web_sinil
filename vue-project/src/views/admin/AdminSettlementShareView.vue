@@ -39,13 +39,17 @@
           <div v-if="!loading">조회된 데이터가 없습니다.</div>
         </template>
 
-        <Column header="No" :headerStyle="{ width: columnWidths.no }">
+        <Column header="No" :headerStyle="{ width: columnWidths.no }" :frozen="true">
           <template #body="slotProps">{{ slotProps.index + 1 }}</template>
         </Column>
-        <Column field="company_group" header="구분" :headerStyle="{ width: columnWidths.company_group }" :sortable="true"/>
-        <Column field="company_name" header="업체명" :headerStyle="{ width: columnWidths.company_name }" :sortable="true"/>
-        <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: columnWidths.business_registration_number }" :sortable="true"/>
-        <Column field="representative_name" header="대표자" :headerStyle="{ width: columnWidths.representative_name }" :sortable="true"/>
+        <Column field="company_group" header="구분" :headerStyle="{ width: columnWidths.company_group }" :sortable="true" :frozen="true"/>
+        <Column field="company_name" header="업체명" :headerStyle="{ width: columnWidths.company_name }" :sortable="true" :frozen="true"/>
+        <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: columnWidths.business_registration_number }" :sortable="true" :frozen="true">
+          <template #body="slotProps">
+            {{ formatBusinessNumber(slotProps.data.business_registration_number) }}
+          </template>
+        </Column>
+        <Column field="representative_name" header="대표자" :headerStyle="{ width: columnWidths.representative_name }" :sortable="true" :frozen="true"/>
         <Column field="manager_name" header="관리자" :headerStyle="{ width: columnWidths.manager_name }" :sortable="true"/>
         <Column field="client_count" header="병의원 수" :headerStyle="{ width: columnWidths.client_count }" :sortable="true"/>
         <Column field="total_records" header="처방건수" :headerStyle="{ width: columnWidths.total_records }" :sortable="true">
@@ -71,7 +75,7 @@
         </Column>
         <Column field="section_commission_amount" header="구간 수수료" :headerStyle="{ width: columnWidths.section_commission_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
-              <div v-if="slotProps.data.section_commission_rate === 0 || slotProps.data.section_commission_rate === null">
+              <div v-if="slotProps.data.section_commission_rate === null || slotProps.data.section_commission_rate === 0">
                 <button 
                   class="btn-commission-input" 
                   @click="openCommissionModal(slotProps.data)"
@@ -88,6 +92,14 @@
                   {{ Math.round(slotProps.data.section_commission_amount || 0).toLocaleString() }}
                 </span>
               </div>
+            </template>
+        </Column>
+        <Column field="section_commission_rate" header="구간 수수료율" :headerStyle="{ width: columnWidths.section_commission_rate }" :bodyStyle="{ textAlign: 'center !important' }" :sortable="true">
+            <template #body="slotProps">
+              <span v-if="slotProps.data.section_commission_rate !== null && slotProps.data.section_commission_rate !== undefined">
+                {{ (slotProps.data.section_commission_rate * 100).toFixed(1) }}%
+              </span>
+              <span v-else style="color: #999;">-</span>
             </template>
         </Column>
         <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
@@ -114,7 +126,7 @@
             </button>
           </template>
         </Column>
-        <Column header="상세" :headerStyle="{ width: columnWidths.detail }">
+        <Column header="상세" :headerStyle="{ width: columnWidths.detail }" :bodyStyle="{ textAlign: 'center !important' }">
           <template #body="slotProps">
             <button class="btn-detail" @click="goDetail(slotProps.data)">상세</button>
           </template>
@@ -139,13 +151,14 @@
         </Column>
         <ColumnGroup type="footer">
           <Row>
-            <Column footer="합계" :colspan="5" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+            <Column footer="합계" :colspan="5" footerClass="footer-cell" footerStyle="text-align:center !important;" :frozen="true" />
             <Column footer="" footerClass="footer-cell" footerStyle="text-align:center !important;" />
             <Column :footer="totalClientCount" footerClass="footer-cell" footerStyle="text-align:center !important;" />
             <Column :footer="totalRecordsCount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPaymentPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalSectionCommissionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+            <Column footer="" footerClass="footer-cell" footerStyle="text-align:center !important;" />
             <Column :footer="totalPaymentAmountOnly" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :colspan="3" footerClass="footer-cell" />
@@ -241,6 +254,7 @@ const columnWidths = {
   total_prescription_amount: '8%',
   payment_prescription_amount: '8%',
   section_commission_amount: '8%',
+  section_commission_rate: '6%',
   payment_amount: '8%',
   total_payment_amount: '8%',
   notice_individual: '6%',
@@ -250,6 +264,16 @@ const columnWidths = {
 
 const loading = ref(true);
 const router = useRouter();
+
+// 사업자등록번호 포맷팅 함수
+function formatBusinessNumber(number) {
+  if (!number) return '';
+  const cleanNumber = number.toString().replace(/\D/g, ''); // 숫자만 추출
+  if (cleanNumber.length === 10) {
+    return `${cleanNumber.slice(0, 3)}-${cleanNumber.slice(3, 5)}-${cleanNumber.slice(5)}`;
+  }
+  return number; // 10자리가 아니면 원본 반환
+}
 
 // 필터
 const selectedMonth = ref('');
@@ -678,12 +702,6 @@ async function saveNotice() {
 
 // 구간 수수료 모달 관련 함수들
 function openCommissionModal(companyData) {
-  // 이미 구간 수수료율이 입력된 경우 수정 불가
-  if (companyData.section_commission_rate && companyData.section_commission_rate > 0) {
-    alert('구간 수수료율은 최초 입력 이후 수정할 수 없습니다.');
-    return;
-  }
-  
   selectedCompany.value = companyData;
   commissionRate.value = '';
   showCommissionModal.value = true;
@@ -702,7 +720,7 @@ function closeCommissionModal() {
 }
 
 async function saveCommission() {
-  if (!selectedCompany.value || !commissionRate.value) {
+  if (!selectedCompany.value || commissionRate.value === '' || commissionRate.value === null || commissionRate.value === undefined) {
     alert('구간 수수료율을 입력해주세요.');
     return;
   }
@@ -820,6 +838,110 @@ function formatDateTime(dateTimeString) {
 /* 상세 버튼 중앙 정렬 */
 :deep(.p-datatable-tbody > tr > td:nth-child(15)) {
   text-align: center !important;
+}
+
+/* PrimeVue frozen 컬럼 스타일링 */
+.admin-settlement-share-table {
+  overflow-x: auto;
+}
+
+/* 테이블 최소 너비 보장 및 투명도 제거 */
+:deep(.p-datatable-table) {
+  min-width: 2000px;
+  opacity: 1 !important;
+}
+
+:deep(.p-datatable) {
+  opacity: 1 !important;
+}
+
+:deep(.p-datatable-wrapper) {
+  opacity: 1 !important;
+}
+
+:deep(.p-datatable-thead),
+:deep(.p-datatable-tbody),
+:deep(.p-datatable-tfoot) {
+  opacity: 1 !important;
+}
+
+:deep(.p-datatable-thead th),
+:deep(.p-datatable-tbody td),
+:deep(.p-datatable-tfoot td) {
+  opacity: 1 !important;
+}
+
+/* frozen 컬럼 배경색 완전 불투명 */
+:deep(.p-frozen-column) {
+  background-color: white !important;
+  background: white !important;
+  opacity: 1 !important;
+}
+
+:deep(.p-datatable-thead .p-frozen-column) {
+  background-color: #f8f9fa !important;
+  background: #f8f9fa !important;
+  opacity: 1 !important;
+}
+
+/* 본문 frozen 컬럼 배경색 - 더 강력한 선택자 */
+:deep(.p-datatable-tbody .p-frozen-column),
+:deep(.p-datatable-tbody td.p-frozen-column),
+:deep(.p-datatable-tbody tr td:first-child),
+:deep(.p-datatable-tbody tr td:nth-child(2)),
+:deep(.p-datatable-tbody tr td:nth-child(3)),
+:deep(.p-datatable-tbody tr td:nth-child(4)),
+:deep(.p-datatable-tbody tr td:nth-child(5)) {
+  background-color: white !important;
+  background: white !important;
+  opacity: 1 !important;
+}
+
+:deep(.p-datatable-tfoot .p-frozen-column) {
+  background-color: #f8f9fa !important;
+  background: #f8f9fa !important;
+  opacity: 1 !important;
+}
+
+/* 행 상태별 배경색 - 불투명하게 */
+:deep(.row-added .p-frozen-column),
+:deep(.row-added td) {
+  background-color: #e3f2fd !important;
+  background: #e3f2fd !important;
+  opacity: 1 !important;
+}
+
+:deep(.row-modified .p-frozen-column),
+:deep(.row-modified td) {
+  background-color: #fffde7 !important;
+  background: #fffde7 !important;
+  opacity: 1 !important;
+}
+
+:deep(.deleted-row .p-frozen-column),
+:deep(.deleted-row td) {
+  background-color: #ffebee !important;
+  background: #ffebee !important;
+  opacity: 1 !important;
+}
+
+/* 스크롤바 스타일링 */
+.admin-settlement-share-table::-webkit-scrollbar {
+  height: 8px;
+}
+
+.admin-settlement-share-table::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.admin-settlement-share-table::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.admin-settlement-share-table::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
 </style>
