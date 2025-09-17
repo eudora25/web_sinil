@@ -60,16 +60,16 @@
         </Column>
         <Column field="prescription_amount" header="처방액" :headerStyle="{ width: columnWidths.prescription_amount }" :sortable="true" >
           <template #body="slotProps">
-            <span :title="slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.prescription_amount || 0).toLocaleString()">
-              {{ slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.prescription_amount || 0).toLocaleString() }}
+            <span :title="Math.round(slotProps.data.prescription_amount || 0).toLocaleString()">
+              {{ Math.round(slotProps.data.prescription_amount || 0).toLocaleString() }}
             </span>
           </template>
         </Column>
         <Column field="commission_rate" header="수수료율" :headerStyle="{ width: columnWidths.commission_rate }" :sortable="true" />
         <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :sortable="true" >
           <template #body="slotProps">
-            <span :title="slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.payment_amount || 0).toLocaleString()">
-              {{ slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.payment_amount || 0).toLocaleString() }}
+            <span :title="Math.round(slotProps.data.payment_amount || 0).toLocaleString()">
+              {{ Math.round(slotProps.data.payment_amount || 0).toLocaleString() }}
             </span>
           </template>
         </Column>
@@ -150,7 +150,7 @@ async function loadDetailData() {
   console.log('정산 공유 상세 데이터 로딩 시작:', { 
     month: month.value, 
     companyId: companyId.value,
-    filter: 'review_status=완료 AND commission_rate>0'
+    filter: 'review_status=완료 AND commission_rate>0 AND review_action!=삭제'
   });
   try {
     // 전체 데이터 조회 (클라이언트 사이드 페이지네이션)
@@ -170,6 +170,7 @@ async function loadDetailData() {
         .eq('company_id', companyId.value)
         .eq('review_status', '완료')
         .gt('commission_rate', 0)  // 수수료율이 0보다 큰 건만 조회
+        .neq('review_action', '삭제')  // 삭제된 건은 제외
         .range(from, from + batchSize - 1)
         .order('created_at', { ascending: false });
       
@@ -282,24 +283,18 @@ async function loadDetailData() {
 // 합계 계산 (전체 데이터 기준)
 const totalQty = computed(() => {
   const sum = detailRows.value.reduce((sum, row) => {
-    // 삭제된 건은 수량을 0으로 계산
-    if (row.review_action === '삭제') return sum;
     return sum + (row._raw_qty ?? 0);
   }, 0);
   return sum.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 });
 const totalPrescriptionAmount = computed(() => {
   const sum = detailRows.value.reduce((sum, row) => {
-    // 삭제된 건은 처방액을 0으로 계산
-    if (row.review_action === '삭제') return sum;
     return sum + (row._raw_prescription_amount ?? 0);
   }, 0);
   return sum.toLocaleString();
 });
 const totalPaymentAmount = computed(() => {
   const sum = detailRows.value.reduce((sum, row) => {
-    // 삭제된 건은 지급액을 0으로 계산
-    if (row.review_action === '삭제') return sum;
     return sum + (row._raw_payment_amount ?? 0);
   }, 0);
   return sum.toLocaleString();
@@ -307,8 +302,6 @@ const totalPaymentAmount = computed(() => {
 
 const settlementSummary = computed(() => {
   const totalPrice = detailRows.value.reduce((sum, row) => {
-    // 삭제된 건은 지급액을 0으로 계산
-    if (row.review_action === '삭제') return sum;
     return sum + (row._raw_payment_amount || 0);
   }, 0);
 
