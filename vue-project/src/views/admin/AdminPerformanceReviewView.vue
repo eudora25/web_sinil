@@ -265,7 +265,7 @@
               <span v-else>{{ slotProps.data.prescription_amount }}</span>
             </template>
           </Column>
-          <Column field="payment_prescription_amount" header="지급 처방액" :headerStyle="{ width: columnWidths.payment_prescription_amount }" :sortable="true">
+          <Column field="payment_prescription_amount" header="지급 처방액" :headerStyle="{ width: columnWidths.payment_prescription_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
               <span v-if="slotProps.data.isEditing">{{ slotProps.data.payment_prescription_amount_modify?.toLocaleString() }}</span>
               <span v-else>{{ slotProps.data.payment_prescription_amount }}</span>
@@ -326,7 +326,7 @@
               })() }}</span>
             </template>
           </Column>
-          <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :sortable="true">
+          <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
               <span v-if="slotProps.data.isEditing">{{ slotProps.data.payment_amount_modify?.toLocaleString() }}</span>
               <span v-else>{{ slotProps.data.payment_amount }}</span>
@@ -489,32 +489,32 @@ const columnWidths = {
 };
 const prescriptionTypeOptions = ['EDI', 'ERP직거래자료', '매출자료', '약국조제', '원내매출', '원외매출', '차감'];
 
-// --- 합계 계산 ---
+// --- 합계 계산 (개선된 버전) ---
 const totalQuantity = computed(() => {
   const total = displayRows.value
     .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
-    .reduce((sum, row) => sum + (Number(row.prescription_qty) || 0), 0);
+    .reduce((sum, row) => sum + (row._raw_prescription_qty || 0), 0);
   return total.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 });
 
 const totalPrescriptionAmount = computed(() => {
   const total = displayRows.value
     .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
-    .reduce((sum, row) => sum + (Number(String(row.prescription_amount).replace(/,/g, '')) || 0), 0);
+    .reduce((sum, row) => sum + (row._raw_prescription_amount || 0), 0);
   return total.toLocaleString();
 });
 
 const totalPaymentPrescriptionAmount = computed(() => {
   const total = displayRows.value
     .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
-    .reduce((sum, row) => sum + (Number(String(row.payment_prescription_amount).replace(/,/g, '')) || 0), 0);
+    .reduce((sum, row) => sum + (row._raw_payment_prescription_amount || 0), 0);
   return total.toLocaleString();
 });
 
 const totalPaymentAmount = computed(() => {
   const total = displayRows.value
     .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
-    .reduce((sum, row) => sum + (Number(String(row.payment_amount).replace(/,/g, '')) || 0), 0);
+    .reduce((sum, row) => sum + (row._raw_payment_amount || 0), 0);
   return total.toLocaleString();
 });
 
@@ -1362,6 +1362,11 @@ async function loadPerformanceData() {
         registered_by_name: registrarMap.get(item.registered_by) || '관리자',
         updated_by_name: item.updated_by ? (updaterMap.get(item.updated_by) || '관리자') : '',
         display_status: item.review_status,
+        // 합계 계산용 원본 숫자값 보존
+        _raw_prescription_qty: Number(item.prescription_qty) || 0,
+        _raw_prescription_amount: prescriptionAmount,
+        _raw_payment_prescription_amount: paymentPrescriptionAmount,
+        _raw_payment_amount: paymentAmount,
       };
     });
 
@@ -1407,6 +1412,11 @@ function startEdit(rowData) {
       commission_rate_modify: originalRow.commission_rate,
       remarks_modify: originalRow.remarks,
       price_for_calc: parseFloat(String(originalRow.price || '0').replace(/,/g, '')) || 0,
+      // 편집 모드에서도 원본 데이터 보존
+      _raw_prescription_qty: originalRow._raw_prescription_qty || 0,
+      _raw_prescription_amount: originalRow._raw_prescription_amount || 0,
+      _raw_payment_prescription_amount: originalRow._raw_payment_prescription_amount || 0,
+      _raw_payment_amount: originalRow._raw_payment_amount || 0,
       showProductSearchList: false,
       productSearchResults: [],
       productSearchSelectedIndex: -1,
@@ -1541,6 +1551,11 @@ function addRowBelow(referenceRow) {
     price_for_calc: 0,
     prescription_amount_modify: 0,
     payment_amount_modify: 0,
+    // 원본 데이터 초기화
+    _raw_prescription_qty: 0,
+    _raw_prescription_amount: 0,
+    _raw_payment_prescription_amount: 0,
+    _raw_payment_amount: 0,
 
     // --- UI 상태 ---
     showProductSearchList: false,
@@ -1795,10 +1810,19 @@ async function handleEditCalculations(rowData, field) {
   const price = Number(rowData.price_for_calc) || 0;
   const rate = Number(rowData.commission_rate_modify) || 0;
   const prescriptionAmount = Math.round(qty * price);
+  const paymentPrescriptionAmount = (rate > 0) ? prescriptionAmount : 0;
+  const paymentAmount = Math.round(prescriptionAmount * rate);
+  
+  // 화면 표시용 포맷팅된 값
   rowData.prescription_amount_modify = prescriptionAmount;
-  // 수수료율이 0이면 지급 처방액도 0
-  rowData.payment_prescription_amount_modify = (rate > 0) ? prescriptionAmount : 0;
-  rowData.payment_amount_modify = Math.round(prescriptionAmount * rate);
+  rowData.payment_prescription_amount_modify = paymentPrescriptionAmount;
+  rowData.payment_amount_modify = paymentAmount;
+  
+  // 원본 데이터도 업데이트 (합계 계산용)
+  rowData._raw_prescription_qty = qty;
+  rowData._raw_prescription_amount = prescriptionAmount;
+  rowData._raw_payment_prescription_amount = paymentPrescriptionAmount;
+  rowData._raw_payment_amount = paymentAmount;
   
 }
 
@@ -1851,6 +1875,9 @@ async function applySelectedProduct(product, rowData) {
 
     reactiveRow.showProductSearchList = false;
     handleEditCalculations(reactiveRow, 'product');
+    
+    // 제품 선택 시 원본 데이터도 업데이트
+    reactiveRow._raw_prescription_qty = Number(reactiveRow.prescription_qty_modify) || 0;
 }
 
 function getRowClass(data) {
@@ -2053,10 +2080,20 @@ async function updateProductInfoForMonthChange(rowData) {
       const qty = Number(reactiveRow.prescription_qty_modify);
       const price = Number(productData.price) || 0;
       if (!isNaN(qty) && !isNaN(price) && price > 0) {
-        reactiveRow.prescription_amount_modify = qty * price;
-        // 수수료율이 0이면 지급 처방액도 0
-        reactiveRow.payment_prescription_amount_modify = (commissionRate > 0) ? reactiveRow.prescription_amount_modify : 0;
-        reactiveRow.payment_amount_modify = reactiveRow.prescription_amount_modify * (commissionRate / 100);
+        const prescriptionAmount = qty * price;
+        const paymentPrescriptionAmount = (commissionRate > 0) ? prescriptionAmount : 0;
+        const paymentAmount = prescriptionAmount * (commissionRate / 100);
+        
+        // 화면 표시용 값 업데이트
+        reactiveRow.prescription_amount_modify = prescriptionAmount;
+        reactiveRow.payment_prescription_amount_modify = paymentPrescriptionAmount;
+        reactiveRow.payment_amount_modify = paymentAmount;
+        
+        // 원본 데이터도 업데이트
+        reactiveRow._raw_prescription_qty = qty;
+        reactiveRow._raw_prescription_amount = prescriptionAmount;
+        reactiveRow._raw_payment_prescription_amount = paymentPrescriptionAmount;
+        reactiveRow._raw_payment_amount = paymentAmount;
       }
     }
   } catch (err) {
@@ -2409,5 +2446,11 @@ async function handleBulkChange() {
 
 .company-dropdown-item:last-child {
   border-bottom: none;
+}
+
+/* 지급 처방액, 지급액 컬럼 우측 정렬 강제 적용 */
+:deep(.p-datatable-tbody > tr > td:nth-child(12)),
+:deep(.p-datatable-tbody > tr > td:nth-child(15)) {
+  text-align: right !important;
 }
 </style>
