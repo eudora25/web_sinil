@@ -69,7 +69,7 @@
               </span>
             </template>
         </Column>
-        <Column field="section_commission_amount" header="구간 수수료" :headerStyle="{ width: columnWidths.section_commission_amount }" :sortable="true">
+        <Column field="section_commission_amount" header="구간 수수료" :headerStyle="{ width: columnWidths.section_commission_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
               <div v-if="slotProps.data.section_commission_rate === 0 || slotProps.data.section_commission_rate === null">
                 <button 
@@ -90,14 +90,14 @@
               </div>
             </template>
         </Column>
-        <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :sortable="true">
+        <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
               <span :title="Math.round(slotProps.data.payment_amount || 0).toLocaleString()">
                 {{ Math.round(slotProps.data.payment_amount || 0).toLocaleString() }}
               </span>
             </template>
         </Column>
-        <Column field="total_payment_amount" header="총 지급액" :headerStyle="{ width: columnWidths.total_payment_amount }" :sortable="true">
+        <Column field="total_payment_amount" header="총 지급액" :headerStyle="{ width: columnWidths.total_payment_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
               <span :title="Math.round(slotProps.data.total_payment_amount || 0).toLocaleString()">
                 {{ Math.round(slotProps.data.total_payment_amount || 0).toLocaleString() }}
@@ -139,13 +139,14 @@
         </Column>
         <ColumnGroup type="footer">
           <Row>
-            <Column footer="합계" :colspan="6" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+            <Column footer="합계" :colspan="5" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+            <Column footer="" footerClass="footer-cell" footerStyle="text-align:center !important;" />
             <Column :footer="totalClientCount" footerClass="footer-cell" footerStyle="text-align:center !important;" />
             <Column :footer="totalRecordsCount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-            <Column footer="0" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-            <Column footer="0" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-            <Column footer="0" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+            <Column :footer="totalPaymentPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+            <Column :footer="totalSectionCommissionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+            <Column :footer="totalPaymentAmountOnly" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column :colspan="3" footerClass="footer-cell" />
           </Row>
@@ -280,6 +281,21 @@ const totalRecordsCount = computed(() => {
 
 const totalPrescriptionAmount = computed(() => {
   const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.total_prescription_amount || 0)), 0);
+  return total.toLocaleString();
+});
+
+const totalPaymentPrescriptionAmount = computed(() => {
+  const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.payment_prescription_amount || 0)), 0);
+  return total.toLocaleString();
+});
+
+const totalSectionCommissionAmount = computed(() => {
+  const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.section_commission_amount || 0)), 0);
+  return total.toLocaleString();
+});
+
+const totalPaymentAmountOnly = computed(() => {
+  const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.payment_amount || 0)), 0);
   return total.toLocaleString();
 });
 
@@ -781,6 +797,29 @@ function formatDateTime(dateTimeString) {
 
 .btn-commission-input:hover {
   background-color: #0056b3;
+}
+
+/* 우측 정렬 스타일 */
+:deep(.p-datatable-tbody > tr > td:nth-child(10)),
+:deep(.p-datatable-tbody > tr > td:nth-child(11)),
+:deep(.p-datatable-tbody > tr > td:nth-child(12)) {
+  text-align: right !important;
+}
+
+:deep(.p-datatable-tfoot > tr > td:nth-child(8)),
+:deep(.p-datatable-tfoot > tr > td:nth-child(9)),
+:deep(.p-datatable-tfoot > tr > td:nth-child(10)) {
+  text-align: right !important;
+}
+
+/* 전달사항 버튼 중앙 정렬 */
+:deep(.p-datatable-tbody > tr > td:nth-child(14)) {
+  text-align: center !important;
+}
+
+/* 상세 버튼 중앙 정렬 */
+:deep(.p-datatable-tbody > tr > td:nth-child(15)) {
+  text-align: center !important;
 }
 
 </style>
