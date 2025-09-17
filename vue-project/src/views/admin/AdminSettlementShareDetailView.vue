@@ -60,16 +60,16 @@
         </Column>
         <Column field="prescription_amount" header="처방액" :headerStyle="{ width: columnWidths.prescription_amount }" :sortable="true" >
           <template #body="slotProps">
-            <span :title="slotProps.data.review_action === '삭제' ? '0' : (slotProps.data.prescription_amount || '0')">
-              {{ slotProps.data.review_action === '삭제' ? '0' : (slotProps.data.prescription_amount || '0') }}
+            <span :title="slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.prescription_amount || 0).toLocaleString()">
+              {{ slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.prescription_amount || 0).toLocaleString() }}
             </span>
           </template>
         </Column>
         <Column field="commission_rate" header="수수료율" :headerStyle="{ width: columnWidths.commission_rate }" :sortable="true" />
         <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :sortable="true" >
           <template #body="slotProps">
-            <span :title="slotProps.data.review_action === '삭제' ? '0' : (slotProps.data.payment_amount || '0')">
-              {{ slotProps.data.review_action === '삭제' ? '0' : (slotProps.data.payment_amount || '0') }}
+            <span :title="slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.payment_amount || 0).toLocaleString()">
+              {{ slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.payment_amount || 0).toLocaleString() }}
             </span>
           </template>
         </Column>
