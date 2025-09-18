@@ -41,6 +41,13 @@
         <Column header="No" :headerStyle="{ width: columnWidths.no }">
           <template #body="slotProps">{{ slotProps.index + currentPageFirstIndex + 1 }}</template>
         </Column>
+        <Column field="review_action" header="상태" :headerStyle="{ width: columnWidths.review_action }" :bodyStyle="{ textAlign: 'center !important' }">
+          <template #body="slotProps">
+            <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+              {{ slotProps.data.review_action || '정상' }}
+            </span>
+          </template>
+        </Column>
         <Column field="client_name" header="병의원명" :headerStyle="{ width: columnWidths.client_name }" :sortable="true">
           <template #body="slotProps">
             <span 
@@ -54,7 +61,7 @@
             </span>
           </template>
         </Column>
-        <Column field="prescription_month" header="처방월" :headerStyle="{ width: columnWidths.prescription_month }" :sortable="true">
+        <Column field="prescription_month" header="처방월" :headerStyle="{ width: columnWidths.prescription_month }">
           <template #body="slotProps">
             <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
               {{ slotProps.data.prescription_month }}
@@ -95,7 +102,7 @@
             </span>
           </template>
         </Column>
-        <Column field="prescription_amount" header="처방액" :headerStyle="{ width: columnWidths.prescription_amount }" :sortable="true" >
+        <Column field="prescription_amount" header="처방액" :headerStyle="{ width: columnWidths.prescription_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true" >
           <template #body="slotProps">
             <span 
               :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
@@ -112,7 +119,7 @@
             </span>
           </template>
         </Column>
-        <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :sortable="true" >
+        <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true" >
           <template #body="slotProps">
             <span 
               :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
@@ -131,7 +138,7 @@
         </Column>
         <ColumnGroup type="footer">
             <Row>
-              <Column footer="합계" :colspan="6" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+              <Column footer="합계" :colspan="7" footerClass="footer-cell" footerStyle="text-align:center !important;" />
               <Column :footer="totalQty" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column :footer="totalPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column footer="" footerClass="footer-cell" />
@@ -179,16 +186,17 @@ const sectionCommissionRate = ref(0);
 
 const columnWidths = {
   no: '4%',
+  review_action: '4%',
   client_name: '18%',
-  prescription_month: '6%',
-  product_name_display: '16%',
+  prescription_month: '5%',
+  product_name_display: '15%',
   insurance_code: '7%',
   price: '7%',
   prescription_qty: '7%',
   prescription_amount: '7%',
   commission_rate: '7%',
   payment_amount: '7%',
-  remarks: '14%'
+  remarks: '12%'
 };
 
 onMounted(async () => {
@@ -411,6 +419,7 @@ async function downloadExcel() {
   // No 컬럼과 함께 데이터 생성
   const excelData = detailRows.value.map((row, index) => ({
     'No': index + 1,
+    '상태': row.review_action || '정상',
     '병의원명': row.client_name,
     '처방월': row.prescription_month,
     '제품명': row.product_name_display,
@@ -426,6 +435,7 @@ async function downloadExcel() {
   // 합계 행 추가
   excelData.push({
     'No': '',
+    '상태': '',
     '병의원명': '',
     '처방월': '',
     '제품명': '',
@@ -524,6 +534,7 @@ async function downloadExcel() {
   // 컬럼 너비 설정
   worksheet.columns = [
     { width: 8 },  // No
+    { width: 8 },  // 상태
     { width: 32 }, // 병의원명
     { width: 10 }, // 처방월
     { width: 32 }, // 제품명
