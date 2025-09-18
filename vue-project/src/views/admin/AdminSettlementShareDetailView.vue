@@ -432,6 +432,22 @@ async function downloadExcel() {
     '비고': row.remarks || '',
   }));
 
+  // 엑셀용 합계 계산 (원본 데이터에서 직접 계산)
+  const excelTotalQty = detailRows.value.reduce((sum, row) => {
+    if (row.review_action === '삭제') return sum;
+    return sum + (row._raw_qty || 0);
+  }, 0);
+  
+  const excelTotalPrescriptionAmount = detailRows.value.reduce((sum, row) => {
+    if (row.review_action === '삭제') return sum;
+    return sum + (row._raw_prescription_amount || 0);
+  }, 0);
+  
+  const excelTotalPaymentAmount = detailRows.value.reduce((sum, row) => {
+    if (row.review_action === '삭제') return sum;
+    return sum + (row._raw_payment_amount || 0);
+  }, 0);
+
   // 합계 행 추가
   excelData.push({
     'No': '',
@@ -441,10 +457,10 @@ async function downloadExcel() {
     '제품명': '',
     '보험코드': '합계',
     '약가': '',
-    '처방수량': Number(totalQty.value.replace(/,/g, '')),
-    '처방액': Number(totalPrescriptionAmount.value.replace(/,/g, '')),
+    '처방수량': excelTotalQty,
+    '처방액': excelTotalPrescriptionAmount,
     '수수료율': '',
-    '지급액': Number(totalPaymentAmount.value.replace(/,/g, '')),
+    '지급액': excelTotalPaymentAmount,
     '비고': '',
   });
 
@@ -473,23 +489,28 @@ async function downloadExcel() {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
       
-      // 가운데 정렬할 컬럼 지정 (No, 처방월, 보험코드)
-      if ([1, 3, 5, 9].includes(colNumber)) {
+      // 가운데 정렬할 컬럼 지정 (No, 상태, 병의원명, 처방월, 제품명, 보험코드)
+      if ([1, 2, 3, 4, 5, 6].includes(colNumber)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
       
-      // 숫자 컬럼들은 숫자 형식으로 설정
-      if ([6, 8, 10].includes(colNumber)) {
+      // 우측 정렬할 컬럼 지정 (약가, 처방액, 지급액)
+      if ([7, 9, 11].includes(colNumber)) {
+        cell.alignment = { horizontal: 'right', vertical: 'middle' }
+      }
+      
+      // 숫자 컬럼들은 숫자 형식으로 설정 (약가, 처방액, 지급액)
+      if ([7, 9, 11].includes(colNumber)) {
         cell.numFmt = '#,##0'
       }
       
       // 처방수량 컬럼은 소수점 1자리 형식으로 설정
-      if (colNumber === 7) {
+      if (colNumber === 8) {
         cell.numFmt = '#,##0.0'
       }
       
       // 수수료율 컬럼은 백분율 형식으로 설정
-      if (colNumber === 9) {
+      if (colNumber === 10) {
         cell.numFmt = '0.0%'
       }
     })
@@ -515,9 +536,9 @@ async function downloadExcel() {
   });
   
   // 합계행 숫자 형식 설정
-  totalRow.getCell(7).numFmt = '#,##0.0'; // 처방수량
-  totalRow.getCell(8).numFmt = '#,##0'; // 처방액
-  totalRow.getCell(10).numFmt = '#,##0'; // 지급액
+  totalRow.getCell(8).numFmt = '#,##0.0'; // 처방수량
+  totalRow.getCell(9).numFmt = '#,##0'; // 처방액
+  totalRow.getCell(11).numFmt = '#,##0'; // 지급액
 
   // 테이블 테두리 설정 - 전체를 얇은 실선으로 통일
   worksheet.eachRow((row) => {
