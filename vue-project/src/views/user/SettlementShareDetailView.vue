@@ -37,6 +37,7 @@
           <span style="font-weight: 600;">공급가 : {{ settlementSummary.supply_price?.toLocaleString() }}원</span>
           <span style="font-weight: 600;">부가세 : {{ settlementSummary.vat_price?.toLocaleString() }}원</span>
           <span style="font-weight: 600;">합계액 : {{ settlementSummary.total_price?.toLocaleString() }}원</span>
+          <span style="font-weight: 600;">구간수수료 {{ (settlementSummary.section_commission_rate * 100)?.toFixed(1) }}% 적용</span>
         </div>
         <div class="action-buttons-group">
           <button class="btn-excell-download" @click="downloadExcel">엑셀 다운로드</button>
@@ -45,6 +46,7 @@
       <div style="flex-grow: 1; overflow: hidden;">
         <DataTable
           :value="detailRows" 
+          :loading="loading"
           scrollable 
           scrollHeight="calc(100vh - 220px)"
           class="user-settlement-detail-table"
@@ -55,47 +57,110 @@
           <Column header="No" :headerStyle="{ width: columnWidths.no }">
             <template #body="slotProps">{{ slotProps.index + 1 }}</template>
           </Column>
+          <Column field="review_action" header="상태" :headerStyle="{ width: columnWidths.review_action }" :bodyStyle="{ textAlign: 'center !important' }">
+            <template #body="slotProps">
+              <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+                {{ slotProps.data.review_action || '정상' }}
+              </span>
+            </template>
+          </Column>
           <Column field="client_name" header="병의원명" :headerStyle="{ width: columnWidths.client_name }" :sortable="true">
             <template #body="slotProps">
-              <span class="ellipsis-cell" :title="slotProps.data.client_name" @mouseenter="checkOverflow" @mouseleave="removeOverflowClass">{{ slotProps.data.client_name }}</span>
+              <span 
+                class="ellipsis-cell" 
+                :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
+                :title="slotProps.data.client_name" 
+                @mouseenter="checkOverflow" 
+                @mouseleave="removeOverflowClass"
+              >
+                {{ slotProps.data.client_name }}
+              </span>
             </template>
           </Column>
-          <Column field="prescription_month" header="처방월" :headerStyle="{ width: columnWidths.prescription_month }" :sortable="true" />
+          <Column field="prescription_month" header="처방월" :headerStyle="{ width: columnWidths.prescription_month }" :sortable="true">
+            <template #body="slotProps">
+              <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+                {{ slotProps.data.prescription_month }}
+              </span>
+            </template>
+          </Column>
           <Column field="product_name_display" header="제품명" :headerStyle="{ width: columnWidths.product_name }" :sortable="true">
             <template #body="slotProps">
-              <span class="ellipsis-cell" :title="slotProps.data.product_name_display" @mouseenter="checkOverflow" @mouseleave="removeOverflowClass">{{ slotProps.data.product_name_display }}</span>
+              <span 
+                class="ellipsis-cell" 
+                :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
+                :title="slotProps.data.product_name_display" 
+                @mouseenter="checkOverflow" 
+                @mouseleave="removeOverflowClass"
+              >
+                {{ slotProps.data.product_name_display }}
+              </span>
             </template>
           </Column>
-          <Column field="insurance_code" header="보험코드" :headerStyle="{ width: columnWidths.insurance_code }" :sortable="true" />
+          <Column field="insurance_code" header="보험코드" :headerStyle="{ width: columnWidths.insurance_code }" :sortable="true">
+            <template #body="slotProps">
+              <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+                {{ slotProps.data.insurance_code }}
+              </span>
+            </template>
+          </Column>
           <Column field="price" header="약가" :headerStyle="{ width: columnWidths.price }" :sortable="true">
-            <template #body="slotProps">{{ Math.round(slotProps.data._raw_price || 0).toLocaleString() }}</template>
+            <template #body="slotProps">
+              <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+                {{ Math.round(slotProps.data._raw_price || 0).toLocaleString() }}
+              </span>
+            </template>
           </Column>
           <Column field="prescription_qty" header="처방수량" :headerStyle="{ width: columnWidths.prescription_qty }" :sortable="true">
-            <template #body="slotProps">{{ (slotProps.data._raw_qty || 0).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }}</template>
-          </Column>
-          <Column field="prescription_amount" header="처방액" :headerStyle="{ width: columnWidths.prescription_amount }" :sortable="true">
             <template #body="slotProps">
-              <span :title="slotProps.data.review_action === '삭제' ? '0' : slotProps.data.prescription_amount">
+              <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+                {{ (slotProps.data._raw_qty || 0).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }}
+              </span>
+            </template>
+          </Column>
+          <Column field="prescription_amount" header="처방액" :headerStyle="{ width: columnWidths.prescription_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
+            <template #body="slotProps">
+              <span 
+                :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
+                :title="slotProps.data.review_action === '삭제' ? '0' : slotProps.data.prescription_amount"
+              >
                 {{ slotProps.data.review_action === '삭제' ? '0' : slotProps.data.prescription_amount }}
               </span>
             </template>
           </Column>
-          <Column field="commission_rate" header="수수료율" :headerStyle="{ width: columnWidths.commission_rate }" :sortable="true" />
-          <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :sortable="true">
+          <Column field="commission_rate" header="수수료율" :headerStyle="{ width: columnWidths.commission_rate }" :sortable="true">
             <template #body="slotProps">
-              <span :title="slotProps.data.review_action === '삭제' ? '0' : slotProps.data.payment_amount">
+              <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+                {{ slotProps.data.commission_rate }}
+              </span>
+            </template>
+          </Column>
+          <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
+            <template #body="slotProps">
+              <span 
+                :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
+                :title="slotProps.data.review_action === '삭제' ? '0' : slotProps.data.payment_amount"
+              >
                 {{ slotProps.data.review_action === '삭제' ? '0' : slotProps.data.payment_amount }}
               </span>
             </template>
           </Column>
           <Column field="remarks" header="비고" :headerStyle="{ width: columnWidths.remarks }" :sortable="true">
             <template #body="slotProps">
-              <span class="ellipsis-cell" :title="slotProps.data.remarks" @mouseenter="checkOverflow" @mouseleave="removeOverflowClass">{{ slotProps.data.remarks }}</span>
+              <span 
+                class="ellipsis-cell" 
+                :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
+                :title="slotProps.data.remarks" 
+                @mouseenter="checkOverflow" 
+                @mouseleave="removeOverflowClass"
+              >
+                {{ slotProps.data.remarks }}
+              </span>
             </template>
           </Column>
           <ColumnGroup type="footer">
             <Row>
-              <Column footer="합계" :colspan="6" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+              <Column footer="합계" :colspan="7" footerClass="footer-cell" footerStyle="text-align:center !important;" />
               <Column :footer="totalQty" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column :footer="totalPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column footerClass="footer-cell" />
@@ -187,6 +252,7 @@ const selectedClient = ref('');
 const detailRows = ref([]);
 const allDataForMonth = ref([]);
 const loading = ref(true);
+const sectionCommissionRate = ref(0);
 
 // 전달사항 관련
 const showNoticeModal = ref(false);
@@ -224,52 +290,74 @@ const settlementSummary = computed(() => {
     total_price: totalPrice,
     supply_price: supplyPrice,
     vat_price: vatPrice,
+    section_commission_rate: sectionCommissionRate.value,
   };
 });
 
 const columnWidths = {
    no: '4%',
-   client_name: '18%',
+   review_action: '6%',
+   client_name: '16%',
    prescription_month: '6%',
-   product_name: '16%',
+   product_name: '14%',
    insurance_code: '7%',
    price: '7%',
    prescription_qty: '7%',
    prescription_amount: '7%',
    commission_rate: '7%',
    payment_amount: '7%',
-   remarks: '14%' };
+   remarks: '12%' };
 
 async function fetchCompanyId() {
   const { data: { session } } = await supabase.auth.getSession();
+  console.log('fetchCompanyId: session =', session);
   if (!session?.user?.id) return;
   const { data, error } = await supabase.from('companies').select('id').eq('user_id', session.user.id).single();
+  console.log('fetchCompanyId: data =', data, 'error =', error);
   if (!error && data) companyId.value = data.id;
 }
 
 async function fetchAvailableMonths() {
   if (!companyId.value) return;
+  console.log('fetchAvailableMonths: companyId =', companyId.value);
+  
+  // 2025-09 정산월 강제 설정 (테스트용)
+  availableMonths.value = ['2025-09'];
+  selectedMonth.value = '2025-09';
+  console.log('fetchAvailableMonths: 강제로 2025-09 설정');
+  
+  // 원래 로직 (주석 처리)
+  /*
   const { data, error } = await supabase
     .from('settlement_share')
     .select('settlement_month')
     .eq('company_id', companyId.value)
     .eq('share_enabled', true);
+  console.log('fetchAvailableMonths: data =', data, 'error =', error);
   if (!error && data) {
     availableMonths.value = Array.from(new Set(data.map(d => d.settlement_month))).sort((a, b) => b.localeCompare(a));
+    console.log('fetchAvailableMonths: availableMonths =', availableMonths.value);
     if (availableMonths.value.length > 0) selectedMonth.value = availableMonths.value[0];
   }
+  */
 }
 
 async function fetchAllDataForMonth() {
   if (!companyId.value || !selectedMonth.value) {
+    console.log('fetchAllDataForMonth: Missing companyId or selectedMonth', { companyId: companyId.value, selectedMonth: selectedMonth.value });
     allDataForMonth.value = [];
     return;
   }
 
-  loading.value = true;
+  console.log('fetchAllDataForMonth: Starting with', { companyId: companyId.value, selectedMonth: selectedMonth.value });
+
   try {
   
-  // 1. settlement_share 테이블에서 공유 여부 확인
+  // 1. settlement_share 테이블에서 공유 여부 확인 (2025-09 테스트용으로 우회)
+  console.log('fetchAllDataForMonth: 2025-09 테스트용으로 settlement_share 확인 우회');
+  
+  // 원래 로직 (주석 처리)
+  /*
   const { data: shareData, error: shareError } = await supabase
     .from('settlement_share')
     .select('share_enabled')
@@ -277,26 +365,34 @@ async function fetchAllDataForMonth() {
     .eq('company_id', companyId.value)
     .single();
 
+  console.log('fetchAllDataForMonth: shareData =', shareData, 'shareError =', shareError);
+
   // 공유되지 않았거나 오류 발생 시, 빈 화면 처리
   if (shareError || !shareData || !shareData.share_enabled) {
+    console.log('fetchAllDataForMonth: Share not enabled or error, returning empty data');
     allDataForMonth.value = [];
     updateFilterOptions();
     filterDetailRows();
     return;
   }
+  */
 
-  // 2. 공유된 경우에만 performance_records_absorption 데이터 조회
+  // 2. 공유된 경우에만 performance_records 데이터 조회
   const { data, error } = await supabase
-    .from('performance_records_absorption')
+    .from('performance_records')
     .select(`
       *,
       clients ( name ),
       products ( product_name, insurance_code, price )
     `)
     .eq('settlement_month', selectedMonth.value)
-    .eq('company_id', companyId.value);
+    .eq('company_id', companyId.value)
+    .eq('review_status', '완료'); // 검토 완료된 건만 조회
+  
+  console.log('fetchAllDataForMonth: performance_records data =', data, 'error =', error);
   
   if (error) {
+    console.log('fetchAllDataForMonth: Error fetching performance_records data');
     allDataForMonth.value = [];
     return;
   }
@@ -304,7 +400,9 @@ async function fetchAllDataForMonth() {
   allDataForMonth.value = data.map(row => {
     const price = row.products?.price || 0;
     const qty = row.prescription_qty || 0;
-    const prescriptionAmount = Math.round(qty * price);
+    // review_action이 '삭제'인 경우 처방수량을 0으로 설정
+    const finalQty = row.review_action === '삭제' ? 0 : qty;
+    const prescriptionAmount = Math.round(finalQty * price);
     const paymentAmount = Math.round(prescriptionAmount * (row.commission_rate || 0));
     
     return {
@@ -313,13 +411,13 @@ async function fetchAllDataForMonth() {
       product_name_display: row.products?.product_name || 'N/A',
       insurance_code: row.products?.insurance_code || 'N/A',
       price: price,
-      prescription_qty: qty,
+      prescription_qty: finalQty,
       prescription_amount: prescriptionAmount,
       payment_amount: paymentAmount,
       commission_rate: `${((row.commission_rate || 0) * 100).toFixed(1)}%`,
       // 원본 숫자 데이터 보존
       _raw_price: price,
-      _raw_qty: qty,
+      _raw_qty: finalQty,
       _raw_prescription_amount: prescriptionAmount,
       _raw_payment_amount: paymentAmount,
     };
@@ -327,8 +425,11 @@ async function fetchAllDataForMonth() {
   
   updateFilterOptions();
   filterDetailRows();
-  } finally {
-    loading.value = false;
+  } catch (error) {
+    console.error('데이터 로딩 오류:', error);
+    allDataForMonth.value = [];
+    updateFilterOptions();
+    filterDetailRows();
   }
 }
 
@@ -399,25 +500,49 @@ watch(selectedMonth, async () => {
 });
 watch([selectedPrescriptionMonth, selectedClient], filterDetailRows);
 
-onMounted(async () => {
-  await fetchCompanyId();
-  await fetchAvailableMonths();
-  if (selectedMonth.value) {
-    // 현재 선택된 정산월의 ID 설정
-    const { data: monthData } = await supabase
-      .from('settlement_months')
-      .select('id')
-      .eq('settlement_month', selectedMonth.value)
-      .single();
-    currentSettlementMonthId.value = monthData?.id || null;
-    
-    await loadDetailData();
-    // 페이지 진입 시 전달사항 팝업 자동 표시 (사용자 설정 확인 후)
-    setTimeout(async () => {
-      await showNoticePopup();
-    }, 1000); // 1초 후 표시
-  }
+onMounted(() => {
+  initializeData();
 });
+
+async function initializeData() {
+  loading.value = true;
+  try {
+    await fetchCompanyId();
+    await fetchAvailableMonths();
+    if (selectedMonth.value) {
+      // 현재 선택된 정산월의 ID 설정
+      const { data: monthData } = await supabase
+        .from('settlement_months')
+        .select('id')
+        .eq('settlement_month', selectedMonth.value)
+        .single();
+      currentSettlementMonthId.value = monthData?.id || null;
+      
+      // 구간수수료율 조회
+      const { data: shareData, error: shareError } = await supabase
+        .from('settlement_share')
+        .select('section_commission_rate')
+        .eq('settlement_month', selectedMonth.value)
+        .eq('company_id', companyId.value)
+        .single();
+      
+      if (shareError && shareError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
+        console.error('구간수수료율 조회 오류:', shareError);
+      } else {
+        sectionCommissionRate.value = shareData?.section_commission_rate || 0;
+        console.log('구간수수료율 조회 성공:', sectionCommissionRate.value);
+      }
+      
+      await fetchAllDataForMonth();
+      // 페이지 진입 시 전달사항 팝업 자동 표시 (사용자 설정 확인 후)
+      setTimeout(async () => {
+        await showNoticePopup();
+      }, 1000); // 1초 후 표시
+    }
+  } finally {
+    loading.value = false;
+  }
+}
 
 async function downloadExcel() {
   if (!detailRows.value.length) return;
@@ -476,6 +601,7 @@ async function downloadExcel() {
     summarySheet.getCell('B7').value = '공급가';
     summarySheet.getCell('C7').value = '부가세';
     summarySheet.getCell('D7').value = '합계액';
+    summarySheet.getCell('E7').value = '구간수수료율';
     
     // 헤더 스타일 설정 (상세내역과 동일)
     summarySheet.getCell('B7').font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
@@ -502,6 +628,14 @@ async function downloadExcel() {
     };
     summarySheet.getCell('D7').alignment = { horizontal: 'center', vertical: 'middle' };
     
+    summarySheet.getCell('E7').font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
+    summarySheet.getCell('E7').fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '76933C' }
+    };
+    summarySheet.getCell('E7').alignment = { horizontal: 'center', vertical: 'middle' };
+    
     // 데이터 행 추가
     summarySheet.getCell('B8').value = supplyPrice;
     summarySheet.getCell('B8').numFmt = '#,##0';
@@ -518,9 +652,14 @@ async function downloadExcel() {
     summarySheet.getCell('D8').font = { size: 11 };
     summarySheet.getCell('D8').alignment = { horizontal: 'center', vertical: 'middle' };
     
+    summarySheet.getCell('E8').value = sectionCommissionRate.value;
+    summarySheet.getCell('E8').numFmt = '0.0%';
+    summarySheet.getCell('E8').font = { size: 11 };
+    summarySheet.getCell('E8').alignment = { horizontal: 'center', vertical: 'middle' };
+    
     // 세금계산서 테이블 테두리 설정 (얇은 실선)
     for (let row = 7; row <= 8; row++) {
-      for (let col = 2; col <= 4; col++) { // B, C, D 열
+      for (let col = 2; col <= 5; col++) { // B, C, D, E 열
         const cell = summarySheet.getCell(row, col);
         cell.border = {
           top: { style: 'thin', color: { argb: '000000' } },
@@ -567,7 +706,8 @@ async function downloadExcel() {
       { width: 8 },   // A열
       { width: 16 },  // B열
       { width: 16 },  // C열
-      { width: 16 }   // D열
+      { width: 16 },  // D열
+      { width: 16 }   // E열
     ];
     
     // 첫 번째 시트 눈금선 숨기기
@@ -581,7 +721,7 @@ async function downloadExcel() {
     const detailSheet = workbook.addWorksheet('상세내역');
     
     // 헤더 추가
-    const headers = ['No', '병의원명', '처방월', '제품명', '보험코드', '약가', '처방수량', '처방액', '수수료율', '지급액', '비고'];
+    const headers = ['No', '상태', '병의원명', '처방월', '제품명', '보험코드', '약가', '처방수량', '처방액', '수수료율', '지급액', '비고'];
     detailSheet.addRow(headers);
     
     // 헤더 스타일 설정
@@ -600,6 +740,7 @@ async function downloadExcel() {
     detailRows.value.forEach((row, index) => {
       const dataRow = detailSheet.addRow([
         index + 1,
+        row.review_action || '정상',
         row.client_name,
         row.prescription_month,
         row.product_name_display,
@@ -617,21 +758,21 @@ async function downloadExcel() {
         cell.font = { size: 11 };
         cell.alignment = { vertical: 'middle' };
         
-        // 가운데 정렬이 필요한 컬럼들 (No, 처방월, 보험코드)
-        if (colNumber === 1 || colNumber === 3 || colNumber === 5 || colNumber === 9) {
+        // 가운데 정렬이 필요한 컬럼들 (No, 상태, 처방월, 보험코드)
+        if (colNumber === 1 || colNumber === 2 || colNumber === 4 || colNumber === 6) {
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
         }
         
         // 숫자 형식 설정
-        if (colNumber === 6) { // 약가
+        if (colNumber === 7) { // 약가
           cell.numFmt = '#,##0';
-        } else if (colNumber === 7) { // 처방수량
+        } else if (colNumber === 8) { // 처방수량
           cell.numFmt = '#,##0.0';
-        } else if (colNumber === 8) { // 처방액
+        } else if (colNumber === 9) { // 처방액
           cell.numFmt = '#,##0';
-        } else if (colNumber === 9) { // 수수료율
+        } else if (colNumber === 10) { // 수수료율
           cell.numFmt = '0.0%';
-        } else if (colNumber === 10) { // 지급액
+        } else if (colNumber === 11) { // 지급액
           cell.numFmt = '#,##0';
         }
       });
@@ -643,6 +784,8 @@ async function downloadExcel() {
     const totalPaymentAmountSum = detailRows.value.reduce((sum, row) => sum + (row._raw_payment_amount || 0), 0);
     
     const totalRow = detailSheet.addRow([
+      '',
+      '',
       '',
       '',
       '',
@@ -667,34 +810,35 @@ async function downloadExcel() {
       cell.alignment = { vertical: 'middle' };
 
       // 합계 텍스트는 가운데 정렬
-      if (colNumber === 6) {
+      if (colNumber === 8) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
     });
     
     // 합계행 숫자 형식 설정
-    totalRow.getCell(7).numFmt = '#,##0.0'; // 처방수량
-    totalRow.getCell(8).numFmt = '#,##0'; // 처방액
-    totalRow.getCell(10).numFmt = '#,##0'; // 지급액
+    totalRow.getCell(9).numFmt = '#,##0.0'; // 처방수량
+    totalRow.getCell(10).numFmt = '#,##0'; // 처방액
+    totalRow.getCell(12).numFmt = '#,##0'; // 지급액
     
     // 컬럼 너비 설정
     detailSheet.columns = [
       { width: 8 },   // No
-      { width: 32 },  // 병의원명
+      { width: 8 },   // 상태
+      { width: 28 },  // 병의원명
       { width: 10 },  // 처방월
-      { width: 32 },  // 제품명
+      { width: 28 },  // 제품명
       { width: 12 },  // 보험코드
       { width: 12 },  // 약가
       { width: 12 },  // 처방수량
       { width: 16 },  // 처방액
       { width: 12 },  // 수수료율
       { width: 16 },  // 지급액
-      { width: 24 }   // 비고
+      { width: 20 }   // 비고
     ];
     
     // 테이블 테두리 설정 - 전체를 얇은 실선으로 통일
     for (let row = 1; row <= detailSheet.rowCount; row++) {
-      for (let col = 1; col <= 11; col++) {
+      for (let col = 1; col <= 12; col++) {
         const cell = detailSheet.getCell(row, col);
         cell.border = {
           top: { style: 'thin', color: { argb: '000000' } },
@@ -863,6 +1007,11 @@ async function closeNoticeModal() {
     background-color: var(--gray-200);
     color: var(--text-dark);
     border: 1px solid var(--gray-500);
+}
+
+.deleted-text {
+    color: #999;
+    text-decoration: line-through;
 }
 
 </style>

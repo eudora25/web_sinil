@@ -168,7 +168,11 @@ const breadcrumbSubMenu = computed(() => {
   return '';
 });
 
-onMounted(async () => {
+onMounted(() => {
+  initializeApp();
+});
+
+async function initializeApp() {
   console.log('[App.vue] onMounted: Component mounted. Registering onAuthStateChange.');
   
   // 초기 세션 로드 및 상태 설정
@@ -215,7 +219,7 @@ onMounted(async () => {
       // 특별한 조치 불필요
     }
   });
-});
+}
 
 const handleLogout = async () => {
   console.log('[App.vue] handleLogout: Attempting logout');
