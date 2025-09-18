@@ -312,7 +312,7 @@ async function fetchCompanyId() {
   const { data: { session } } = await supabase.auth.getSession();
   console.log('fetchCompanyId: session =', session);
   if (!session?.user?.id) return;
-  const { data, error } = await supabase.from('companies').select('id').eq('user_id', session.user.id).single();
+  const { data, error } = await supabase.from('companies').select('id').eq('user_id', session.user.id).maybeSingle();
   console.log('fetchCompanyId: data =', data, 'error =', error);
   if (!error && data) companyId.value = data.id;
 }
@@ -363,7 +363,7 @@ async function fetchAllDataForMonth() {
     .select('share_enabled')
     .eq('settlement_month', selectedMonth.value)
     .eq('company_id', companyId.value)
-    .single();
+    .maybeSingle();
 
   console.log('fetchAllDataForMonth: shareData =', shareData, 'shareError =', shareError);
 
@@ -515,7 +515,7 @@ async function initializeData() {
         .from('settlement_months')
         .select('id')
         .eq('settlement_month', selectedMonth.value)
-        .single();
+        .maybeSingle();
       currentSettlementMonthId.value = monthData?.id || null;
       
       // 구간수수료율 조회
@@ -524,10 +524,11 @@ async function initializeData() {
         .select('section_commission_rate')
         .eq('settlement_month', selectedMonth.value)
         .eq('company_id', companyId.value)
-        .single();
+        .maybeSingle();
       
-      if (shareError && shareError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
+      if (shareError) {
         console.error('구간수수료율 조회 오류:', shareError);
+        sectionCommissionRate.value = 0;
       } else {
         sectionCommissionRate.value = shareData?.section_commission_rate || 0;
         console.log('구간수수료율 조회 성공:', sectionCommissionRate.value);
@@ -558,7 +559,7 @@ async function downloadExcel() {
         .from('settlement_months')
         .select('notice_payment')
         .eq('settlement_month', selectedMonth.value)
-        .single();
+        .maybeSingle();
       
       // 개별 전달사항 조회
       const { data: individualData } = await supabase
@@ -566,7 +567,7 @@ async function downloadExcel() {
         .select('notice_individual')
         .eq('settlement_month', selectedMonth.value)
         .eq('company_id', companyId.value)
-        .single();
+        .maybeSingle();
       
       generalNotice = generalData?.notice_payment;
       individualNotice = individualData?.notice_individual;
@@ -946,7 +947,7 @@ async function showNoticePopup(isManualClick = false) {
       .from('settlement_months')
       .select('notice_payment')
       .eq('settlement_month', selectedMonth.value)
-      .single();
+      .maybeSingle();
     
     // 개별 전달사항 조회
     const { data: individualNotice, error: individualError } = await supabase
@@ -954,10 +955,10 @@ async function showNoticePopup(isManualClick = false) {
       .select('notice_individual')
       .eq('settlement_month', selectedMonth.value)
       .eq('company_id', companyId.value)
-      .single();
+      .maybeSingle();
     
-    if (generalError && individualError) {
-      console.log('전달사항이 없습니다.');
+    if (generalError || individualError) {
+      console.log('전달사항 조회 중 오류 또는 데이터 없음:', generalError, individualError);
     }
     
     noticeData.value = {
