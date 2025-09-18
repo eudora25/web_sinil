@@ -319,7 +319,7 @@ async function loadDetailData() {
       .from('companies')
       .select('company_name, business_registration_number, representative_name, business_address')
       .eq('id', companyId.value)
-      .single();
+      .maybeSingle();
     
     if(cError) {
       console.error('업체 정보 조회 오류:', cError);
@@ -336,10 +336,11 @@ async function loadDetailData() {
       .select('section_commission_rate')
       .eq('settlement_month', month.value)
       .eq('company_id', companyId.value)
-      .single();
+      .maybeSingle();
     
-    if (shareError && shareError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
+    if (shareError) {
       console.error('구간수수료율 조회 오류:', shareError);
+      sectionCommissionRate.value = 0;
     } else {
       sectionCommissionRate.value = shareData?.section_commission_rate || 0;
       console.log('구간수수료율 조회 성공:', sectionCommissionRate.value);

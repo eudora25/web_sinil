@@ -791,7 +791,6 @@ async function downloadExcel() {
       '',
       '',
       '',
-      '',
       '합계',
       totalQtySum,
       totalPrescriptionAmountSum,
@@ -811,15 +810,15 @@ async function downloadExcel() {
       cell.alignment = { vertical: 'middle' };
 
       // 합계 텍스트는 가운데 정렬
-      if (colNumber === 8) {
+      if (colNumber === 7) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
     });
     
     // 합계행 숫자 형식 설정
-    totalRow.getCell(9).numFmt = '#,##0.0'; // 처방수량
-    totalRow.getCell(10).numFmt = '#,##0'; // 처방액
-    totalRow.getCell(12).numFmt = '#,##0'; // 지급액
+    totalRow.getCell(8).numFmt = '#,##0.0'; // 처방수량
+    totalRow.getCell(9).numFmt = '#,##0'; // 처방액
+    totalRow.getCell(11).numFmt = '#,##0'; // 지급액
     
     // 컬럼 너비 설정
     detailSheet.columns = [
