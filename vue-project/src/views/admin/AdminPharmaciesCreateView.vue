@@ -156,15 +156,16 @@ const handleSubmit = async () => {
     return;
   }
 
-  // 사업자등록번호 중복 확인
+  // 사업자등록번호 중복 확인 (정규화된 값으로 검색)
   const { data: existingPharmacy, error: checkError } = await supabase
     .from('pharmacies')
     .select('id, name')
-    .eq('business_registration_number', businessNumber.value)
-    .single();
+    .eq('business_registration_number', businessNumberDigits)
+    .maybeSingle();
 
-  if (checkError && checkError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
-    alert('중복 확인 중 오류가 발생했습니다: ' + checkError.message);
+  if (checkError) {
+    console.error('사업자등록번호 중복 검사 실패:', checkError);
+    alert(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
     return;
   }
 
@@ -190,7 +191,7 @@ const handleSubmit = async () => {
   const dataToInsert = {
     pharmacy_code: pharmacyCode.value,
     name: name.value,
-    business_registration_number: businessNumber.value,
+    business_registration_number: businessNumberDigits,
     address: address.value,
     status: status.value,
     remarks: remarks.value,
