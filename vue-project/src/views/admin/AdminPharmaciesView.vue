@@ -847,7 +847,7 @@ const handleFileUpload = async (event) => {
       uploadData.push({
         pharmacy_code: row['약국코드'] || '',
         name: row['약국명'],
-        business_registration_number: formattedBusinessNumber,
+        business_registration_number: businessNumber, // 정규화된 값 (숫자만) 사용
         address: row['주소'] || '',
         remarks: row['비고'] || '',
         status: statusValue,
