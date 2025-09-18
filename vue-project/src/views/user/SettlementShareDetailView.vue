@@ -77,7 +77,7 @@
               </span>
             </template>
           </Column>
-          <Column field="prescription_month" header="처방월" :headerStyle="{ width: columnWidths.prescription_month }" :sortable="true">
+          <Column field="prescription_month" header="처방월" :headerStyle="{ width: columnWidths.prescription_month }" :bodyStyle="{ textAlign: 'center !important' }">
             <template #body="slotProps">
               <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
                 {{ slotProps.data.prescription_month }}

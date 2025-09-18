@@ -410,6 +410,7 @@ async function loadSettlementData() {
         product:products(price)
       `)
         .eq('settlement_month', selectedMonth.value)
+        .eq('review_status', '완료')
         .range(from, from + batchSize - 1);
 
     if (recordsError) throw recordsError;
@@ -468,12 +469,12 @@ async function loadSettlementData() {
       
       // 삭제되지 않은 건만 지급액 계산에 포함
       if (record.review_action !== '삭제') {
-        // 지급 처방액: 수수료율이 있고 0보다 큰 제품의 처방액만 합계
+        // 지급 처방액: 수수료율이 있는 정상 건의 처방액만 합계
         if (record.commission_rate !== null && record.commission_rate !== undefined && record.commission_rate > 0) {
           summary.payment_prescription_amount += prescriptionAmount;
         }
         
-        // 지급액: 수수료 합계
+        // 지급액: 정상 건의 수수료 합계
         let paymentAmount;
         if (record.commission_rate && record.commission_rate > 1) {
           // 수수료율이 1보다 크면 퍼센트(%) 단위로 간주

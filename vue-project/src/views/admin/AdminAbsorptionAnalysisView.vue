@@ -1393,7 +1393,10 @@ const calculateAbsorptionRates = async () => {
             prescription_month: record.prescription_month,
             prescription_qty: record.prescription_qty,
             prescription_type: record.prescription_type,
-            commission_rate: record.commission_rate,
+            commission_rate: record.commission_rate ? 
+              (typeof record.commission_rate === 'string' ? 
+                Math.max(0, Math.min(1, parseFloat(record.commission_rate.replace('%', '')) / 100)) : 
+                Math.max(0, Math.min(1, parseFloat(record.commission_rate)))) : 0,
             remarks: record.remarks,
             registered_by: record.registered_by,
             review_action: record.review_action, // review_action 필드 추가
