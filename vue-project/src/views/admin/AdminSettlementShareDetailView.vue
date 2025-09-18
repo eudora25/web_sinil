@@ -43,38 +43,92 @@
         </Column>
         <Column field="client_name" header="병의원명" :headerStyle="{ width: columnWidths.client_name }" :sortable="true">
           <template #body="slotProps">
-            <span class="ellipsis-cell" :title="slotProps.data.client_name" @mouseenter="checkOverflow" @mouseleave="removeOverflowClass">{{ slotProps.data.client_name }}</span>
+            <span 
+              class="ellipsis-cell" 
+              :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
+              :title="slotProps.data.client_name" 
+              @mouseenter="checkOverflow" 
+              @mouseleave="removeOverflowClass"
+            >
+              {{ slotProps.data.client_name }}
+            </span>
           </template>
         </Column>
-        <Column field="prescription_month" header="처방월" :headerStyle="{ width: columnWidths.prescription_month }" :sortable="true" />
+        <Column field="prescription_month" header="처방월" :headerStyle="{ width: columnWidths.prescription_month }" :sortable="true">
+          <template #body="slotProps">
+            <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+              {{ slotProps.data.prescription_month }}
+            </span>
+          </template>
+        </Column>
         <Column field="product_name_display" header="제품명" :headerStyle="{ width: columnWidths.product_name_display }" :sortable="true">
           <template #body="slotProps">
-            <span class="ellipsis-cell" :title="slotProps.data.product_name_display" @mouseenter="checkOverflow" @mouseleave="removeOverflowClass">{{ slotProps.data.product_name_display }}</span>
+            <span 
+              class="ellipsis-cell" 
+              :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
+              :title="slotProps.data.product_name_display" 
+              @mouseenter="checkOverflow" 
+              @mouseleave="removeOverflowClass"
+            >
+              {{ slotProps.data.product_name_display }}
+            </span>
           </template>
         </Column>
-        <Column field="insurance_code" header="보험코드" :headerStyle="{ width: columnWidths.insurance_code }" :sortable="true" />
+        <Column field="insurance_code" header="보험코드" :headerStyle="{ width: columnWidths.insurance_code }" :sortable="true">
+          <template #body="slotProps">
+            <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+              {{ slotProps.data.insurance_code }}
+            </span>
+          </template>
+        </Column>
         <Column field="price" header="약가" :headerStyle="{ width: columnWidths.price }" :sortable="true" >
-          <template #body="slotProps">{{ Math.round(slotProps.data._raw_price || 0).toLocaleString() }}</template>
+          <template #body="slotProps">
+            <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+              {{ Math.round(slotProps.data._raw_price || 0).toLocaleString() }}
+            </span>
+          </template>
         </Column>
         <Column field="prescription_qty" header="처방수량" :headerStyle="{ width: columnWidths.prescription_qty }" :sortable="true" >
-          <template #body="slotProps">{{ (slotProps.data._raw_qty || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }}</template>
+          <template #body="slotProps">
+            <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+              {{ (slotProps.data._raw_qty || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }}
+            </span>
+          </template>
         </Column>
         <Column field="prescription_amount" header="처방액" :headerStyle="{ width: columnWidths.prescription_amount }" :sortable="true" >
           <template #body="slotProps">
-            <span :title="slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.prescription_amount || 0).toLocaleString()">
+            <span 
+              :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
+              :title="slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.prescription_amount || 0).toLocaleString()"
+            >
               {{ slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.prescription_amount || 0).toLocaleString() }}
             </span>
           </template>
         </Column>
-        <Column field="commission_rate" header="수수료율" :headerStyle="{ width: columnWidths.commission_rate }" :sortable="true" />
+        <Column field="commission_rate" header="수수료율" :headerStyle="{ width: columnWidths.commission_rate }" :sortable="true">
+          <template #body="slotProps">
+            <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+              {{ slotProps.data.commission_rate }}
+            </span>
+          </template>
+        </Column>
         <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :sortable="true" >
           <template #body="slotProps">
-            <span :title="slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.payment_amount || 0).toLocaleString()">
+            <span 
+              :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }"
+              :title="slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.payment_amount || 0).toLocaleString()"
+            >
               {{ slotProps.data.review_action === '삭제' ? '0' : Math.round(slotProps.data.payment_amount || 0).toLocaleString() }}
             </span>
           </template>
         </Column>
-        <Column field="remarks" header="비고" :headerStyle="{ width: columnWidths.remarks }" :sortable="true" />
+        <Column field="remarks" header="비고" :headerStyle="{ width: columnWidths.remarks }" :sortable="true">
+          <template #body="slotProps">
+            <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+              {{ slotProps.data.remarks }}
+            </span>
+          </template>
+        </Column>
         <ColumnGroup type="footer">
             <Row>
               <Column footer="합계" :colspan="6" footerClass="footer-cell" footerStyle="text-align:center !important;" />
@@ -152,7 +206,7 @@ async function loadDetailData() {
   console.log('정산 공유 상세 데이터 로딩 시작:', { 
     month: month.value, 
     companyId: companyId.value,
-    filter: 'review_status=완료 AND 수수료율>0 (삭제건 포함, 화면에서 0 표시)'
+    filter: 'review_status=완료 (삭제건 포함, 화면에서 0 표시)'
   });
   try {
     // 전체 데이터 조회 (클라이언트 사이드 페이지네이션)
@@ -171,7 +225,6 @@ async function loadDetailData() {
         .eq('settlement_month', month.value)
         .eq('company_id', companyId.value)
         .eq('review_status', '완료')  // 검토 완료된 건만 조회
-        .gt('commission_rate', 0)  // 수수료율이 0보다 큰 건만 조회
         .range(from, from + batchSize - 1)
         .order('created_at', { ascending: false });
       
@@ -554,3 +607,11 @@ const removeOverflowClass = (event) => {
   console.log('정산내역서상세 오버플로우 클래스 제거됨');
 }
 </script>
+
+<style scoped>
+/* 삭제된 항목 텍스트 스타일 */
+.deleted-text {
+  text-decoration: line-through;
+  color: #999;
+}
+</style>
