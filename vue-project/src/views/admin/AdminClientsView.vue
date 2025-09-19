@@ -982,7 +982,7 @@ const handleFileUpload = async (event) => {
       uploadData.push({
         client_code: row['병의원코드'] || '',
         name: row['병의원명'],
-        business_registration_number: businessNumber, // 정규화된 값 (숫자만) 사용
+        business_registration_number: formattedBusinessNumber, // 하이픈이 포함된 형식으로 저장
         owner_name: row['원장명'] || '',
         address: row['주소'] || '',
         remarks: row['비고'] || '',
@@ -1014,9 +1014,16 @@ const handleFileUpload = async (event) => {
 
     // 기존 데이터를 Set과 Map으로 변환하여 빠른 검색
     const existingClientCodes = new Set(existingClients.map(c => c.client_code).filter(code => code && code.trim() !== ''))
-    const existingBusinessNumbers = new Set(existingClients.map(c => c.business_registration_number).filter(num => num))
+    const existingBusinessNumbers = new Set(
+      existingClients.map(c => c.business_registration_number?.toString().replace(/[^0-9]/g, '') || '').filter(num => num)
+    )
     const existingClientCodeMap = new Map(existingClients.filter(c => c.client_code && c.client_code.trim() !== '').map(c => [c.client_code, c.name]))
-    const existingBusinessNumberMap = new Map(existingClients.filter(c => c.business_registration_number).map(c => [c.business_registration_number, c.name]))
+    const existingBusinessNumberMap = new Map(
+      existingClients.filter(c => c.business_registration_number).map(c => [
+        c.business_registration_number?.toString().replace(/[^0-9]/g, '') || '', 
+        c.name
+      ])
+    )
 
     for (const newClient of uploadData) {
       // 병의원 코드 중복 체크 (입력된 경우에만)
@@ -1028,10 +1035,11 @@ const handleFileUpload = async (event) => {
         }
       }
 
-      // 사업자등록번호 중복 체크
+      // 사업자등록번호 중복 체크 (정규화된 값으로 비교)
       if (newClient.business_registration_number) {
-        if (existingBusinessNumbers.has(newClient.business_registration_number)) {
-          const existingName = existingBusinessNumberMap.get(newClient.business_registration_number)
+        const normalizedBusinessNumber = newClient.business_registration_number.toString().replace(/[^0-9]/g, '')
+        if (existingBusinessNumbers.has(normalizedBusinessNumber)) {
+          const existingName = existingBusinessNumberMap.get(normalizedBusinessNumber)
           duplicateErrors.push(`${newClient.rowNum}행: 동일한 사업자등록번호(${newClient.business_registration_number})로 이미 등록된 병의원이 있습니다. (${existingName})`)
           duplicateClients.push(newClient)
         }
@@ -1106,7 +1114,7 @@ const handleFileUpload = async (event) => {
       }
     }
 
-    // 최종 등록
+    // 최종 등록 - 개별 중복 체크 후 insert
     const insertData = uploadData.map(item => {
       const { rowNum, ...data } = item
       return data
@@ -1117,15 +1125,90 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 데이터베이스에 일괄 삽입
-    const { error } = await supabase.from('clients').insert(insertData)
+    // 개별 중복 체크 후 등록
+    let successCount = 0
+    let skipCount = 0
+    const insertErrors = []
 
-    if (error) {
-      alert('업로드 실패: ' + error.message)
-    } else {
-      alert(`${insertData.length}건의 병의원 정보가 업로드되었습니다.`)
-      await fetchClients() // 목록 새로고침
+    for (const data of insertData) {
+      try {
+        // 개별 중복 체크 (병의원 코드와 사업자등록번호 모두 확인)
+        let shouldSkip = false
+        let skipReason = ''
+
+        // 병의원 코드 중복 체크 (입력된 경우에만)
+        if (data.client_code && data.client_code.trim() !== '') {
+          const { data: existingByCode, error: codeCheckError } = await supabase
+            .from('clients')
+            .select('id, name')
+            .eq('client_code', data.client_code.trim())
+            .maybeSingle()
+
+          if (codeCheckError) {
+            insertErrors.push(`${data.name}: 병의원 코드 중복 체크 실패 - ${codeCheckError.message}`)
+            continue
+          }
+
+          if (existingByCode) {
+            shouldSkip = true
+            skipReason = `병의원 코드 중복 (${existingByCode.name})`
+          }
+        }
+
+        // 사업자등록번호 중복 체크
+        if (!shouldSkip && data.business_registration_number) {
+          const { data: existingByBusiness, error: businessCheckError } = await supabase
+            .from('clients')
+            .select('id, name')
+            .eq('business_registration_number', data.business_registration_number)
+            .maybeSingle()
+
+          if (businessCheckError) {
+            insertErrors.push(`${data.name}: 사업자등록번호 중복 체크 실패 - ${businessCheckError.message}`)
+            continue
+          }
+
+          if (existingByBusiness) {
+            shouldSkip = true
+            skipReason = `사업자등록번호 중복 (${existingByBusiness.name})`
+          }
+        }
+
+        if (shouldSkip) {
+          // 이미 존재하는 경우 스킵
+          skipCount++
+          console.log(`스킵: ${data.name} - ${skipReason}`)
+          continue
+        }
+
+        // 존재하지 않는 경우에만 insert
+        const { error: insertError } = await supabase
+          .from('clients')
+          .insert([data])
+
+        if (insertError) {
+          insertErrors.push(`${data.name}: 등록 실패 - ${insertError.message}`)
+        } else {
+          successCount++
+          console.log(`등록 성공: ${data.name}`)
+        }
+      } catch (error) {
+        insertErrors.push(`${data.name}: 처리 중 오류 - ${error.message}`)
+      }
     }
+
+    // 결과 알림
+    let message = `업로드 완료!\n성공: ${successCount}건`
+    if (skipCount > 0) {
+      message += `\n스킵: ${skipCount}건 (이미 존재)`
+    }
+    if (insertErrors.length > 0) {
+      message += `\n실패: ${insertErrors.length}건`
+      console.error('업로드 오류:', insertErrors)
+    }
+
+    alert(message)
+    await fetchClients() // 목록 새로고침
   } catch (error) {
     console.error('파일 처리 오류:', error)
     alert('파일 처리 중 오류가 발생했습니다.')

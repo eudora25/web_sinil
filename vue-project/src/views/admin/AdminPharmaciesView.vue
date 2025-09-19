@@ -847,7 +847,7 @@ const handleFileUpload = async (event) => {
       uploadData.push({
         pharmacy_code: row['약국코드'] || '',
         name: row['약국명'],
-        business_registration_number: businessNumber, // 정규화된 값 (숫자만) 사용
+        business_registration_number: formattedBusinessNumber, // 하이픈이 포함된 형식으로 저장
         address: row['주소'] || '',
         remarks: row['비고'] || '',
         status: statusValue,
@@ -874,15 +874,27 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 기존 사업자등록번호를 Set으로 변환하여 빠른 검색
-    const existingBusinessNumbers = new Set(existingPharmacies.map(p => p.business_registration_number))
-    const existingPharmacyMap = new Map(existingPharmacies.map(p => [p.business_registration_number, p.name]))
+    // 디버깅: 기존 데이터 형식 확인
+    console.log('기존 약국 데이터 (처음 5개):', existingPharmacies.slice(0, 5))
+    console.log('업로드할 데이터 (처음 5개):', uploadData.slice(0, 5))
+
+    // 기존 사업자등록번호를 정규화하여 Set으로 변환 (숫자만 추출)
+    const existingBusinessNumbers = new Set(
+      existingPharmacies.map(p => p.business_registration_number?.toString().replace(/[^0-9]/g, '') || '')
+    )
+    const existingPharmacyMap = new Map(
+      existingPharmacies.map(p => [
+        p.business_registration_number?.toString().replace(/[^0-9]/g, '') || '', 
+        p.name
+      ])
+    )
 
     for (const newPharmacy of uploadData) {
       if (newPharmacy.business_registration_number) {
-        // 데이터베이스에서 동일한 사업자등록번호 중복 확인
-        if (existingBusinessNumbers.has(newPharmacy.business_registration_number)) {
-          const existingName = existingPharmacyMap.get(newPharmacy.business_registration_number)
+        // 정규화된 사업자등록번호로 중복 확인 (숫자만 추출)
+        const normalizedBusinessNumber = newPharmacy.business_registration_number.toString().replace(/[^0-9]/g, '')
+        if (existingBusinessNumbers.has(normalizedBusinessNumber)) {
+          const existingName = existingPharmacyMap.get(normalizedBusinessNumber)
           duplicateErrors.push(`${newPharmacy.rowNum}행: 이미 등록된 사업자등록번호 (${existingName})`)
           duplicatePharmacies.push(newPharmacy)
         }
@@ -905,20 +917,41 @@ const handleFileUpload = async (event) => {
       if (duplicateChoice === 'replace') {
         // 교체 모드: 중복되는 기존 약국들 삭제
         for (const duplicatePharmacy of duplicatePharmacies) {
-          const { error: deleteError } = await supabase
+          // 정규화된 사업자등록번호로 기존 데이터 찾기
+          const normalizedBusinessNumber = duplicatePharmacy.business_registration_number.toString().replace(/[^0-9]/g, '')
+          
+          // 데이터베이스에서 해당 사업자등록번호를 가진 모든 약국 삭제
+          // 정규화된 값으로 검색하되, 실제 삭제는 원본 형식으로
+          const { data: pharmaciesToDelete, error: fetchError } = await supabase
             .from('pharmacies')
-            .delete()
-            .eq('business_registration_number', duplicatePharmacy.business_registration_number)
+            .select('id, business_registration_number')
+            .eq('business_registration_number', normalizedBusinessNumber)
 
-          if (deleteError) {
-            alert('기존 약국 삭제 실패: ' + deleteError.message)
-            return
+          if (fetchError) {
+            console.error('삭제할 약국 조회 실패:', fetchError)
+            continue
+          }
+
+          // 각 약국을 개별적으로 삭제
+          for (const pharmacy of pharmaciesToDelete) {
+            const { error: deleteError } = await supabase
+              .from('pharmacies')
+              .delete()
+              .eq('id', pharmacy.id)
+
+            if (deleteError) {
+              alert('기존 약국 삭제 실패: ' + deleteError.message)
+              return
+            }
           }
         }
         
-        // 로컬 데이터에서도 삭제
+        // 로컬 데이터에서도 삭제 (정규화된 사업자등록번호로 비교)
         for (const duplicatePharmacy of duplicatePharmacies) {
-          const index = pharmacies.value.findIndex(p => p.business_registration_number === duplicatePharmacy.business_registration_number)
+          const normalizedBusinessNumber = duplicatePharmacy.business_registration_number.toString().replace(/[^0-9]/g, '')
+          const index = pharmacies.value.findIndex(p => 
+            p.business_registration_number?.toString().replace(/[^0-9]/g, '') === normalizedBusinessNumber
+          )
           if (index > -1) {
             pharmacies.value.splice(index, 1)
           }
@@ -933,7 +966,7 @@ const handleFileUpload = async (event) => {
       }
     }
 
-    // 최종 등록
+    // 최종 등록 - 개별 중복 체크 후 insert
     const insertData = uploadData.map(item => {
       const { rowNum, ...data } = item
       return data
@@ -944,15 +977,60 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 데이터베이스에 일괄 삽입
-    const { error } = await supabase.from('pharmacies').insert(insertData)
+    // 개별 중복 체크 후 등록
+    let successCount = 0
+    let skipCount = 0
+    const insertErrors = []
 
-    if (error) {
-      alert('업로드 실패: ' + error.message)
-    } else {
-      alert(`${insertData.length}건의 문전약국 데이터가 업로드되었습니다.`)
-      await fetchPharmacies() // 목록 새로고침
+    for (const data of insertData) {
+      try {
+        // 개별 중복 체크
+        const { data: existingPharmacy, error: checkError } = await supabase
+          .from('pharmacies')
+          .select('id, name')
+          .eq('business_registration_number', data.business_registration_number)
+          .maybeSingle()
+
+        if (checkError) {
+          insertErrors.push(`${data.name}: 중복 체크 실패 - ${checkError.message}`)
+          continue
+        }
+
+        if (existingPharmacy) {
+          // 이미 존재하는 경우 스킵
+          skipCount++
+          console.log(`스킵: ${data.name} (${data.business_registration_number}) - 이미 존재`)
+          continue
+        }
+
+        // 존재하지 않는 경우에만 insert
+        const { error: insertError } = await supabase
+          .from('pharmacies')
+          .insert([data])
+
+        if (insertError) {
+          insertErrors.push(`${data.name}: 등록 실패 - ${insertError.message}`)
+        } else {
+          successCount++
+          console.log(`등록 성공: ${data.name} (${data.business_registration_number})`)
+        }
+      } catch (error) {
+        insertErrors.push(`${data.name}: 처리 중 오류 - ${error.message}`)
+      }
     }
+
+    // 결과 알림
+    let message = `업로드 완료!\n성공: ${successCount}건`
+    if (skipCount > 0) {
+      message += `\n스킵: ${skipCount}건 (이미 존재)`
+    }
+    if (insertErrors.length > 0) {
+      message += `\n실패: ${insertErrors.length}건`
+      console.error('업로드 오류:', insertErrors)
+    }
+
+    alert(message)
+    await fetchPharmacies() // 목록 새로고침
   } catch (error) {
     console.error('파일 처리 오류:', error)
     alert('파일 처리 중 오류가 발생했습니다.')
