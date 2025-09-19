@@ -18,7 +18,7 @@
           <div style="display: flex; flex-direction: column; gap: 4px;">
             <div style="display: flex; gap: 16px;">
               <span style="font-weight: 600;">지급 처방액 : {{ settlementSummary.payment_prescription_amount?.toLocaleString() }}원</span>
-              <span style="font-weight: 600;">구간수수료 {{ (settlementSummary.section_commission_rate * 100)?.toFixed(1) }}% 적용</span>
+              <span style="font-weight: 600;">구간수수료 : {{ settlementSummary.section_commission_amount?.toLocaleString() }}원 ({{ (settlementSummary.section_commission_rate * 100)?.toFixed(1) }}%)</span>
             </div>
             <div style="display: flex; gap: 16px;">
               <span style="font-weight: 600;">공급가 : {{ settlementSummary.supply_price?.toLocaleString() }}원</span>
@@ -218,11 +218,6 @@ onMounted(async () => {
 async function loadDetailData() {
   if (!month.value || !companyId.value) return;
   loading.value = true;
-  console.log('정산 공유 상세 데이터 로딩 시작:', { 
-    month: month.value, 
-    companyId: companyId.value,
-    filter: 'review_status=완료 (삭제건 포함, 화면에서 0 표시)'
-  });
   try {
     // 전체 데이터 조회 (클라이언트 사이드 페이지네이션)
     let allData = [];
@@ -258,7 +253,6 @@ async function loadDetailData() {
       from += batchSize;
     }
     
-    console.log('조회된 데이터 개수:', allData.length);
     
     // 데이터 가공 (약가, 처방액, 지급액 계산)
     let mappedData = [];
@@ -316,12 +310,10 @@ async function loadDetailData() {
         });
         detailRows.value = mappedData;
     } else {
-        console.log('수수료율이 있는 완료된 실적 데이터가 없습니다.');
         detailRows.value = [];
     }
 
     // 업체 정보 설정 (데이터가 없어도 업체 정보는 조회)
-    console.log('업체 정보 조회 시작:', companyId.value);
     const { data: cInfo, error: cError } = await supabase
       .from('companies')
       .select('company_name, business_registration_number, representative_name, business_address')
@@ -333,11 +325,9 @@ async function loadDetailData() {
       throw cError;
     }
     
-    console.log('업체 정보 조회 성공:', cInfo);
     companyInfo.value = cInfo;
 
     // 구간수수료율 조회
-    console.log('구간수수료율 조회 시작:', { month: month.value, companyId: companyId.value });
     const { data: shareData, error: shareError } = await supabase
       .from('settlement_share')
       .select('section_commission_rate')
@@ -350,7 +340,6 @@ async function loadDetailData() {
       sectionCommissionRate.value = 0;
     } else {
       sectionCommissionRate.value = shareData?.section_commission_rate || 0;
-      console.log('구간수수료율 조회 성공:', sectionCommissionRate.value);
     }
 
   } catch (err) {
@@ -655,26 +644,16 @@ const checkOverflow = (event) => {
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
   
-  console.log('정산내역서상세 오버플로우 체크:', {
-    text: element.textContent,
-    textWidth,
-    availableWidth,
-    isOverflowed
-  });
-  
   if (isOverflowed) {
     element.classList.add('overflowed');
-    console.log('정산내역서상세 오버플로우 클래스 추가됨');
   } else {
     element.classList.remove('overflowed'); // Ensure class is removed if not overflowed
-    console.log('정산내역서상세 오버플로우 아님 - 클래스 제거됨');
   }
 }
 
 const removeOverflowClass = (event) => {
   const element = event.target;
   element.classList.remove('overflowed');
-  console.log('정산내역서상세 오버플로우 클래스 제거됨');
 }
 </script>
 

@@ -37,7 +37,7 @@
           <div style="display: flex; flex-direction: column; gap: 4px;">
             <div style="display: flex; gap: 16px;">
               <span style="font-weight: 600;">지급 처방액 : {{ settlementSummary.payment_prescription_amount?.toLocaleString() }}원</span>
-              <span style="font-weight: 600;">구간수수료 {{ (settlementSummary.section_commission_rate * 100)?.toFixed(1) }}% 적용</span>
+              <span style="font-weight: 600;">구간수수료 : {{ settlementSummary.section_commission_amount?.toLocaleString() }}원 ({{ (settlementSummary.section_commission_rate * 100)?.toFixed(1) }}%)</span>
             </div>
             <div style="display: flex; gap: 16px;">
               <span style="font-weight: 600;">공급가 : {{ settlementSummary.supply_price?.toLocaleString() }}원</span>
@@ -336,21 +336,17 @@ const columnWidths = {
 
 async function fetchCompanyId() {
   const { data: { session } } = await supabase.auth.getSession();
-  console.log('fetchCompanyId: session =', session);
   if (!session?.user?.id) return;
   const { data, error } = await supabase.from('companies').select('id').eq('user_id', session.user.id).maybeSingle();
-  console.log('fetchCompanyId: data =', data, 'error =', error);
   if (!error && data) companyId.value = data.id;
 }
 
 async function fetchAvailableMonths() {
   if (!companyId.value) return;
-  console.log('fetchAvailableMonths: companyId =', companyId.value);
   
   // 2025-09 정산월 강제 설정 (테스트용)
   availableMonths.value = ['2025-09'];
   selectedMonth.value = '2025-09';
-  console.log('fetchAvailableMonths: 강제로 2025-09 설정');
   
   // 원래 로직 (주석 처리)
   /*
@@ -359,10 +355,8 @@ async function fetchAvailableMonths() {
     .select('settlement_month')
     .eq('company_id', companyId.value)
     .eq('share_enabled', true);
-  console.log('fetchAvailableMonths: data =', data, 'error =', error);
   if (!error && data) {
     availableMonths.value = Array.from(new Set(data.map(d => d.settlement_month))).sort((a, b) => b.localeCompare(a));
-    console.log('fetchAvailableMonths: availableMonths =', availableMonths.value);
     if (availableMonths.value.length > 0) selectedMonth.value = availableMonths.value[0];
   }
   */
@@ -370,17 +364,14 @@ async function fetchAvailableMonths() {
 
 async function fetchAllDataForMonth() {
   if (!companyId.value || !selectedMonth.value) {
-    console.log('fetchAllDataForMonth: Missing companyId or selectedMonth', { companyId: companyId.value, selectedMonth: selectedMonth.value });
     allDataForMonth.value = [];
     return;
   }
 
-  console.log('fetchAllDataForMonth: Starting with', { companyId: companyId.value, selectedMonth: selectedMonth.value });
 
   try {
   
   // 1. settlement_share 테이블에서 공유 여부 확인 (2025-09 테스트용으로 우회)
-  console.log('fetchAllDataForMonth: 2025-09 테스트용으로 settlement_share 확인 우회');
   
   // 원래 로직 (주석 처리)
   /*
@@ -391,11 +382,9 @@ async function fetchAllDataForMonth() {
     .eq('company_id', companyId.value)
     .maybeSingle();
 
-  console.log('fetchAllDataForMonth: shareData =', shareData, 'shareError =', shareError);
 
   // 공유되지 않았거나 오류 발생 시, 빈 화면 처리
   if (shareError || !shareData || !shareData.share_enabled) {
-    console.log('fetchAllDataForMonth: Share not enabled or error, returning empty data');
     allDataForMonth.value = [];
     updateFilterOptions();
     filterDetailRows();
@@ -415,10 +404,8 @@ async function fetchAllDataForMonth() {
     .eq('company_id', companyId.value)
     .eq('review_status', '완료'); // 검토 완료된 건만 조회
   
-  console.log('fetchAllDataForMonth: performance_records data =', data, 'error =', error);
   
   if (error) {
-    console.log('fetchAllDataForMonth: Error fetching performance_records data');
     allDataForMonth.value = [];
     return;
   }
@@ -557,7 +544,6 @@ async function initializeData() {
         sectionCommissionRate.value = 0;
       } else {
         sectionCommissionRate.value = shareData?.section_commission_rate || 0;
-        console.log('구간수수료율 조회 성공:', sectionCommissionRate.value);
       }
       
       await fetchAllDataForMonth();
@@ -940,26 +926,16 @@ const checkOverflow = (event) => {
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
   
-  console.log('이용자 정산내역서 오버플로우 체크:', {
-    text: element.textContent,
-    textWidth,
-    availableWidth,
-    isOverflowed
-  });
-  
   if (isOverflowed) {
     element.classList.add('overflowed');
-    console.log('이용자 정산내역서 오버플로우 클래스 추가됨');
   } else {
     element.classList.remove('overflowed'); // Ensure class is removed if not overflowed
-    console.log('이용자 정산내역서 오버플로우 아님 - 클래스 제거됨');
   }
 }
 
 const removeOverflowClass = (event) => {
   const element = event.target;
   element.classList.remove('overflowed');
-  console.log('이용자 정산내역서 오버플로우 클래스 제거됨');
 }
 
 // 전달사항 관련 함수들
@@ -994,7 +970,6 @@ async function showNoticePopup(isManualClick = false) {
       .maybeSingle();
     
     if (generalError || individualError) {
-      console.log('전달사항 조회 중 오류 또는 데이터 없음:', generalError, individualError);
     }
     
     noticeData.value = {
