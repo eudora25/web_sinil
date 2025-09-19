@@ -23,7 +23,7 @@
             <div style="display: flex; gap: 16px;">
               <span style="font-weight: 600;">공급가 : {{ settlementSummary.supply_price?.toLocaleString() }}원</span>
               <span style="font-weight: 600;">부가세 : {{ settlementSummary.vat_price?.toLocaleString() }}원</span>
-              <span style="font-weight: 600;">합계액 : {{ settlementSummary.total_price?.toLocaleString() }}원</span>
+              <span style="font-weight: 600;">합계액(총 지급액 기준) : {{ settlementSummary.total_price?.toLocaleString() }}원</span>
             </div>
           </div>
         </div>
@@ -404,18 +404,27 @@ const settlementSummary = computed(() => {
     return sum;
   }, 0);
 
-  const totalPrice = detailRows.value.reduce((sum, row) => {
+  // 기본 지급액 계산 (구간수수료 제외)
+  const basePaymentAmount = detailRows.value.reduce((sum, row) => {
     // 삭제된 건은 지급액을 0으로 계산
     if (row.review_action === '삭제') return sum;
     return sum + (row._raw_payment_amount || 0);
   }, 0);
 
-  const supplyPrice = Math.round(totalPrice / 1.1);
-  const vatPrice = Math.round(totalPrice - supplyPrice);
+  // 구간수수료 계산: (지급 처방액) * 구간수수료율
+  const sectionCommissionAmount = Math.round(paymentPrescriptionAmount * (sectionCommissionRate.value || 0));
+
+  // 총 지급액: 기본 지급액 + 구간수수료
+  const totalPaymentAmount = basePaymentAmount + sectionCommissionAmount;
+
+  const supplyPrice = Math.round(totalPaymentAmount / 1.1);
+  const vatPrice = Math.round(totalPaymentAmount - supplyPrice);
 
   return {
     payment_prescription_amount: paymentPrescriptionAmount,
-    total_price: Math.round(totalPrice),
+    base_payment_amount: basePaymentAmount,
+    section_commission_amount: sectionCommissionAmount,
+    total_price: totalPaymentAmount,
     supply_price: supplyPrice,
     vat_price: vatPrice,
     section_commission_rate: sectionCommissionRate.value,
@@ -466,6 +475,17 @@ async function downloadExcel() {
     return sum + (row._raw_payment_amount || 0);
   }, 0);
 
+  // 구간수수료 계산 (엑셀용)
+  const excelPaymentPrescriptionAmount = detailRows.value.reduce((sum, row) => {
+    if (row.review_action === '삭제') return sum;
+    if (row.commission_rate && parseFloat(row.commission_rate.replace('%', '')) > 0) {
+      return sum + (row._raw_prescription_amount || 0);
+    }
+    return sum;
+  }, 0);
+  const excelSectionCommissionAmount = Math.round(excelPaymentPrescriptionAmount * (sectionCommissionRate.value || 0));
+  const excelTotalPaymentAmountWithCommission = excelTotalPaymentAmount + excelSectionCommissionAmount;
+
   // 합계 행 추가
   excelData.push({
     'No': '',
@@ -478,8 +498,8 @@ async function downloadExcel() {
     '처방수량': excelTotalQty,
     '처방액': excelTotalPrescriptionAmount,
     '수수료율': '',
-    '지급액': excelTotalPaymentAmount,
-    '비고': '',
+    '지급액': excelTotalPaymentAmountWithCommission,
+    '비고': `구간수수료 ${(sectionCommissionRate.value * 100)?.toFixed(1)}% 포함`,
   });
 
   // ExcelJS 워크북 생성
