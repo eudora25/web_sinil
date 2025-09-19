@@ -121,10 +121,16 @@ onMounted(async () => {
     console.log('비밀번호 재설정 페이지 초기화 시작');
     console.log('현재 URL:', window.location.href);
     
-    // Supabase가 자동으로 설정한 세션 확인 (세션 제거 없이)
-    console.log('Supabase 자동 세션 확인 중...');
+    // 기존 로그인 세션이 있는지 확인
+    const { data: existingSession } = await resetSupabase.auth.getSession();
     
-    // Supabase가 자동으로 설정한 세션 확인
+    if (existingSession && existingSession.user) {
+      console.log('기존 로그인 세션 발견. 보안을 위해 로그아웃 처리 중...');
+      // 기존 로그인 세션이 있으면 보안을 위해 로그아웃
+      await resetSupabase.auth.signOut();
+    }
+    
+    // Supabase가 자동으로 설정한 세션 확인 (비밀번호 재설정 링크의 세션)
     console.log('Supabase 자동 세션 확인 중...');
     const { data: { session: autoSession }, error: sessionError } = await resetSupabase.auth.getSession();
     
@@ -176,14 +182,21 @@ async function handleResetPassword() {
   try {
     console.log('비밀번호 변경 시작...');
     
-    // 현재 세션의 사용자 정보 확인
-    const { data: { user }, error: userError } = await resetSupabase.auth.getUser();
+    // URL에서 세션 정보 확인 (비밀번호 재설정 링크의 세션)
+    const { data: { session }, error: sessionError } = await resetSupabase.auth.getSession();
     
-    if (userError || !user) {
+    if (sessionError || !session || !session.user) {
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
     }
     
-    console.log('비밀번호 변경 대상 사용자:', user.email);
+    // 재설정 링크의 사용자 정보 확인
+    const resetUser = session.user;
+    console.log('비밀번호 변경 대상 사용자:', resetUser.email);
+    
+    // 보안 검증: 재설정 링크의 사용자가 실제로 비밀번호 재설정을 요청한 사용자인지 확인
+    if (!resetUser.email_confirmed_at) {
+      throw new Error('이메일 인증이 완료되지 않은 계정입니다.');
+    }
     
     // 해당 사용자의 비밀번호 변경
     const { error: updateError } = await resetSupabase.auth.updateUser({

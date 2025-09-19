@@ -844,8 +844,11 @@ const handleFileUpload = async (event) => {
         statusValue = 'active'
       }
 
+      // 약국코드 처리: 빈 값이면 null로 저장 (UNIQUE 제약조건 문제 방지)
+      const pharmacyCode = row['약국코드'] ? row['약국코드'].toString().trim() : null
+
       uploadData.push({
-        pharmacy_code: row['약국코드'] || '',
+        pharmacy_code: pharmacyCode,
         name: row['약국명'],
         business_registration_number: formattedBusinessNumber, // 하이픈이 포함된 형식으로 저장
         address: row['주소'] || '',
@@ -864,38 +867,47 @@ const handleFileUpload = async (event) => {
     const duplicateErrors = []
     const duplicatePharmacies = []
 
-    // 데이터베이스에서 모든 사업자등록번호 조회
+    // 데이터베이스에서 모든 약국 정보 조회
     const { data: existingPharmacies, error: fetchError } = await supabase
       .from('pharmacies')
-      .select('business_registration_number, name')
+      .select('pharmacy_code, business_registration_number, name')
 
     if (fetchError) {
       alert('기존 데이터 조회 중 오류가 발생했습니다: ' + fetchError.message)
       return
     }
 
-    // 디버깅: 기존 데이터 형식 확인
-    console.log('기존 약국 데이터 (처음 5개):', existingPharmacies.slice(0, 5))
-    console.log('업로드할 데이터 (처음 5개):', uploadData.slice(0, 5))
 
-    // 기존 사업자등록번호를 정규화하여 Set으로 변환 (숫자만 추출)
+    // 기존 데이터를 Set과 Map으로 변환하여 빠른 검색
+    const existingPharmacyCodes = new Set(existingPharmacies.map(p => p.pharmacy_code).filter(code => code && code.toString().trim() !== ''))
     const existingBusinessNumbers = new Set(
-      existingPharmacies.map(p => p.business_registration_number?.toString().replace(/[^0-9]/g, '') || '')
+      existingPharmacies.map(p => p.business_registration_number?.toString().replace(/[^0-9]/g, '') || '').filter(num => num)
     )
-    const existingPharmacyMap = new Map(
-      existingPharmacies.map(p => [
+    const existingPharmacyCodeMap = new Map(existingPharmacies.filter(p => p.pharmacy_code && p.pharmacy_code.toString().trim() !== '').map(p => [p.pharmacy_code, p.name]))
+    const existingBusinessNumberMap = new Map(
+      existingPharmacies.filter(p => p.business_registration_number).map(p => [
         p.business_registration_number?.toString().replace(/[^0-9]/g, '') || '', 
         p.name
       ])
     )
 
     for (const newPharmacy of uploadData) {
+      // 약국코드 중복 체크 (null이 아니고 빈 문자열이 아닌 경우에만)
+      if (newPharmacy.pharmacy_code && newPharmacy.pharmacy_code.toString().trim() !== '') {
+        const pharmacyCodeStr = newPharmacy.pharmacy_code.toString().trim()
+        if (existingPharmacyCodes.has(pharmacyCodeStr)) {
+          const existingName = existingPharmacyCodeMap.get(pharmacyCodeStr)
+          duplicateErrors.push(`${newPharmacy.rowNum}행: 동일한 약국코드(${newPharmacy.pharmacy_code})로 이미 등록된 약국이 있습니다. (${existingName})`)
+          duplicatePharmacies.push(newPharmacy)
+        }
+      }
+
+      // 사업자등록번호 중복 체크 (정규화된 값으로 비교)
       if (newPharmacy.business_registration_number) {
-        // 정규화된 사업자등록번호로 중복 확인 (숫자만 추출)
         const normalizedBusinessNumber = newPharmacy.business_registration_number.toString().replace(/[^0-9]/g, '')
         if (existingBusinessNumbers.has(normalizedBusinessNumber)) {
-          const existingName = existingPharmacyMap.get(normalizedBusinessNumber)
-          duplicateErrors.push(`${newPharmacy.rowNum}행: 이미 등록된 사업자등록번호 (${existingName})`)
+          const existingName = existingBusinessNumberMap.get(normalizedBusinessNumber)
+          duplicateErrors.push(`${newPharmacy.rowNum}행: 동일한 사업자등록번호(${newPharmacy.business_registration_number})로 이미 등록된 약국이 있습니다. (${existingName})`)
           duplicatePharmacies.push(newPharmacy)
         }
       }
@@ -903,7 +915,6 @@ const handleFileUpload = async (event) => {
 
     // 4단계: 중복 발견 시 처리
     if (duplicateErrors.length > 0) {
-      console.log('중복 오류 발견:', duplicateErrors)
       
       // 중복 발견 시 계속 진행 여부 확인
       const duplicateCount = duplicateErrors.length
@@ -984,22 +995,52 @@ const handleFileUpload = async (event) => {
 
     for (const data of insertData) {
       try {
-        // 개별 중복 체크
-        const { data: existingPharmacy, error: checkError } = await supabase
-          .from('pharmacies')
-          .select('id, name')
-          .eq('business_registration_number', data.business_registration_number)
-          .maybeSingle()
+        // 개별 중복 체크 (약국코드와 사업자등록번호 모두 확인)
+        let shouldSkip = false
+        let skipReason = ''
 
-        if (checkError) {
-          insertErrors.push(`${data.name}: 중복 체크 실패 - ${checkError.message}`)
-          continue
+        // 약국코드 중복 체크 (null이 아니고 빈 문자열이 아닌 경우에만)
+        if (data.pharmacy_code && data.pharmacy_code.toString().trim() !== '') {
+          const pharmacyCodeStr = data.pharmacy_code.toString().trim()
+          const { data: existingByCode, error: codeCheckError } = await supabase
+            .from('pharmacies')
+            .select('id, name')
+            .eq('pharmacy_code', pharmacyCodeStr)
+            .maybeSingle()
+
+          if (codeCheckError) {
+            insertErrors.push(`${data.name}: 약국코드 중복 체크 실패 - ${codeCheckError.message}`)
+            continue
+          }
+
+          if (existingByCode) {
+            shouldSkip = true
+            skipReason = `약국코드 중복 (${existingByCode.name})`
+          }
         }
 
-        if (existingPharmacy) {
+        // 사업자등록번호 중복 체크
+        if (!shouldSkip && data.business_registration_number) {
+          const { data: existingByBusiness, error: businessCheckError } = await supabase
+            .from('pharmacies')
+            .select('id, name')
+            .eq('business_registration_number', data.business_registration_number)
+            .maybeSingle()
+
+          if (businessCheckError) {
+            insertErrors.push(`${data.name}: 사업자등록번호 중복 체크 실패 - ${businessCheckError.message}`)
+            continue
+          }
+
+          if (existingByBusiness) {
+            shouldSkip = true
+            skipReason = `사업자등록번호 중복 (${existingByBusiness.name})`
+          }
+        }
+
+        if (shouldSkip) {
           // 이미 존재하는 경우 스킵
           skipCount++
-          console.log(`스킵: ${data.name} (${data.business_registration_number}) - 이미 존재`)
           continue
         }
 
@@ -1012,7 +1053,6 @@ const handleFileUpload = async (event) => {
           insertErrors.push(`${data.name}: 등록 실패 - ${insertError.message}`)
         } else {
           successCount++
-          console.log(`등록 성공: ${data.name} (${data.business_registration_number})`)
         }
       } catch (error) {
         insertErrors.push(`${data.name}: 처리 중 오류 - ${error.message}`)
@@ -1026,7 +1066,6 @@ const handleFileUpload = async (event) => {
     }
     if (insertErrors.length > 0) {
       message += `\n실패: ${insertErrors.length}건`
-      console.error('업로드 오류:', insertErrors)
     }
 
     alert(message)
@@ -1205,26 +1244,16 @@ const checkOverflow = (event) => {
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
 
-  console.log('약국 오버플로우 체크:', {
-    text: element.textContent,
-    textWidth,
-    availableWidth,
-    isOverflowed
-  });
-
   if (isOverflowed) {
     element.classList.add('overflowed');
-    console.log('약국 오버플로우 클래스 추가됨');
   } else {
     element.classList.remove('overflowed'); // Ensure class is removed if not overflowed
-    console.log('약국 오버플로우 아님 - 클래스 제거됨');
   }
 }
 
 const removeOverflowClass = (event) => {
   const element = event.target;
   element.classList.remove('overflowed');
-  console.log('약국 오버플로우 클래스 제거됨');
 }
 
 // 숫자만 입력 허용
