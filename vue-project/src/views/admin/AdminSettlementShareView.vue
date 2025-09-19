@@ -463,11 +463,16 @@ async function loadSettlementData() {
       summary.client_count.add(record.client_id);
       summary.total_records += 1;
       
-      // 처방액 계산 (모든 건 포함)
-      const prescriptionAmount = Math.round((record.prescription_qty || 0) * (record.product?.price || 0));
+      // 상세 페이지와 동일한 로직: 삭제 건은 처방수량을 0으로 처리
+      const qty = record.prescription_qty ?? 0;
+      const price = record.product?.price ?? 0;
+      const finalQty = record.review_action === '삭제' ? 0 : qty;
+      const prescriptionAmount = Math.round(finalQty * price);
+      
+      // 총 처방액 계산 (삭제 건은 처방수량이 0이므로 자동으로 제외됨)
       summary.total_prescription_amount += prescriptionAmount;
       
-      // 삭제되지 않은 건만 지급액 계산에 포함
+      // 삭제되지 않은 건만 지급 처방액과 지급액 계산에 포함
       if (record.review_action !== '삭제') {
         // 지급 처방액: 수수료율이 있는 정상 건의 처방액만 합계
         if (record.commission_rate !== null && record.commission_rate !== undefined && record.commission_rate > 0) {
@@ -532,7 +537,7 @@ async function loadSettlementData() {
     // 디버깅용 로그: 최종 결과 확인
     console.log('최종 정산내역서 요약:', companySummary.value);
     companySummary.value.forEach(company => {
-      console.log(`${company.company_name}: 병의원수=${company.client_count}, 처방건수=${company.total_records}, 총처방액=${company.total_prescription_amount}, 총지급액=${company.total_payment_amount}`);
+      console.log(`${company.company_name}: 병의원수=${company.client_count.size}, 처방건수=${company.total_records}, 총처방액=${company.total_prescription_amount} (삭제건 처방수량=0), 지급처방액=${company.payment_prescription_amount} (삭제건 제외), 총지급액=${company.total_payment_amount} (삭제건 제외)`);
     });
 
   } catch (err) {
