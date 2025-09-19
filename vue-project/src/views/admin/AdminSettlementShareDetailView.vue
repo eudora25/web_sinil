@@ -15,10 +15,17 @@
       <div class="data-card-header" style="flex-shrink: 0; justify-content: space-between;">
         <div class="total-count-display">전체 {{ detailRows.length }} 건</div>
         <div class="settlement-summary">
-          <span style="font-weight: 600;">공급가 : {{ settlementSummary.supply_price?.toLocaleString() }}원</span>
-          <span style="font-weight: 600;">부가세 : {{ settlementSummary.vat_price?.toLocaleString() }}원</span>
-          <span style="font-weight: 600;">합계액 : {{ settlementSummary.total_price?.toLocaleString() }}원</span>
-          <span style="font-weight: 600;">구간수수료 {{ (settlementSummary.section_commission_rate * 100)?.toFixed(1) }}% 적용</span>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; gap: 16px;">
+              <span style="font-weight: 600;">지급 처방액 : {{ settlementSummary.payment_prescription_amount?.toLocaleString() }}원</span>
+              <span style="font-weight: 600;">구간수수료 {{ (settlementSummary.section_commission_rate * 100)?.toFixed(1) }}% 적용</span>
+            </div>
+            <div style="display: flex; gap: 16px;">
+              <span style="font-weight: 600;">공급가 : {{ settlementSummary.supply_price?.toLocaleString() }}원</span>
+              <span style="font-weight: 600;">부가세 : {{ settlementSummary.vat_price?.toLocaleString() }}원</span>
+              <span style="font-weight: 600;">합계액 : {{ settlementSummary.total_price?.toLocaleString() }}원</span>
+            </div>
+          </div>
         </div>
         <div class="action-buttons-group">
           <button class="btn-excell-download" @click="downloadExcel">엑셀 다운로드</button>
@@ -388,6 +395,15 @@ const totalPaymentAmount = computed(() => {
 });
 
 const settlementSummary = computed(() => {
+  // 지급 처방액 계산 (수수료율이 있는 정상 건의 처방액만)
+  const paymentPrescriptionAmount = detailRows.value.reduce((sum, row) => {
+    if (row.review_action === '삭제') return sum;
+    if (row.commission_rate && parseFloat(row.commission_rate.replace('%', '')) > 0) {
+      return sum + (row._raw_prescription_amount || 0);
+    }
+    return sum;
+  }, 0);
+
   const totalPrice = detailRows.value.reduce((sum, row) => {
     // 삭제된 건은 지급액을 0으로 계산
     if (row.review_action === '삭제') return sum;
@@ -398,6 +414,7 @@ const settlementSummary = computed(() => {
   const vatPrice = Math.round(totalPrice - supplyPrice);
 
   return {
+    payment_prescription_amount: paymentPrescriptionAmount,
     total_price: Math.round(totalPrice),
     supply_price: supplyPrice,
     vat_price: vatPrice,
