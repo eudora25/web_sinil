@@ -221,7 +221,7 @@
               step="1"
               min="0"
               max="100"
-              placeholder="0"
+              placeholder="수수료율을 입력하세요"
               style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;"
             />
           </div>
@@ -714,7 +714,8 @@ function openCommissionModal(companyData) {
 
 function openCommissionEditModal(companyData) {
   selectedCompany.value = companyData;
-  commissionRate.value = Math.round((companyData.section_commission_rate || 0) * 100).toString();
+  const rate = Math.round((companyData.section_commission_rate || 0) * 100);
+  commissionRate.value = rate === 0 ? '' : rate.toString();
   showCommissionModal.value = true;
 }
 
@@ -725,7 +726,13 @@ function closeCommissionModal() {
 }
 
 async function saveCommission() {
-  if (!selectedCompany.value || commissionRate.value === '' || commissionRate.value === null || commissionRate.value === undefined) {
+  if (!selectedCompany.value) {
+    alert('업체 정보가 없습니다.');
+    return;
+  }
+  
+  // 빈 문자열이면 경고 메시지 표시
+  if (commissionRate.value === '' || commissionRate.value === null || commissionRate.value === undefined) {
     alert('구간 수수료율을 입력해주세요.');
     return;
   }
