@@ -500,7 +500,6 @@ const fetchClients = async () => {
       .select('*')
       .order('client_code', { ascending: true })
 
-    console.log('fetchClients result:', { data, error });
 
     if (!error && data) {
       // created_by와 updated_by에 해당하는 회사명을 별도로 조회
@@ -654,7 +653,6 @@ const saveEdit = async (row) => {
     // 병의원 코드 중복 체크 (변경된 경우에만)
     if (clientCodeChanged && row.client_code && row.client_code.trim() !== '') {
       try {
-        console.log('병의원 코드 중복 검사 시작...');
         const { data: existingClientByCode, error: codeCheckError } = await supabase
           .from('clients')
           .select('id, name, client_code')
@@ -665,7 +663,6 @@ const saveEdit = async (row) => {
         if (codeCheckError) {
           if (codeCheckError.code === 'PGRST116') {
             // 결과가 없는 경우 - 중복 없음
-            console.log('병의원 코드 중복 없음');
           } else {
             // 다른 모든 오류 (HTTP 406, 500 등) - 중단
             console.error('병의원 코드 중복 검사 실패:', codeCheckError);
@@ -683,7 +680,6 @@ const saveEdit = async (row) => {
           }, 100);
           return;
         }
-        console.log('병의원 코드 중복 검사 통과');
       } catch (codeDuplicateCheckError) {
         console.error('병의원 코드 중복 검사 중 예외 발생:', codeDuplicateCheckError);
         alert('병의원 코드 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
@@ -694,7 +690,6 @@ const saveEdit = async (row) => {
     // 사업자등록번호 중복 체크 (변경된 경우에만)
     if (businessNumberChanged) {
       try {
-        console.log('사업자등록번호 중복 검사 시작...');
         const { data: existingClientByBusiness, error: businessCheckError } = await supabase
           .from('clients')
           .select('id, name, business_registration_number')
@@ -705,7 +700,6 @@ const saveEdit = async (row) => {
         if (businessCheckError) {
           if (businessCheckError.code === 'PGRST116') {
             // 결과가 없는 경우 - 중복 없음
-            console.log('사업자등록번호 중복 없음');
           } else {
             // 다른 모든 오류 (HTTP 406, 500 등) - 중단
             console.error('사업자등록번호 중복 검사 실패:', businessCheckError);
@@ -723,7 +717,6 @@ const saveEdit = async (row) => {
           }, 100);
           return;
         }
-        console.log('사업자등록번호 중복 검사 통과');
       } catch (businessDuplicateCheckError) {
         console.error('사업자등록번호 중복 검사 중 예외 발생:', businessDuplicateCheckError);
         alert('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
@@ -1391,26 +1384,16 @@ const checkOverflow = (event) => {
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
 
-  console.log('병의원 오버플로우 체크:', {
-    text: element.textContent,
-    textWidth,
-    availableWidth,
-    isOverflowed
-  });
-
   if (isOverflowed) {
     element.classList.add('overflowed');
-    console.log('병의원 오버플로우 클래스 추가됨');
   } else {
     element.classList.remove('overflowed'); // Ensure class is removed if not overflowed
-    console.log('병의원 오버플로우 아님 - 클래스 제거됨');
   }
 }
 
 const removeOverflowClass = (event) => {
   const element = event.target;
   element.classList.remove('overflowed');
-  console.log('병의원 오버플로우 클래스 제거됨');
 }
 
 function doSearch() {
