@@ -121,50 +121,55 @@ onMounted(async () => {
     console.log('비밀번호 재설정 페이지 초기화 시작');
     console.log('현재 URL:', window.location.href);
     
-    // 기존 로그인 세션이 있는지 확인
-    const { data: existingSession } = await resetSupabase.auth.getSession();
+    // URL에서 토큰 확인 (먼저 토큰 유효성 검증)
+    const urlParams = new URLSearchParams(window.location.search);
+    const accessToken = urlParams.get('access_token');
+    const refreshToken = urlParams.get('refresh_token');
     
-    if (existingSession && existingSession.user) {
-      console.log('기존 로그인 세션 발견. 보안을 위해 로그아웃 처리 중...');
-      // 기존 로그인 세션이 있으면 보안을 위해 로그아웃
-      await resetSupabase.auth.signOut();
-    }
-    
-    // Supabase가 자동으로 설정한 세션 확인 (비밀번호 재설정 링크의 세션)
-    console.log('Supabase 자동 세션 확인 중...');
-    const { data: { session: autoSession }, error: sessionError } = await resetSupabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error('세션 확인 오류:', sessionError);
+    if (!accessToken || !refreshToken) {
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
     }
     
-    if (!autoSession || !autoSession.user) {
-      console.log('자동 세션이 없음. URL에서 토큰 확인 중...');
-      
-      // URL에서 토큰 확인 (Supabase가 자동으로 처리하지 않은 경우)
-      const urlParams = new URLSearchParams(window.location.search);
-      const accessToken = urlParams.get('access_token');
-      const refreshToken = urlParams.get('refresh_token');
-      
-      if (accessToken) {
-        console.log('URL에서 토큰 발견. 세션 설정 중...');
-        const { data: { user }, error: setSessionError } = await resetSupabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        });
-        
-        if (setSessionError || !user) {
-          throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
-        }
-        
-        console.log('토큰으로 세션 설정 성공:', user.email);
-      } else {
-        throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
-      }
-    } else {
-      console.log('자동 세션 발견:', autoSession.user.email);
+    // 토큰으로 사용자 정보 확인 (세션 설정 전에 미리 확인)
+    const { data: { user }, error: userError } = await resetSupabase.auth.getUser(accessToken);
+    
+    if (userError || !user) {
+      throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
     }
+    
+    console.log('재설정 링크 사용자 확인:', user.email);
+    
+    // 모든 기존 세션 강제 로그아웃 (보안 강화)
+    console.log('보안을 위해 모든 기존 세션 로그아웃 처리 중...');
+    await resetSupabase.auth.signOut();
+    
+    // 잠시 대기 (로그아웃 완료 보장)
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // 토큰으로 세션 설정
+    console.log('토큰으로 세션 설정 중...');
+    const { data: { session }, error: setSessionError } = await resetSupabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken
+    });
+    
+    if (setSessionError || !session) {
+      throw new Error('세션 설정에 실패했습니다. 다시 시도해주세요.');
+    }
+    
+    // 세션 설정 후 사용자 재확인
+    const { data: { user: sessionUser }, error: sessionUserError } = await resetSupabase.auth.getUser();
+    
+    if (sessionUserError || !sessionUser) {
+      throw new Error('세션 사용자 정보를 확인할 수 없습니다. 다시 시도해주세요.');
+    }
+    
+    // 보안 검증: 세션의 사용자가 토큰의 사용자와 일치하는지 확인
+    if (sessionUser.id !== user.id) {
+      throw new Error('보안 오류: 사용자 정보가 일치하지 않습니다. 다시 시도해주세요.');
+    }
+    
+    console.log('세션 설정 성공 및 사용자 확인 완료:', sessionUser.email);
     
     loading.value = false;
   } catch (err) {
@@ -180,23 +185,70 @@ async function handleResetPassword() {
   loading.value = true;
   
   try {
-    console.log('비밀번호 변경 시작...');
+    console.log('=== 비밀번호 변경 시작 ===');
+    console.log('현재 URL:', window.location.href);
     
-    // URL에서 세션 정보 확인 (비밀번호 재설정 링크의 세션)
-    const { data: { session }, error: sessionError } = await resetSupabase.auth.getSession();
+    // 현재 활성 세션 확인 (디버깅용)
+    const { data: { user: currentActiveUser } } = await resetSupabase.auth.getUser();
+    console.log('현재 활성 세션 사용자:', currentActiveUser?.email, currentActiveUser?.id);
     
-    if (sessionError || !session || !session.user) {
+    // URL에서 직접 토큰 추출하여 사용자 확인
+    const urlParams = new URLSearchParams(window.location.search);
+    const accessToken = urlParams.get('access_token');
+    const refreshToken = urlParams.get('refresh_token');
+    
+    if (!accessToken) {
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
     }
     
-    // 재설정 링크의 사용자 정보 확인
-    const resetUser = session.user;
-    console.log('비밀번호 변경 대상 사용자:', resetUser.email);
+    // 토큰으로 사용자 정보 확인
+    const { data: { user }, error: userError } = await resetSupabase.auth.getUser(accessToken);
+    
+    if (userError || !user) {
+      throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
+    }
+    
+    console.log('=== 토큰 사용자 정보 ===');
+    console.log('토큰 사용자 이메일:', user.email);
+    console.log('토큰 사용자 ID:', user.id);
+    console.log('현재 활성 사용자와 비교:', currentActiveUser?.id === user.id ? '동일' : '다름');
     
     // 보안 검증: 재설정 링크의 사용자가 실제로 비밀번호 재설정을 요청한 사용자인지 확인
-    if (!resetUser.email_confirmed_at) {
+    if (!user.email_confirmed_at) {
       throw new Error('이메일 인증이 완료되지 않은 계정입니다.');
     }
+    
+    // 토큰으로 세션 설정
+    const { data: { session }, error: sessionError } = await resetSupabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken
+    });
+    
+    if (sessionError || !session) {
+      throw new Error('세션 설정에 실패했습니다. 다시 시도해주세요.');
+    }
+    
+    // 세션 설정 후 잠시 대기 (세션 적용 보장)
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 현재 세션의 사용자 재확인
+    const { data: { user: currentUser }, error: currentUserError } = await resetSupabase.auth.getUser();
+    
+    if (currentUserError || !currentUser) {
+      throw new Error('사용자 정보를 확인할 수 없습니다. 다시 시도해주세요.');
+    }
+    
+    // 보안 검증: 세션의 사용자가 URL 토큰의 사용자와 일치하는지 확인
+    console.log('=== 최종 보안 검증 ===');
+    console.log('세션 사용자 ID:', currentUser.id);
+    console.log('토큰 사용자 ID:', user.id);
+    console.log('사용자 일치 여부:', currentUser.id === user.id ? '✅ 일치' : '❌ 불일치');
+    
+    if (currentUser.id !== user.id) {
+      throw new Error('보안 오류: 사용자 정보가 일치하지 않습니다. 다시 시도해주세요.');
+    }
+    
+    console.log('✅ 보안 검증 통과 - 비밀번호 변경 진행');
     
     // 해당 사용자의 비밀번호 변경
     const { error: updateError } = await resetSupabase.auth.updateUser({
