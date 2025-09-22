@@ -600,79 +600,86 @@ async function downloadExcel() {
     titleCell.value = title;
     titleCell.font = { bold: true, size: 14 };
     
-    // B5: 세금계산서 발행 금액
-    const taxTitleCell = summarySheet.getCell('B5');
-    taxTitleCell.value = '세금계산서 발행 금액';
-    taxTitleCell.font = { bold: true, size: 11 };
-    
-    // B7-C9: 세금계산서 상세
-    const totalAmount = detailRows.value.reduce((sum, row) => sum + (row._raw_payment_amount || 0), 0);
+    // 계산을 위한 변수들 (구간수수료 포함한 총 지급액으로 계산)
+    const basePaymentAmount = detailRows.value.reduce((sum, row) => sum + (row._raw_payment_amount || 0), 0);
+    const sectionCommissionAmount = settlementSummary.value.section_commission_amount || 0;
+    const totalAmount = basePaymentAmount + sectionCommissionAmount; // 구간수수료 포함한 총 지급액
     const supplyPrice = Math.round(totalAmount / 1.1);
     const vatPrice = totalAmount - supplyPrice;
     
-    // 헤더 행 추가
-    summarySheet.getCell('B7').value = '공급가';
-    summarySheet.getCell('C7').value = '부가세';
-    summarySheet.getCell('D7').value = '합계액';
-    summarySheet.getCell('E7').value = '구간수수료율';
+    // B5: 요약 정보 테이블 헤더 (2행 3열 구조)
+    // 1행: 지급 처방액 | 구간 수수료율 | 구간 수수료
+    summarySheet.getCell('B5').value = '지급 처방액';
+    summarySheet.getCell('C5').value = '구간 수수료율';
+    summarySheet.getCell('D5').value = '구간 수수료';
     
-    // 헤더 스타일 설정 (상세내역과 동일)
-    summarySheet.getCell('B7').font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
-    summarySheet.getCell('B7').fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: '76933C' } // RGB(118, 147, 60)
-    };
-    summarySheet.getCell('B7').alignment = { horizontal: 'center', vertical: 'middle' };
+    // B6: 요약 정보 데이터 (1행) - 지급 처방액, 구간 수수료율, 구간 수수료
+    summarySheet.getCell('B6').value = settlementSummary.value.payment_prescription_amount || 0;
+    summarySheet.getCell('B6').numFmt = '#,##0';
+    summarySheet.getCell('B6').font = { size: 11 };
+    summarySheet.getCell('B6').alignment = { horizontal: 'center', vertical: 'middle' };
     
-    summarySheet.getCell('C7').font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
-    summarySheet.getCell('C7').fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: '76933C' }
-    };
-    summarySheet.getCell('C7').alignment = { horizontal: 'center', vertical: 'middle' };
+    summarySheet.getCell('C6').value = sectionCommissionRate.value;
+    summarySheet.getCell('C6').numFmt = '0.0%';
+    summarySheet.getCell('C6').font = { size: 11 };
+    summarySheet.getCell('C6').alignment = { horizontal: 'center', vertical: 'middle' };
     
-    summarySheet.getCell('D7').font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
-    summarySheet.getCell('D7').fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: '76933C' }
-    };
-    summarySheet.getCell('D7').alignment = { horizontal: 'center', vertical: 'middle' };
+    summarySheet.getCell('D6').value = settlementSummary.value.section_commission_amount || 0;
+    summarySheet.getCell('D6').numFmt = '#,##0';
+    summarySheet.getCell('D6').font = { size: 11 };
+    summarySheet.getCell('D6').alignment = { horizontal: 'center', vertical: 'middle' };
     
-    summarySheet.getCell('E7').font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
-    summarySheet.getCell('E7').fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: '76933C' }
-    };
-    summarySheet.getCell('E7').alignment = { horizontal: 'center', vertical: 'middle' };
+    // B8: 헤더 2행 - 공급가 | 부가세 | 합계액 (B7은 빈칸)
+    summarySheet.getCell('B8').value = '공급가';
+    summarySheet.getCell('C8').value = '부가세';
+    summarySheet.getCell('D8').value = '합계액';
     
-    // 데이터 행 추가
-    summarySheet.getCell('B8').value = supplyPrice;
-    summarySheet.getCell('B8').numFmt = '#,##0';
-    summarySheet.getCell('B8').font = { size: 11 };
-    summarySheet.getCell('B8').alignment = { horizontal: 'center', vertical: 'middle' };
+    // 헤더 스타일 설정 (기존 테이블과 동일)
+    for (let col = 2; col <= 4; col++) { // B, C, D 열
+      for (let row = 5; row <= 8; row++) { // 5행(1행 헤더), 8행(2행 헤더)
+        if (row === 5 || row === 8) { // 헤더 행만 스타일 적용
+          const cell = summarySheet.getCell(row, col);
+          cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: '76933C' }
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+      }
+    }
     
-    summarySheet.getCell('C8').value = vatPrice;
-    summarySheet.getCell('C8').numFmt = '#,##0';
-    summarySheet.getCell('C8').font = { size: 11 };
-    summarySheet.getCell('C8').alignment = { horizontal: 'center', vertical: 'middle' };
+    // B9: 요약 정보 데이터 (2행) - 공급가, 부가세, 합계액
+    summarySheet.getCell('B9').value = supplyPrice;
+    summarySheet.getCell('B9').numFmt = '#,##0';
+    summarySheet.getCell('B9').font = { size: 11 };
+    summarySheet.getCell('B9').alignment = { horizontal: 'center', vertical: 'middle' };
     
-    summarySheet.getCell('D8').value = totalAmount;
-    summarySheet.getCell('D8').numFmt = '#,##0';
-    summarySheet.getCell('D8').font = { size: 11 };
-    summarySheet.getCell('D8').alignment = { horizontal: 'center', vertical: 'middle' };
+    summarySheet.getCell('C9').value = vatPrice;
+    summarySheet.getCell('C9').numFmt = '#,##0';
+    summarySheet.getCell('C9').font = { size: 11 };
+    summarySheet.getCell('C9').alignment = { horizontal: 'center', vertical: 'middle' };
     
-    summarySheet.getCell('E8').value = sectionCommissionRate.value;
-    summarySheet.getCell('E8').numFmt = '0.0%';
-    summarySheet.getCell('E8').font = { size: 11 };
-    summarySheet.getCell('E8').alignment = { horizontal: 'center', vertical: 'middle' };
+    summarySheet.getCell('D9').value = totalAmount;
+    summarySheet.getCell('D9').numFmt = '#,##0';
+    summarySheet.getCell('D9').font = { size: 11 };
+    summarySheet.getCell('D9').alignment = { horizontal: 'center', vertical: 'middle' };
     
-    // 세금계산서 테이블 테두리 설정 (얇은 실선)
-    for (let row = 7; row <= 8; row++) {
-      for (let col = 2; col <= 5; col++) { // B, C, D, E 열
+    // 요약 정보 테이블 테두리 설정 (B, C, D 열, 5-6행, 8-9행)
+    for (let row = 5; row <= 6; row++) { // 1행 테이블
+      for (let col = 2; col <= 4; col++) { // B, C, D 열
+        const cell = summarySheet.getCell(row, col);
+        cell.border = {
+          top: { style: 'thin', color: { argb: '000000' } },
+          bottom: { style: 'thin', color: { argb: '000000' } },
+          left: { style: 'thin', color: { argb: '000000' } },
+          right: { style: 'thin', color: { argb: '000000' } }
+        };
+      }
+    }
+    for (let row = 8; row <= 9; row++) { // 2행 테이블
+      for (let col = 2; col <= 4; col++) { // B, C, D 열
         const cell = summarySheet.getCell(row, col);
         cell.border = {
           top: { style: 'thin', color: { argb: '000000' } },
@@ -683,7 +690,7 @@ async function downloadExcel() {
       }
     }
     
-    // B12: 전달사항
+    // B11: 전달사항
     const noticeTitleCell = summarySheet.getCell('B11');
     noticeTitleCell.value = '전달사항';
     noticeTitleCell.font = { bold: true, size: 11 };

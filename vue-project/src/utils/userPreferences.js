@@ -9,7 +9,10 @@ import { supabase } from '@/supabase';
 export async function hasUserPreference(key, settlementMonthId = null) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return false;
+    if (!session?.user) {
+      console.warn('사용자 세션이 없습니다.');
+      return false;
+    }
 
     let query = supabase
       .from('user_preferences')
@@ -23,16 +26,25 @@ export async function hasUserPreference(key, settlementMonthId = null) {
       query = query.is('settlement_month_id', null);
     }
 
-    const { data, error } = await query.single();
+    const { data, error } = await query.maybeSingle();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116는 데이터가 없는 경우
-      console.error('사용자 설정 확인 오류:', error);
+    if (error) {
+      console.error('사용자 설정 확인 오류:', {
+        error,
+        key,
+        settlementMonthId,
+        userId: session.user.id
+      });
       return false;
     }
 
     return !!data; // 데이터가 있으면 true, 없으면 false
   } catch (err) {
-    console.error('사용자 설정 확인 중 오류:', err);
+    console.error('사용자 설정 확인 중 예외 발생:', {
+      error: err,
+      key,
+      settlementMonthId
+    });
     return false;
   }
 }
