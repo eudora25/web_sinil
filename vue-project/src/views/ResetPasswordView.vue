@@ -139,29 +139,62 @@ onMounted(async () => {
       fullSearch: window.location.search
     });
     
-    // 토큰 유효성 검증: PKCE 플로우(token), Code 플로우(code), 또는 기존 플로우(access_token + refresh_token)
-    if (!token && !code && (!accessToken || !refreshToken)) {
+    // type=recovery 파라미터가 있는 경우 특별 처리
+    if (type === 'recovery' && !token && !code && (!accessToken || !refreshToken)) {
+      console.log('type=recovery 파라미터 감지됨. Supabase verify 엔드포인트에서 리다이렉트된 것으로 판단됩니다.');
+      
+      // 비밀번호 재설정 플래그 설정
+      window.isPasswordResetPage = true;
+      
+      // 잠시 대기하여 Supabase가 세션을 설정할 시간을 줌
+      console.log('Supabase가 세션을 설정할 때까지 대기 중...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 여러 방법으로 세션 확인
+      let session = null;
+      let sessionError = null;
+      
+      // 1. getSession() 시도
+      const sessionResult = await resetSupabase.auth.getSession();
+      session = sessionResult.data.session;
+      sessionError = sessionResult.error;
+      
+      // 2. getUser() 시도 (세션이 없어도 사용자 정보가 있을 수 있음)
+      if (!session) {
+        console.log('getSession()에서 세션을 찾지 못했습니다. getUser()를 시도합니다...');
+        const userResult = await resetSupabase.auth.getUser();
+        if (userResult.data.user && !userResult.error) {
+          console.log('getUser()에서 사용자 정보를 발견했습니다:', userResult.data.user.email);
+          // 사용자 정보가 있으면 임시 세션 객체 생성
+          session = { user: userResult.data.user };
+        }
+      }
+      
+      if (session && session.user) {
+        console.log('자동으로 설정된 세션을 발견했습니다:', session.user.email);
+        console.log('Supabase verify 엔드포인트에서 리다이렉트된 것으로 확인됩니다.');
+      } else {
+        console.error('세션도 설정되지 않았습니다:', sessionError);
+        console.log('현재 URL:', window.location.href);
+        console.log('URL 파라미터:', window.location.search);
+        console.log('referrer:', document.referrer);
+        
+        // 추가 디버깅 정보
+        const allCookies = document.cookie;
+        console.log('현재 쿠키:', allCookies);
+        
+        throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
+      }
+    }
+    // 기존 토큰 유효성 검증
+    else if (!token && !code && (!accessToken || !refreshToken)) {
       console.error('토큰 누락:', { 
         accessToken: !!accessToken, 
         refreshToken: !!refreshToken, 
         token: !!token,
         code: !!code 
       });
-      
-      // Supabase verify 엔드포인트에서 리다이렉트된 경우 처리
-      // 이 경우 토큰이 URL에 없지만 세션이 자동으로 설정될 수 있음
-      console.log('토큰이 URL에 없습니다. 현재 세션 상태를 확인합니다...');
-      
-      const { data: { session }, error: sessionError } = await resetSupabase.auth.getSession();
-      if (session && session.user) {
-        console.log('자동으로 설정된 세션을 발견했습니다:', session.user.email);
-        // 비밀번호 재설정 플래그 설정
-        window.isPasswordResetPage = true;
-        console.log('Supabase verify 엔드포인트에서 리다이렉트된 것으로 판단됩니다.');
-      } else {
-        console.error('세션도 설정되지 않았습니다:', sessionError);
-        throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
-      }
+      throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
     }
     
     // PKCE 토큰이 있는 경우 세션을 자동으로 설정하도록 대기
