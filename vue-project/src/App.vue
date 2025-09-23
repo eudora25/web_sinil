@@ -182,6 +182,8 @@ async function initializeApp() {
   
   if (type === 'recovery' && token && window.location.pathname === '/') {
     console.log('[App.vue] Password recovery token detected in URL. Redirecting to reset-password page.');
+    // 비밀번호 재설정 플래그 설정
+    window.isPasswordResetPage = true;
     // 비밀번호 재설정 페이지로 리다이렉트
     router.push('/reset-password');
     return;
@@ -216,7 +218,15 @@ async function initializeApp() {
       await handleRedirect(session);
     } else if (event === 'SIGNED_IN') {
       console.log('[App.vue] Event: SIGNED_IN');
-      await handleRedirect(session); // 로그인 시 리디렉션
+      
+      // 비밀번호 재설정 페이지가 아닌 경우에만 자동 로그인 처리
+      if (!window.isPasswordResetPage) {
+        console.log('[App.vue] 일반 로그인 - 리디렉션 처리');
+        await handleRedirect(session); // 로그인 시 리디렉션
+      } else {
+        console.log('[App.vue] 비밀번호 재설정 페이지 - 자동 로그인 방지');
+        // 비밀번호 재설정 페이지에서는 자동 리디렉션하지 않음
+      }
     } else if (event === 'SIGNED_OUT') {
       console.log('[App.vue] Event: SIGNED_OUT');
       await handleRedirect(null); // 로그아웃 시 리디렉션 (세션 없음)
@@ -225,6 +235,8 @@ async function initializeApp() {
       // 필요하다면 handleRedirect(session) 호출
     } else if (event === 'PASSWORD_RECOVERY') {
       console.log('[App.vue] Event: PASSWORD_RECOVERY. Redirecting to password reset page.');
+      // 비밀번호 재설정 플래그 설정
+      window.isPasswordResetPage = true;
       // 비밀번호 재설정 페이지로 리디렉션
       router.push('/reset-password');
     } else if (event === 'TOKEN_REFRESHED') {

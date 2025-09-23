@@ -59,7 +59,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { createClient } from '@supabase/supabase-js';
 import supabaseConfig from '@/config/supabase.js';
@@ -148,6 +148,21 @@ onMounted(async () => {
       console.log('PKCE 토큰 감지됨. Supabase가 자동으로 세션을 설정할 때까지 대기...');
       // 잠시 대기하여 Supabase가 자동으로 세션을 설정하도록 함
       await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 세션 상태 확인
+      const { data: { session }, error: sessionError } = await resetSupabase.auth.getSession();
+      if (session && session.user) {
+        console.log('비밀번호 재설정을 위한 세션이 설정되었습니다:', session.user.email);
+        // 비밀번호 재설정 플래그 설정
+        window.isPasswordResetPage = true;
+        
+        // PKCE 토큰으로 생성된 세션은 임시 세션이므로, 
+        // 비밀번호 재설정 완료 후 자동으로 로그아웃되도록 처리
+        console.log('PKCE 토큰으로 생성된 임시 세션입니다. 비밀번호 재설정 완료 후 자동 로그아웃됩니다.');
+      } else {
+        console.error('세션 설정 실패:', sessionError);
+        throw new Error('비밀번호 재설정 세션을 설정할 수 없습니다. 다시 시도해주세요.');
+      }
     }
     
     // 토큰으로 사용자 정보 확인 (세션 설정 전에 미리 확인)
@@ -309,6 +324,14 @@ async function handleResetPassword() {
     loading.value = false;
   }
 }
+
+// 페이지 이탈 시 플래그 정리
+onUnmounted(() => {
+  if (window.isPasswordResetPage) {
+    console.log('비밀번호 재설정 페이지 이탈 - 플래그 정리');
+    window.isPasswordResetPage = false;
+  }
+});
 
 
 </script>
