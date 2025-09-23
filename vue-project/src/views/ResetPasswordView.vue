@@ -296,47 +296,60 @@ onMounted(async () => {
       }
     }
     
-    // 토큰으로 사용자 정보 확인 (세션 설정 전에 미리 확인)
-    const { data: { user }, error: userError } = await resetSupabase.auth.getUser(accessToken);
-    
-    if (userError || !user) {
-      console.error('사용자 확인 실패:', userError);
-      throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 이미 사용되었을 수 있습니다. 다시 시도해주세요.');
+    // Code 플로우나 PKCE 플로우가 성공적으로 처리된 경우 기존 토큰 플로우 건너뛰기
+    if (code || (token && type === 'recovery')) {
+      console.log('Code/PKCE 플로우가 성공적으로 처리되었습니다. 기존 토큰 플로우를 건너뜁니다.');
+    } else {
+      // 기존 토큰 플로우 처리
+      console.log('기존 토큰 플로우로 처리합니다.');
+      
+      // 토큰으로 사용자 정보 확인 (세션 설정 전에 미리 확인)
+      const { data: { user }, error: userError } = await resetSupabase.auth.getUser(accessToken);
+      
+      if (userError || !user) {
+        console.error('사용자 확인 실패:', userError);
+        throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 이미 사용되었을 수 있습니다. 다시 시도해주세요.');
+      }
+      
+      console.log('재설정 링크 사용자 확인:', user.email);
+      
+      // 모든 기존 세션 강제 로그아웃 (보안 강화)
+      console.log('보안을 위해 모든 기존 세션 로그아웃 처리 중...');
+      await resetSupabase.auth.signOut();
+      
+      // 잠시 대기 (로그아웃 완료 보장)
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
     
-    console.log('재설정 링크 사용자 확인:', user.email);
-    
-    // 모든 기존 세션 강제 로그아웃 (보안 강화)
-    console.log('보안을 위해 모든 기존 세션 로그아웃 처리 중...');
-    await resetSupabase.auth.signOut();
-    
-    // 잠시 대기 (로그아웃 완료 보장)
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // 토큰으로 세션 설정
-    console.log('토큰으로 세션 설정 중...');
-    const { data: { session }, error: setSessionError } = await resetSupabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken
-    });
-    
-    if (setSessionError || !session) {
-      throw new Error('세션 설정에 실패했습니다. 다시 시도해주세요.');
+    // Code/PKCE 플로우가 아닌 경우에만 토큰으로 세션 설정
+    if (!code && !(token && type === 'recovery')) {
+      // 토큰으로 세션 설정
+      console.log('토큰으로 세션 설정 중...');
+      const { data: { session }, error: setSessionError } = await resetSupabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      });
+      
+      if (setSessionError || !session) {
+        throw new Error('세션 설정에 실패했습니다. 다시 시도해주세요.');
+      }
+      
+      // 세션 설정 후 사용자 재확인
+      const { data: { user: sessionUser }, error: sessionUserError } = await resetSupabase.auth.getUser();
+      
+      if (sessionUserError || !sessionUser) {
+        throw new Error('세션 사용자 정보를 확인할 수 없습니다. 다시 시도해주세요.');
+      }
+      
+      // 보안 검증: 세션의 사용자가 토큰의 사용자와 일치하는지 확인
+      if (sessionUser.id !== user.id) {
+        throw new Error('보안 오류: 사용자 정보가 일치하지 않습니다. 다시 시도해주세요.');
+      }
+      
+      console.log('세션 설정 성공 및 사용자 확인 완료:', sessionUser.email);
+    } else {
+      console.log('Code/PKCE 플로우로 세션이 이미 설정되었습니다.');
     }
-    
-    // 세션 설정 후 사용자 재확인
-    const { data: { user: sessionUser }, error: sessionUserError } = await resetSupabase.auth.getUser();
-    
-    if (sessionUserError || !sessionUser) {
-      throw new Error('세션 사용자 정보를 확인할 수 없습니다. 다시 시도해주세요.');
-    }
-    
-    // 보안 검증: 세션의 사용자가 토큰의 사용자와 일치하는지 확인
-    if (sessionUser.id !== user.id) {
-      throw new Error('보안 오류: 사용자 정보가 일치하지 않습니다. 다시 시도해주세요.');
-    }
-    
-    console.log('세션 설정 성공 및 사용자 확인 완료:', sessionUser.email);
     
     loading.value = false;
   } catch (err) {
