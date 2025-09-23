@@ -296,6 +296,13 @@ onMounted(async () => {
       }
     }
     
+    // 보안을 위해 모든 기존 세션을 먼저 정리
+    console.log('보안을 위해 모든 기존 세션 로그아웃 처리 중...');
+    await resetSupabase.auth.signOut();
+    
+    // 잠시 대기 (로그아웃 완료 보장)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     // Code 플로우나 PKCE 플로우가 성공적으로 처리된 경우 기존 토큰 플로우 건너뛰기
     if (code || (token && type === 'recovery')) {
       console.log('Code/PKCE 플로우가 성공적으로 처리되었습니다. 기존 토큰 플로우를 건너뜁니다.');
@@ -312,13 +319,6 @@ onMounted(async () => {
       }
       
       console.log('재설정 링크 사용자 확인:', user.email);
-      
-      // 모든 기존 세션 강제 로그아웃 (보안 강화)
-      console.log('보안을 위해 모든 기존 세션 로그아웃 처리 중...');
-      await resetSupabase.auth.signOut();
-      
-      // 잠시 대기 (로그아웃 완료 보장)
-      await new Promise(resolve => setTimeout(resolve, 200));
     }
     
     // Code/PKCE 플로우가 아닌 경우에만 토큰으로 세션 설정
@@ -378,9 +378,25 @@ async function handleResetPassword() {
     const refreshToken = urlParams.get('refresh_token');
     const code = urlParams.get('code');
     
+    // 보안을 위해 모든 기존 세션을 먼저 정리
+    console.log('비밀번호 변경 전 보안을 위해 모든 기존 세션 로그아웃 처리 중...');
+    await resetSupabase.auth.signOut();
+    
+    // 잠시 대기 (로그아웃 완료 보장)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     // Code 플로우이거나 세션이 자동으로 설정된 경우 현재 세션 사용
     if (code || (!accessToken && !refreshToken)) {
       console.log(code ? 'Code 플로우로 비밀번호 재설정 진행' : '자동 설정된 세션으로 비밀번호 재설정 진행');
+      
+      // URL에서 code 파라미터 확인
+      const urlParams = new URLSearchParams(window.location.search);
+      const currentCode = urlParams.get('code');
+      
+      if (code && currentCode !== code) {
+        throw new Error('보안 오류: 비밀번호 재설정 링크가 변경되었습니다. 다시 시도해주세요.');
+      }
+      
       const { data: { user }, error: userError } = await resetSupabase.auth.getUser();
       
       if (userError || !user) {
@@ -435,7 +451,7 @@ async function handleResetPassword() {
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
     }
     
-    console.log('=== 토큰 사용자 정보 ===');
+    console.log('=== 기존 토큰 플로우 사용자 정보 ===');
     console.log('토큰 사용자 이메일:', user.email);
     console.log('토큰 사용자 ID:', user.id);
     console.log('현재 활성 사용자와 비교:', currentActiveUser?.id === user.id ? '동일' : '다름');
