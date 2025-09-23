@@ -147,7 +147,21 @@ onMounted(async () => {
         token: !!token,
         code: !!code 
       });
-      throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
+      
+      // Supabase verify 엔드포인트에서 리다이렉트된 경우 처리
+      // 이 경우 토큰이 URL에 없지만 세션이 자동으로 설정될 수 있음
+      console.log('토큰이 URL에 없습니다. 현재 세션 상태를 확인합니다...');
+      
+      const { data: { session }, error: sessionError } = await resetSupabase.auth.getSession();
+      if (session && session.user) {
+        console.log('자동으로 설정된 세션을 발견했습니다:', session.user.email);
+        // 비밀번호 재설정 플래그 설정
+        window.isPasswordResetPage = true;
+        console.log('Supabase verify 엔드포인트에서 리다이렉트된 것으로 판단됩니다.');
+      } else {
+        console.error('세션도 설정되지 않았습니다:', sessionError);
+        throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
+      }
     }
     
     // PKCE 토큰이 있는 경우 세션을 자동으로 설정하도록 대기
@@ -268,16 +282,16 @@ async function handleResetPassword() {
     const refreshToken = urlParams.get('refresh_token');
     const code = urlParams.get('code');
     
-    // Code 플로우인 경우 현재 세션 사용
-    if (code) {
-      console.log('Code 플로우로 비밀번호 재설정 진행');
+    // Code 플로우이거나 세션이 자동으로 설정된 경우 현재 세션 사용
+    if (code || (!accessToken && !refreshToken)) {
+      console.log(code ? 'Code 플로우로 비밀번호 재설정 진행' : '자동 설정된 세션으로 비밀번호 재설정 진행');
       const { data: { user }, error: userError } = await resetSupabase.auth.getUser();
       
       if (userError || !user) {
         throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
       }
       
-      console.log('=== Code 플로우 사용자 정보 ===');
+      console.log(`=== ${code ? 'Code' : '자동 설정'} 플로우 사용자 정보 ===`);
       console.log('사용자 이메일:', user.email);
       console.log('사용자 ID:', user.id);
       
@@ -286,7 +300,7 @@ async function handleResetPassword() {
         throw new Error('이메일 인증이 완료되지 않은 계정입니다.');
       }
       
-      console.log('✅ Code 플로우 보안 검증 통과 - 비밀번호 변경 진행');
+      console.log(`✅ ${code ? 'Code' : '자동 설정'} 플로우 보안 검증 통과 - 비밀번호 변경 진행`);
       
       // 해당 사용자의 비밀번호 변경
       const { error: updateError } = await resetSupabase.auth.updateUser({
