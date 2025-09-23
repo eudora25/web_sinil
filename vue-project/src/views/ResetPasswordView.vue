@@ -302,20 +302,46 @@ onMounted(async () => {
           
           // code_verifier가 없는 경우 (PKCE 플로우가 아닌 경우)
           if (error.message.includes('code verifier') || error.message.includes('code_verifier')) {
-            console.log('PKCE code_verifier가 없습니다. 일반 Code 플로우로 처리합니다.');
+            console.log('PKCE code_verifier가 없습니다. URL의 hash fragment를 확인합니다...');
             
-            // 일반 Code 플로우로 처리 (code_verifier 없이)
-            // 이 경우 Supabase가 자동으로 세션을 설정할 수 있음
-            console.log('Supabase가 자동으로 세션을 설정할 때까지 대기합니다...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // URL hash에서 토큰 정보 확인 (Supabase가 hash에 토큰을 넣을 수 있음)
+            const hash = window.location.hash.substring(1);
+            const hashParams = new URLSearchParams(hash);
+            const hashAccessToken = hashParams.get('access_token');
+            const hashRefreshToken = hashParams.get('refresh_token');
             
-            // 세션 상태 확인
-            const { data: { session }, error: sessionError } = await resetSupabase.auth.getSession();
-            if (session && session.user) {
-              console.log('자동으로 설정된 세션을 발견했습니다:', session.user.email);
-              console.log('Code 플로우로 생성된 임시 세션입니다. 비밀번호 재설정 완료 후 자동 로그아웃됩니다.');
+            if (hashAccessToken && hashRefreshToken) {
+              console.log('Hash에서 토큰을 발견했습니다. 세션을 설정합니다...');
+              const { data: sessionData, error: sessionError } = await resetSupabase.auth.setSession({
+                access_token: hashAccessToken,
+                refresh_token: hashRefreshToken
+              });
+              
+              if (sessionData.session && sessionData.user) {
+                console.log('Hash 토큰으로 세션이 설정되었습니다:', sessionData.user.email);
+                console.log('Code 플로우로 생성된 임시 세션입니다. 비밀번호 재설정 완료 후 자동 로그아웃됩니다.');
+              } else {
+                throw new Error('Hash 토큰으로 세션 설정에 실패했습니다.');
+              }
             } else {
-              throw new Error('세션 설정에 실패했습니다. 다시 시도해주세요.');
+              // Hash에도 토큰이 없으면 URL에서 직접 code로 세션 설정 시도
+              console.log('Hash에 토큰이 없습니다. Code로 직접 세션 설정을 시도합니다...');
+              
+              // 현재 URL을 Supabase가 처리할 수 있도록 설정
+              const currentUrl = window.location.href;
+              console.log('현재 URL을 Supabase가 처리합니다:', currentUrl);
+              
+              // Supabase가 자동으로 세션을 설정할 때까지 대기
+              await new Promise(resolve => setTimeout(resolve, 3000));
+              
+              // 세션 상태 확인
+              const { data: { session }, error: sessionError } = await resetSupabase.auth.getSession();
+              if (session && session.user) {
+                console.log('자동으로 설정된 세션을 발견했습니다:', session.user.email);
+                console.log('Code 플로우로 생성된 임시 세션입니다. 비밀번호 재설정 완료 후 자동 로그아웃됩니다.');
+              } else {
+                throw new Error('세션 설정에 실패했습니다. 다시 시도해주세요.');
+              }
             }
           } else {
             throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
@@ -332,16 +358,12 @@ onMounted(async () => {
       }
     }
     
-    // Code/PKCE 플로우가 아닌 경우에만 기존 세션 정리
-    if (!code && !(token && type === 'recovery')) {
-      console.log('보안을 위해 모든 기존 세션 로그아웃 처리 중...');
-      await resetSupabase.auth.signOut();
-      
-      // 잠시 대기 (로그아웃 완료 보장)
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } else {
-      console.log('Code/PKCE 플로우는 이미 적절한 세션이 설정되어 있습니다.');
-    }
+    // 보안을 위해 모든 기존 세션을 먼저 정리 (항상 실행)
+    console.log('보안을 위해 모든 기존 세션 로그아웃 처리 중...');
+    await resetSupabase.auth.signOut();
+    
+    // 잠시 대기 (로그아웃 완료 보장)
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     // Code 플로우나 PKCE 플로우가 성공적으로 처리된 경우 기존 토큰 플로우 건너뛰기
     if (code || (token && type === 'recovery')) {
