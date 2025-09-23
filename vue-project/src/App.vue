@@ -212,8 +212,9 @@ async function initializeApp() {
       console.log('[App.vue] Event: USER_UPDATED. User metadata might have changed.');
       // 필요하다면 handleRedirect(session) 호출
     } else if (event === 'PASSWORD_RECOVERY') {
-      console.log('[App.vue] Event: PASSWORD_RECOVERY. User may need to be redirected to a password reset page.');
-      // 필요한 경우 비밀번호 재설정 페이지로 리디렉션
+      console.log('[App.vue] Event: PASSWORD_RECOVERY. Redirecting to password reset page.');
+      // 비밀번호 재설정 페이지로 리디렉션
+      router.push('/reset-password');
     } else if (event === 'TOKEN_REFRESHED') {
       console.log('[App.vue] Event: TOKEN_REFRESHED. Session token has been refreshed.');
       // 특별한 조치 불필요

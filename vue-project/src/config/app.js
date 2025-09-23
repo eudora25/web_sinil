@@ -14,7 +14,7 @@ const config = {
     if (isDevelopment && isLocalhost) {
       return 'http://localhost:5173';
     } else {
-      return 'https://edi-sh-new.vercel.app';
+      return 'https://web-sinil.vercel.app';
     }
   },
   

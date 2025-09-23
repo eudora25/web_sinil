@@ -126,6 +126,14 @@ onMounted(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const accessToken = urlParams.get('access_token');
     const refreshToken = urlParams.get('refresh_token');
+    const type = urlParams.get('type');
+    
+    console.log('URL 파라미터 분석:', {
+      accessToken: !!accessToken,
+      refreshToken: !!refreshToken,
+      type: type,
+      fullSearch: window.location.search
+    });
     
     if (!accessToken || !refreshToken) {
       console.error('토큰 누락:', { accessToken: !!accessToken, refreshToken: !!refreshToken });
