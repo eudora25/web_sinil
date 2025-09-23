@@ -126,18 +126,28 @@ onMounted(async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const accessToken = urlParams.get('access_token');
     const refreshToken = urlParams.get('refresh_token');
+    const token = urlParams.get('token');
     const type = urlParams.get('type');
     
     console.log('URL 파라미터 분석:', {
       accessToken: !!accessToken,
       refreshToken: !!refreshToken,
+      token: !!token,
       type: type,
       fullSearch: window.location.search
     });
     
-    if (!accessToken || !refreshToken) {
-      console.error('토큰 누락:', { accessToken: !!accessToken, refreshToken: !!refreshToken });
+    // Supabase PKCE 플로우에서는 token 파라미터를 사용
+    if (!token && (!accessToken || !refreshToken)) {
+      console.error('토큰 누락:', { accessToken: !!accessToken, refreshToken: !!refreshToken, token: !!token });
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
+    }
+    
+    // PKCE 토큰이 있는 경우 세션을 자동으로 설정하도록 대기
+    if (token && type === 'recovery') {
+      console.log('PKCE 토큰 감지됨. Supabase가 자동으로 세션을 설정할 때까지 대기...');
+      // 잠시 대기하여 Supabase가 자동으로 세션을 설정하도록 함
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
     // 토큰으로 사용자 정보 확인 (세션 설정 전에 미리 확인)

@@ -175,6 +175,18 @@ onMounted(() => {
 async function initializeApp() {
   console.log('[App.vue] onMounted: Component mounted. Registering onAuthStateChange.');
   
+  // URL 파라미터에서 비밀번호 재설정 토큰 확인
+  const urlParams = new URLSearchParams(window.location.search);
+  const type = urlParams.get('type');
+  const token = urlParams.get('token');
+  
+  if (type === 'recovery' && token && window.location.pathname === '/') {
+    console.log('[App.vue] Password recovery token detected in URL. Redirecting to reset-password page.');
+    // 비밀번호 재설정 페이지로 리다이렉트
+    router.push('/reset-password');
+    return;
+  }
+  
   // 초기 세션 로드 및 상태 설정
   // onAuthStateChange가 INITIAL_SESSION 이벤트를 통해 초기 상태를 처리하므로,
   // onMounted에서는 getSession()을 호출하여 즉시 상태를 반영하려고 시도할 수 있지만,
