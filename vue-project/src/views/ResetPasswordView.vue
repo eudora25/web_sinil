@@ -180,7 +180,7 @@ onMounted(async () => {
       
       // 더 긴 대기 시간으로 Supabase가 세션을 설정할 시간을 줌
       console.log('Supabase가 세션을 설정할 때까지 대기 중...');
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 5000)); // 3초 → 5초로 증가
       
       // 여러 방법으로 세션 확인
       let session = null;
@@ -205,7 +205,7 @@ onMounted(async () => {
       // 3. 추가 대기 후 재시도
       if (!session) {
         console.log('첫 번째 시도에서 세션을 찾지 못했습니다. 추가 대기 후 재시도...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 3000)); // 2초 → 3초로 증가
         
         const retrySessionResult = await resetSupabase.auth.getSession();
         session = retrySessionResult.data.session;
@@ -216,6 +216,24 @@ onMounted(async () => {
           if (retryUserResult.data.user && !retryUserResult.error) {
             console.log('재시도에서 사용자 정보를 발견했습니다:', retryUserResult.data.user.email);
             session = { user: retryUserResult.data.user };
+          }
+        }
+      }
+      
+      // 4. 최종 재시도 (3차 시도)
+      if (!session) {
+        console.log('두 번째 시도에서도 세션을 찾지 못했습니다. 최종 재시도...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const finalSessionResult = await resetSupabase.auth.getSession();
+        session = finalSessionResult.data.session;
+        sessionError = finalSessionResult.error;
+        
+        if (!session) {
+          const finalUserResult = await resetSupabase.auth.getUser();
+          if (finalUserResult.data.user && !finalUserResult.error) {
+            console.log('최종 재시도에서 사용자 정보를 발견했습니다:', finalUserResult.data.user.email);
+            session = { user: finalUserResult.data.user };
           }
         }
       }
