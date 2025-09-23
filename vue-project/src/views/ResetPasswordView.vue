@@ -548,19 +548,19 @@ async function handleResetPassword() {
     await new Promise(resolve => setTimeout(resolve, 100));
     
     // 현재 세션의 사용자 재확인
-    const { data: { user: currentUser }, error: currentUserError } = await resetSupabase.auth.getUser();
+    const { data: { user: sessionUser }, error: sessionUserError } = await resetSupabase.auth.getUser();
     
-    if (currentUserError || !currentUser) {
+    if (sessionUserError || !sessionUser) {
       throw new Error('사용자 정보를 확인할 수 없습니다. 다시 시도해주세요.');
     }
     
     // 보안 검증: 세션의 사용자가 URL 토큰의 사용자와 일치하는지 확인
     console.log('=== 최종 보안 검증 ===');
-    console.log('세션 사용자 ID:', currentUser.id);
+    console.log('세션 사용자 ID:', sessionUser.id);
     console.log('토큰 사용자 ID:', user.id);
-    console.log('사용자 일치 여부:', currentUser.id === user.id ? '✅ 일치' : '❌ 불일치');
+    console.log('사용자 일치 여부:', sessionUser.id === user.id ? '✅ 일치' : '❌ 불일치');
     
-    if (currentUser.id !== user.id) {
+    if (sessionUser.id !== user.id) {
       throw new Error('보안 오류: 사용자 정보가 일치하지 않습니다. 다시 시도해주세요.');
     }
     
