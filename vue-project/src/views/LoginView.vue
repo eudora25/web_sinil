@@ -230,7 +230,7 @@ const handlePasswordReset = async () => {
     
           // 4단계: 비밀번호 재설정 메일 발송
       const { data, error } = await supabase.auth.resetPasswordForEmail(resetEmail.value, {
-        redirectTo: config.RESET_PASSWORD_URL,
+        redirectTo: `${window.location.origin}/reset-password`,
       });
     
     if (error) {

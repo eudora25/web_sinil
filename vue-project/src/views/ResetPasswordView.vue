@@ -120,6 +120,7 @@ onMounted(async () => {
   try {
     console.log('비밀번호 재설정 페이지 초기화 시작');
     console.log('현재 URL:', window.location.href);
+    console.log('URL 파라미터:', window.location.search);
     
     // URL에서 토큰 확인 (먼저 토큰 유효성 검증)
     const urlParams = new URLSearchParams(window.location.search);
@@ -127,14 +128,16 @@ onMounted(async () => {
     const refreshToken = urlParams.get('refresh_token');
     
     if (!accessToken || !refreshToken) {
-      throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
+      console.error('토큰 누락:', { accessToken: !!accessToken, refreshToken: !!refreshToken });
+      throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
     }
     
     // 토큰으로 사용자 정보 확인 (세션 설정 전에 미리 확인)
     const { data: { user }, error: userError } = await resetSupabase.auth.getUser(accessToken);
     
     if (userError || !user) {
-      throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
+      console.error('사용자 확인 실패:', userError);
+      throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 이미 사용되었을 수 있습니다. 다시 시도해주세요.');
     }
     
     console.log('재설정 링크 사용자 확인:', user.email);
