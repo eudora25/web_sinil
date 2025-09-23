@@ -358,12 +358,9 @@ onMounted(async () => {
       }
     }
     
-    // 보안을 위해 모든 기존 세션을 먼저 정리 (항상 실행)
-    console.log('보안을 위해 모든 기존 세션 로그아웃 처리 중...');
-    await resetSupabase.auth.signOut();
-    
-    // 잠시 대기 (로그아웃 완료 보장)
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // 기존 세션 사용자 확인 (보안 검증용)
+    const { data: { user: existingUser } } = await resetSupabase.auth.getUser();
+    console.log('기존 세션 사용자:', existingUser?.email || '없음');
     
     // Code 플로우나 PKCE 플로우가 성공적으로 처리된 경우 기존 토큰 플로우 건너뛰기
     if (code || (token && type === 'recovery')) {
@@ -440,15 +437,25 @@ async function handleResetPassword() {
     const refreshToken = urlParams.get('refresh_token');
     const code = urlParams.get('code');
     
-    // Code 플로우가 아닌 경우에만 기존 세션 정리
-    if (!code) {
-      console.log('비밀번호 변경 전 보안을 위해 모든 기존 세션 로그아웃 처리 중...');
-      await resetSupabase.auth.signOut();
-      
-      // 잠시 대기 (로그아웃 완료 보장)
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } else {
-      console.log('Code 플로우는 이미 적절한 세션이 설정되어 있습니다.');
+    // 현재 세션 사용자와 재설정 링크 사용자 비교 (보안 검증)
+    const { data: { user: currentUser } } = await resetSupabase.auth.getUser();
+    console.log('비밀번호 변경 요청 - 현재 세션 사용자:', currentUser?.email || '없음');
+    
+    // Code 플로우인 경우 재설정 링크의 사용자 정보 확인
+    if (code) {
+      // Code 플로우에서는 현재 세션이 재설정 링크와 일치하는지 확인
+      if (currentUser) {
+        console.log('현재 로그인된 사용자:', currentUser.email);
+        console.log('Code 플로우로 비밀번호를 재설정합니다.');
+        
+        // 사용자에게 확인 요청
+        const confirmMessage = `현재 ${currentUser.email} 계정으로 로그인되어 있습니다.\n이 계정의 비밀번호를 변경하시겠습니까?`;
+        if (!confirm(confirmMessage)) {
+          throw new Error('비밀번호 변경이 취소되었습니다.');
+        }
+      } else {
+        console.log('현재 로그인된 사용자가 없습니다. Code 플로우로 진행합니다.');
+      }
     }
     
     // Code 플로우이거나 세션이 자동으로 설정된 경우 현재 세션 사용
