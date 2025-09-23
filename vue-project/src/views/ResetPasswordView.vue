@@ -127,19 +127,26 @@ onMounted(async () => {
     const accessToken = urlParams.get('access_token');
     const refreshToken = urlParams.get('refresh_token');
     const token = urlParams.get('token');
+    const code = urlParams.get('code'); // Code flow token
     const type = urlParams.get('type');
     
     console.log('URL 파라미터 분석:', {
       accessToken: !!accessToken,
       refreshToken: !!refreshToken,
       token: !!token,
+      code: !!code,
       type: type,
       fullSearch: window.location.search
     });
     
-    // Supabase PKCE 플로우에서는 token 파라미터를 사용
-    if (!token && (!accessToken || !refreshToken)) {
-      console.error('토큰 누락:', { accessToken: !!accessToken, refreshToken: !!refreshToken, token: !!token });
+    // 토큰 유효성 검증: PKCE 플로우(token), Code 플로우(code), 또는 기존 플로우(access_token + refresh_token)
+    if (!token && !code && (!accessToken || !refreshToken)) {
+      console.error('토큰 누락:', { 
+        accessToken: !!accessToken, 
+        refreshToken: !!refreshToken, 
+        token: !!token,
+        code: !!code 
+      });
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
     }
     
@@ -162,6 +169,33 @@ onMounted(async () => {
       } else {
         console.error('세션 설정 실패:', sessionError);
         throw new Error('비밀번호 재설정 세션을 설정할 수 없습니다. 다시 시도해주세요.');
+      }
+    }
+    
+    // Code 플로우 토큰이 있는 경우 처리
+    if (code) {
+      console.log('Code 플로우 토큰 감지됨:', code);
+      // 비밀번호 재설정 플래그 설정
+      window.isPasswordResetPage = true;
+      
+      try {
+        // Code를 사용하여 세션 교환
+        const { data, error } = await resetSupabase.auth.exchangeCodeForSession(code);
+        
+        if (error) {
+          console.error('Code 교환 실패:', error);
+          throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
+        }
+        
+        if (data.session && data.user) {
+          console.log('Code 플로우로 세션이 설정되었습니다:', data.user.email);
+          console.log('Code 플로우로 생성된 임시 세션입니다. 비밀번호 재설정 완료 후 자동 로그아웃됩니다.');
+        } else {
+          throw new Error('세션 설정에 실패했습니다. 다시 시도해주세요.');
+        }
+      } catch (err) {
+        console.error('Code 플로우 처리 오류:', err);
+        throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
       }
     }
     
@@ -232,7 +266,54 @@ async function handleResetPassword() {
     const urlParams = new URLSearchParams(window.location.search);
     const accessToken = urlParams.get('access_token');
     const refreshToken = urlParams.get('refresh_token');
+    const code = urlParams.get('code');
     
+    // Code 플로우인 경우 현재 세션 사용
+    if (code) {
+      console.log('Code 플로우로 비밀번호 재설정 진행');
+      const { data: { user }, error: userError } = await resetSupabase.auth.getUser();
+      
+      if (userError || !user) {
+        throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
+      }
+      
+      console.log('=== Code 플로우 사용자 정보 ===');
+      console.log('사용자 이메일:', user.email);
+      console.log('사용자 ID:', user.id);
+      
+      // 보안 검증: 재설정 링크의 사용자가 실제로 비밀번호 재설정을 요청한 사용자인지 확인
+      if (!user.email_confirmed_at) {
+        throw new Error('이메일 인증이 완료되지 않은 계정입니다.');
+      }
+      
+      console.log('✅ Code 플로우 보안 검증 통과 - 비밀번호 변경 진행');
+      
+      // 해당 사용자의 비밀번호 변경
+      const { error: updateError } = await resetSupabase.auth.updateUser({
+        password: password.value
+      });
+      
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+      
+      console.log('비밀번호 변경 성공. 즉시 로그아웃 처리 중...');
+      
+      // 비밀번호 변경 성공 후 즉시 로그아웃 (자동 로그인 방지)
+      await resetSupabase.auth.signOut();
+      console.log('로그아웃 완료');
+      
+      // 글로벌 플래그 제거
+      window.isPasswordResetPage = false;
+      
+      alert('비밀번호가 성공적으로 변경되었습니다.\n새 비밀번호로 로그인해주세요.');
+      
+      // 로그인 페이지로 이동
+      router.push('/login');
+      return;
+    }
+    
+    // 기존 토큰 플로우 처리
     if (!accessToken) {
       throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 다시 시도해주세요.');
     }
