@@ -332,12 +332,16 @@ onMounted(async () => {
       }
     }
     
-    // 보안을 위해 모든 기존 세션을 먼저 정리
-    console.log('보안을 위해 모든 기존 세션 로그아웃 처리 중...');
-    await resetSupabase.auth.signOut();
-    
-    // 잠시 대기 (로그아웃 완료 보장)
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Code/PKCE 플로우가 아닌 경우에만 기존 세션 정리
+    if (!code && !(token && type === 'recovery')) {
+      console.log('보안을 위해 모든 기존 세션 로그아웃 처리 중...');
+      await resetSupabase.auth.signOut();
+      
+      // 잠시 대기 (로그아웃 완료 보장)
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } else {
+      console.log('Code/PKCE 플로우는 이미 적절한 세션이 설정되어 있습니다.');
+    }
     
     // Code 플로우나 PKCE 플로우가 성공적으로 처리된 경우 기존 토큰 플로우 건너뛰기
     if (code || (token && type === 'recovery')) {
@@ -414,12 +418,16 @@ async function handleResetPassword() {
     const refreshToken = urlParams.get('refresh_token');
     const code = urlParams.get('code');
     
-    // 보안을 위해 모든 기존 세션을 먼저 정리
-    console.log('비밀번호 변경 전 보안을 위해 모든 기존 세션 로그아웃 처리 중...');
-    await resetSupabase.auth.signOut();
-    
-    // 잠시 대기 (로그아웃 완료 보장)
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Code 플로우가 아닌 경우에만 기존 세션 정리
+    if (!code) {
+      console.log('비밀번호 변경 전 보안을 위해 모든 기존 세션 로그아웃 처리 중...');
+      await resetSupabase.auth.signOut();
+      
+      // 잠시 대기 (로그아웃 완료 보장)
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } else {
+      console.log('Code 플로우는 이미 적절한 세션이 설정되어 있습니다.');
+    }
     
     // Code 플로우이거나 세션이 자동으로 설정된 경우 현재 세션 사용
     if (code || (!accessToken && !refreshToken)) {
