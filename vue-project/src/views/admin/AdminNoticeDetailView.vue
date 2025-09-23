@@ -20,8 +20,8 @@
       <div class="form-group" v-if="notice.file_url && notice.file_url.length > 0">
         <label style="margin-top:0.5rem !important;">첨부 파일</label>
         <div>
-          <div v-for="(url, idx) in notice.file_url" :key="url" style="margin-bottom:0.5rem;">
-            <a @click.prevent="downloadFile(url)" class="file-link" style="cursor: pointer;">{{ getFileName(url) }}</a>
+          <div v-for="(file, idx) in notice.file_url" :key="file.url || file" style="margin-bottom:0.5rem;">
+            <a @click.prevent="downloadFile(file.url || file, file.name)" class="file-link" style="cursor: pointer;">{{ file.name || getFileName(file.url || file) }}</a>
           </div>
         </div>
       </div>
@@ -91,13 +91,36 @@ onMounted(async () => {
     .eq('id', route.params.id)
     .single();
   if (!error && data) {
-    // file_url이 문자열이면 파싱
-    if (typeof data.file_url === 'string') {
-      try {
-        data.file_url = JSON.parse(data.file_url);
-      } catch {
-        data.file_url = [];
+    // file_url 처리 (새로운 구조와 기존 구조 모두 지원)
+    if (data.file_url) {
+      let fileData = [];
+      if (typeof data.file_url === 'string') {
+        try {
+          fileData = JSON.parse(data.file_url);
+        } catch {
+          fileData = [data.file_url];
+        }
+      } else if (Array.isArray(data.file_url)) {
+        fileData = data.file_url;
       }
+      
+      // 새로운 구조와 기존 구조 모두 지원
+      data.file_url = fileData.map(item => {
+        if (typeof item === 'string') {
+          // 기존 방식 (URL만 있는 경우)
+          return {
+            name: getFileName(item),
+            url: item
+          };
+        } else if (item && item.url) {
+          // 새로운 방식 (URL과 원본 파일명이 있는 경우)
+          return {
+            name: item.name || getFileName(item.url),
+            url: item.url
+          };
+        }
+        return null;
+      }).filter(Boolean);
     }
     notice.value = data;
     
@@ -147,19 +170,25 @@ function getFileName(url) {
   if (!url) return '';
   try {
     const fileName = url.split('/').pop();
-    const decodedName = decodeURIComponent(fileName);
-    return decodedName.replace(/^[0-9]+_/, '');
+    // 타임스탬프 제거 후 언더스코어를 원래 문자로 복원
+    const nameWithoutTimestamp = fileName.replace(/^[0-9]+_/, '');
+    // 안전하게 처리된 문자들을 다시 원래대로 복원 (일부만 복원)
+    return nameWithoutTimestamp
+      .replace(/_/g, ' ')  // 언더스코어를 공백으로 복원 (완전하지 않지만 가독성 향상)
+      .trim();
   } catch {
     return url;
   }
 }
 
-async function downloadFile(fileUrl) {
+async function downloadFile(fileUrl, fileName = null) {
   try {
     const url = new URL(fileUrl);
     // URL 경로에서 버킷 이름(예: /object/public/notices/) 부분을 제외하고 실제 파일 경로만 추출
     const filePath = url.pathname.split('/').slice(6).join('/');
-    const fileName = getFileName(fileUrl);
+    
+    // 전달받은 파일명이 있으면 사용, 없으면 URL에서 추출
+    const downloadFileName = fileName || getFileName(fileUrl);
 
     const { data, error } = await supabase.storage
       .from('notices') // 공지사항 파일이 저장된 버킷 이름
@@ -170,7 +199,7 @@ async function downloadFile(fileUrl) {
     const blobUrl = URL.createObjectURL(data);
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = fileName;
+    a.download = downloadFileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

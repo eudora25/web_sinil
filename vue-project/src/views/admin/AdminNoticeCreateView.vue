@@ -134,11 +134,11 @@ function removeFile(idx) {
     console.log('Company error:', companyError);
 
     // 1단계: 파일 업로드
-    let fileUrls = [];
+    let fileData = [];
     for (const f of files.value) {
-      // 한글 파일명 지원을 위해 URL 인코딩 사용
-      const encodedName = encodeURIComponent(f.name);
-      const filePath = `attachments/${Date.now()}_${encodedName}`;
+      // 안전한 파일명 생성 (영문, 숫자, 점, 하이픈만 허용)
+      const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `attachments/${Date.now()}_${safeName}`;
       const { data, error } = await supabase.storage
         .from('notices')
         .upload(filePath, f);
@@ -149,7 +149,12 @@ function removeFile(idx) {
       const url = data?.path
         ? supabase.storage.from('notices').getPublicUrl(data.path).data.publicUrl
         : null;
-      fileUrls.push(url);
+      
+      // URL과 원본 파일명을 함께 저장
+      fileData.push({
+        url: url,
+        name: f.name
+      });
     }
 
     // 2단계: 공지사항 생성 (RLS 정책 수정 후 직접 접근)
@@ -160,7 +165,7 @@ function removeFile(idx) {
         content: content.value,
         is_pinned: isPinned.value,
         view_count: 0,
-        file_url: fileUrls,
+        file_url: fileData, // URL과 원본 파일명이 포함된 객체 배열
         created_by: user.id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

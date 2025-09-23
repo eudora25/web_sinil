@@ -228,16 +228,38 @@ onMounted(async () => {
   if (noticesData) {
     notices.value = noticesData.map(n => {
       let fileCount = 0;
-      try {
-        const arr = JSON.parse(n.file_url || '[]');
-        if (Array.isArray(arr)) {
-          // 유효한 URL만 카운트
-          fileCount = arr.filter(url => url && url.trim() !== '').length;
-        } else {
+      
+      if (n.file_url) {
+        try {
+          let fileData = [];
+          
+          // 문자열인 경우 파싱 시도
+          if (typeof n.file_url === 'string') {
+            try {
+              fileData = JSON.parse(n.file_url);
+            } catch {
+              fileData = [n.file_url];
+            }
+          } else if (Array.isArray(n.file_url)) {
+            fileData = n.file_url;
+          }
+          
+          if (Array.isArray(fileData)) {
+            // 새로운 구조와 기존 구조 모두 지원
+            fileCount = fileData.filter(item => {
+              if (typeof item === 'string') {
+                // 기존 방식 (URL 문자열)
+                return item && item.trim() !== '';
+              } else if (item && item.url) {
+                // 새로운 방식 (객체 형태)
+                return item.url && item.url.trim() !== '';
+              }
+              return false;
+            }).length;
+          }
+        } catch {
           fileCount = 0;
         }
-      } catch {
-        fileCount = 0;
       }
       
       // 실제 조회수 사용 (notice_views 테이블 기준)
