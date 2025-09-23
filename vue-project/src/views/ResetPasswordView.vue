@@ -8,6 +8,12 @@
       </div>
       <div v-else-if="error" class="error">
         {{ error }}
+        <div v-if="error.includes('만료') || error.includes('expired')" class="error-actions">
+          <p style="margin: 1rem 0; font-size: 0.9rem; color: #666;">
+            새로운 비밀번호 재설정 링크를 받으시겠습니까?
+          </p>
+          <button @click="requestNewLink" class="btn-new-link">새 링크 요청하기</button>
+        </div>
         <br><br>
         <button @click="$router.push('/login')" class="btn-login">로그인 페이지로 이동</button>
       </div>
@@ -130,14 +136,40 @@ onMounted(async () => {
     const code = urlParams.get('code'); // Code flow token
     const type = urlParams.get('type');
     
+    // 에러 파라미터 확인
+    const error = urlParams.get('error');
+    const errorCode = urlParams.get('error_code');
+    const errorDescription = urlParams.get('error_description');
+    
     console.log('URL 파라미터 분석:', {
       accessToken: !!accessToken,
       refreshToken: !!refreshToken,
       token: !!token,
       code: !!code,
       type: type,
+      error: error,
+      errorCode: errorCode,
+      errorDescription: errorDescription,
       fullSearch: window.location.search
     });
+    
+    // 에러 파라미터가 있는 경우 처리
+    if (error) {
+      console.log('에러 파라미터 감지됨:', { error, errorCode, errorDescription });
+      
+      let errorMessage = '비밀번호 재설정 링크에 문제가 있습니다.';
+      
+      if (errorCode === 'otp_expired') {
+        errorMessage = '비밀번호 재설정 링크가 만료되었습니다. 새로운 링크를 요청해주세요.';
+      } else if (error === 'access_denied') {
+        errorMessage = '비밀번호 재설정 링크에 접근할 수 없습니다. 링크가 만료되었거나 유효하지 않습니다.';
+      } else if (errorDescription) {
+        errorMessage = decodeURIComponent(errorDescription.replace(/\+/g, ' '));
+      }
+      
+      console.error('비밀번호 재설정 에러:', errorMessage);
+      throw new Error(errorMessage);
+    }
     
     // type=recovery 파라미터가 있는 경우 특별 처리
     if (type === 'recovery' && !token && !code && (!accessToken || !refreshToken)) {
@@ -226,15 +258,33 @@ onMounted(async () => {
       window.isPasswordResetPage = true;
       
       try {
-        // Code를 사용하여 세션 교환
+        // Code를 사용하여 세션 교환 시도
         const { data, error } = await resetSupabase.auth.exchangeCodeForSession(code);
         
         if (error) {
           console.error('Code 교환 실패:', error);
-          throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
-        }
-        
-        if (data.session && data.user) {
+          
+          // code_verifier가 없는 경우 (PKCE 플로우가 아닌 경우)
+          if (error.message.includes('code verifier') || error.message.includes('code_verifier')) {
+            console.log('PKCE code_verifier가 없습니다. 일반 Code 플로우로 처리합니다.');
+            
+            // 일반 Code 플로우로 처리 (code_verifier 없이)
+            // 이 경우 Supabase가 자동으로 세션을 설정할 수 있음
+            console.log('Supabase가 자동으로 세션을 설정할 때까지 대기합니다...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // 세션 상태 확인
+            const { data: { session }, error: sessionError } = await resetSupabase.auth.getSession();
+            if (session && session.user) {
+              console.log('자동으로 설정된 세션을 발견했습니다:', session.user.email);
+              console.log('Code 플로우로 생성된 임시 세션입니다. 비밀번호 재설정 완료 후 자동 로그아웃됩니다.');
+            } else {
+              throw new Error('세션 설정에 실패했습니다. 다시 시도해주세요.');
+            }
+          } else {
+            throw new Error('비밀번호 재설정 링크가 유효하지 않습니다. 링크가 만료되었거나 손상되었을 수 있습니다. 다시 시도해주세요.');
+          }
+        } else if (data.session && data.user) {
           console.log('Code 플로우로 세션이 설정되었습니다:', data.user.email);
           console.log('Code 플로우로 생성된 임시 세션입니다. 비밀번호 재설정 완료 후 자동 로그아웃됩니다.');
         } else {
@@ -453,6 +503,28 @@ async function handleResetPassword() {
   }
 }
 
+// 새 링크 요청 함수
+async function requestNewLink() {
+  const email = prompt('비밀번호 재설정 링크를 받을 이메일 주소를 입력해주세요:');
+  if (!email) return;
+  
+  try {
+    const { error } = await resetSupabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password?type=recovery`,
+    });
+    
+    if (error) {
+      alert(`오류가 발생했습니다: ${error.message}`);
+    } else {
+      alert('새로운 비밀번호 재설정 링크가 이메일로 발송되었습니다. 이메일을 확인해주세요.');
+      router.push('/login');
+    }
+  } catch (err) {
+    console.error('새 링크 요청 오류:', err);
+    alert('새 링크 요청 중 오류가 발생했습니다.');
+  }
+}
+
 // 페이지 이탈 시 플래그 정리
 onUnmounted(() => {
   if (window.isPasswordResetPage) {
@@ -540,6 +612,29 @@ onUnmounted(() => {
 
 .btn-login:hover {
   background-color: #545b62;
+}
+
+.btn-new-link {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-right: 0.5rem;
+}
+
+.btn-new-link:hover {
+  background-color: #218838;
+}
+
+.error-actions {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border-left: 4px solid #ffc107;
 }
 
 </style> 
