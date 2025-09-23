@@ -17,6 +17,9 @@
       </div>
       <div class="form-group">
         <label style="margin-top:0.5rem !important; margin-bottom:0.5rem !important;">파일 첨부</label>
+        <div style="margin-bottom:0.5rem; font-size:0.8rem; color:#666;">
+          최대 5개 파일, 파일당 10MB 이하
+        </div>
         <div>
           <label class="file-upload-label" style="font-size:0.85rem !important;">
             파일 선택
@@ -74,7 +77,33 @@ watch(content, () => {
 
 function onFileChange(e) {
   const selected = Array.from(e.target.files);
-  files.value = files.value.concat(selected).slice(0, 10);
+  
+  // 파일 개수 제한 (5개)
+  const remainingSlots = 5 - files.value.length;
+  if (remainingSlots <= 0) {
+    alert('최대 5개 파일까지만 첨부할 수 있습니다.');
+    e.target.value = '';
+    return;
+  }
+  
+  // 파일 크기 제한 (10MB)
+  const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+  const oversizedFiles = selected.filter(file => file.size > maxSize);
+  if (oversizedFiles.length > 0) {
+    alert(`파일 크기는 10MB 이하만 가능합니다. 다음 파일들이 크기를 초과했습니다:\n${oversizedFiles.map(f => f.name).join('\n')}`);
+    e.target.value = '';
+    return;
+  }
+  
+  // 선택된 파일 중에서 개수 제한만큼만 추가
+  const filesToAdd = selected.slice(0, remainingSlots);
+  files.value = files.value.concat(filesToAdd);
+  
+  // 추가할 수 있는 개수보다 많이 선택했을 경우 알림
+  if (selected.length > remainingSlots) {
+    alert(`최대 5개 파일까지만 첨부할 수 있습니다. ${filesToAdd.length}개 파일만 추가되었습니다.`);
+  }
+  
   e.target.value = '';
 }
 
@@ -107,8 +136,9 @@ function removeFile(idx) {
     // 1단계: 파일 업로드
     let fileUrls = [];
     for (const f of files.value) {
-      const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const filePath = `attachments/${Date.now()}_${safeName}`;
+      // 한글 파일명 지원을 위해 URL 인코딩 사용
+      const encodedName = encodeURIComponent(f.name);
+      const filePath = `attachments/${Date.now()}_${encodedName}`;
       const { data, error } = await supabase.storage
         .from('notices')
         .upload(filePath, f);
