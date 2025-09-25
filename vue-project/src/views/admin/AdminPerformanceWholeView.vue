@@ -20,6 +20,19 @@
           </select>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
+          <label>구분</label>
+          <select v-model="selectedCompanyGroup" class="select_month">
+            <option value="">전체</option>
+            <option
+              v-for="group in availableCompanyGroups"
+              :key="group"
+              :value="group"
+            >
+              {{ group }}
+            </option>
+          </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
           <label>업체</label>
           <div class="company-search-container" style="position: relative;">
             <input
@@ -259,6 +272,8 @@ const prescriptionOffset = ref(0); // 0: 전체, 1: -1M, 2: -2M, 3: -3M
 const prescriptionOptions = ref([]);
 const loading = ref(false);
 const selectedReviewStatus = ref('');
+const availableCompanyGroups = ref([]); // 구분 항목 목록
+const selectedCompanyGroup = ref(''); // 선택된 구분
 
 // 페이지네이션 관련
 const currentPageFirstIndex = ref(0);
@@ -401,6 +416,13 @@ watch(selectedHospitalId, () => {
   }
 });
 
+watch(selectedCompanyGroup, () => {
+  // 구분이 변경되면 실적 데이터 다시 로드
+  if (selectedSettlementMonth.value) {
+    fetchPerformanceRecords();
+  }
+});
+
 // 데이터 fetch 함수들
 async function fetchAvailableMonths() {
   try {
@@ -417,6 +439,27 @@ async function fetchAvailableMonths() {
     }
   } catch (err) {
     console.error('정산월 조회 오류:', err);
+  }
+}
+
+// 구분 항목 목록 fetch
+async function fetchAvailableCompanyGroups() {
+  try {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('company_group')
+      .eq('approval_status', 'approved')
+      .eq('status', 'active')
+      .eq('user_type', 'user')
+      .not('company_group', 'is', null);
+
+    if (!error && data) {
+      // 중복 제거 및 정렬
+      const uniqueGroups = [...new Set(data.map(item => item.company_group).filter(Boolean))]
+      availableCompanyGroups.value = uniqueGroups.sort()
+    }
+  } catch (err) {
+    console.error('구분 항목 조회 오류:', err);
   }
 }
 
@@ -621,6 +664,11 @@ async function fetchPerformanceRecords() {
     // 검수 상태 필터링
     if (selectedReviewStatus.value) {
       query = query.eq('review_status', selectedReviewStatus.value);
+    }
+    
+    // 구분 필터링
+    if (selectedCompanyGroup.value) {
+      query = query.eq('companies.company_group', selectedCompanyGroup.value);
     }
 
     // === 1,000행 제한 해결: 전체 데이터 가져오기 ===
@@ -1192,6 +1240,7 @@ function delayedHideCompanyDropdown() {
 // 마운트
 onMounted(async () => {
   await fetchAvailableMonths();
+  await fetchAvailableCompanyGroups();
   // 정산월과 관계없이 항상 업체 목록을 로드
   await fetchCompanies();
   // 전체 업체 목록도 로드 (검색용)

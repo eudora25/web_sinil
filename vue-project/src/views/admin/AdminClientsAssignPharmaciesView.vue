@@ -220,12 +220,29 @@
     <!-- 담당약국 지정 모달 -->
     <Dialog v-model:visible="assignModalVisible" header="약국 지정" :modal="true" :style="{ width: '60vw' }">
       <div>
-        <InputText
-          v-model="pharmacySearch"
-          placeholder="약국명, 사업자등록번호 검색"
-          style="width: 100%; margin-bottom: 12px; margin-top: 0px"
-          class="modal-search-input"
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; margin-top: 0px">
+          <InputText
+            v-model="pharmacySearch"
+            placeholder="약국명, 사업자등록번호 검색"
+            style="flex: 1"
+            class="modal-search-input"
+            @keyup.enter="searchPharmacies"
           />
+          <button
+            class="search-btn"
+            @click="searchPharmacies"
+            :disabled="!pharmacySearch.trim()"
+          >
+            검색
+          </button>
+          <button
+            class="search-btn"
+            @click="clearPharmacySearch"
+            :disabled="!pharmacySearchKeyword"
+          >
+            초기화
+          </button>
+        </div>
         <DataTable
           :value="filteredPharmacies"
           v-model:selection="selectedPharmacies"
@@ -294,6 +311,7 @@ const assignModalVisible = ref(false)
 const selectedClient = ref(null)
 const selectedPharmacies = ref([])
 const pharmacySearch = ref('')
+const pharmacySearchKeyword = ref('')
 const currentPageFirstIndex = ref(0)
 const fileInput = ref(null)
 
@@ -413,8 +431,8 @@ function applyFilters() {
 // (filteredClients를 ref로만 관리, 검색 버튼/X버튼/검색 버튼 클릭 시에만 갱신)
 
 const filteredPharmacies = computed(() => {
-  if (!pharmacySearch.value) return pharmacies.value
-  const search = pharmacySearch.value.toLowerCase()
+  if (!pharmacySearchKeyword.value) return pharmacies.value
+  const search = pharmacySearchKeyword.value.toLowerCase()
   return pharmacies.value.filter(
     (p) => p.name.toLowerCase().includes(search) || p.business_registration_number.includes(search),
   )
@@ -422,12 +440,27 @@ const filteredPharmacies = computed(() => {
 function openAssignModal(client) {
   selectedClient.value = client
   selectedPharmacies.value = []
+  pharmacySearch.value = ''
+  pharmacySearchKeyword.value = ''
   assignModalVisible.value = true
 }
 function closeAssignModal() {
   assignModalVisible.value = false
   selectedClient.value = null
   selectedPharmacies.value = []
+  pharmacySearch.value = ''
+  pharmacySearchKeyword.value = ''
+}
+function searchPharmacies() {
+  if (pharmacySearch.value.trim()) {
+    pharmacySearchKeyword.value = pharmacySearch.value.trim()
+  } else {
+    pharmacySearchKeyword.value = ''
+  }
+}
+function clearPharmacySearch() {
+  pharmacySearch.value = ''
+  pharmacySearchKeyword.value = ''
 }
 async function assignPharmacies() {
   if (!selectedClient.value || selectedPharmacies.value.length === 0) return

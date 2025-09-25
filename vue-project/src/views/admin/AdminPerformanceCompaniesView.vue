@@ -6,7 +6,7 @@
 
     <!-- 필터 카드: 정산월 드롭다운 -->
     <div class="filter-card">
-      <div class="filter-row" style="justify-content: flex-start; align-items: flex-end">
+      <div class="filter-row" style="justify-content: flex-start; align-items: flex-end; gap: 16px">
         <div style="display: flex; align-items: center; gap: 8px">
           <label style="font-weight: 400">정산월</label>
           <select v-model="selectedSettlementMonth" class="select_month">
@@ -19,21 +19,34 @@
             </option>
           </select>
         </div>
+        <div style="display: flex; align-items: center; gap: 8px">
+          <label style="font-weight: 400">구분</label>
+          <select v-model="selectedCompanyGroup" class="select_month">
+            <option value="">전체</option>
+            <option
+              v-for="group in availableCompanyGroups"
+              :key="group"
+              :value="group"
+            >
+              {{ group }}
+            </option>
+          </select>
+        </div>
       </div>
     </div>
 
     <!-- 데이터 카드: 전체 n건 + 테이블 + 합계 행 -->
     <div class="data-card">
       <div class="data-card-header">
-        <div class="total-count-display">전체 {{ companyList.length }} 건</div>
+        <div class="total-count-display">전체 {{ filteredCompanyList.length }} 건</div>
         <div class="data-card-buttons">
-          <button class="btn-excell-download" @click="downloadExcel" :disabled="companyList.length === 0">
+          <button class="btn-excell-download" @click="downloadExcel" :disabled="filteredCompanyList.length === 0">
             엑셀 다운로드
           </button>
         </div>
       </div>
       <DataTable
-        :value="companyList"
+        :value="filteredCompanyList"
         :loading="false"
         scrollable
         scrollHeight="calc(100vh - 250px)"
@@ -359,7 +372,10 @@ const columnWidthsModal = {
 // 반응형 데이터
 const availableMonths = ref([])
 const selectedSettlementMonth = ref('')
+const availableCompanyGroups = ref([])
+const selectedCompanyGroup = ref('')
 const companyList = ref([])
+const filteredCompanyList = ref([])
 const loading = ref(true)
 
 // 파일 모달 관련
@@ -410,6 +426,27 @@ const fetchAvailableMonths = async () => {
     }
 
     // 데이터베이스 테이블 구조 확인
+  } catch (err) {
+    // 에러 처리
+  }
+}
+
+// 구분 항목 목록 fetch
+const fetchAvailableCompanyGroups = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('company_group')
+      .eq('approval_status', 'approved')
+      .eq('status', 'active')
+      .eq('user_type', 'user')
+      .not('company_group', 'is', null)
+
+    if (!error && data) {
+      // 중복 제거 및 정렬
+      const uniqueGroups = [...new Set(data.map(item => item.company_group).filter(Boolean))]
+      availableCompanyGroups.value = uniqueGroups.sort()
+    }
   } catch (err) {
     // 에러 처리
   }
@@ -671,6 +708,7 @@ const fetchCompanyList = async () => {
 
 
     companyList.value = companyResults
+    applyCompanyGroupFilter()
   } catch (err) {
     // 에러 처리
   } finally {
@@ -678,38 +716,49 @@ const fetchCompanyList = async () => {
   }
 }
 
-// 합계 계산
+// 구분 필터링 적용
+const applyCompanyGroupFilter = () => {
+  if (!selectedCompanyGroup.value) {
+    filteredCompanyList.value = companyList.value
+  } else {
+    filteredCompanyList.value = companyList.value.filter(company => 
+      company.company_group === selectedCompanyGroup.value
+    )
+  }
+}
+
+// 합계 계산 (필터링된 목록 기준)
 const totalClients = computed(() =>
-  companyList.value.reduce((sum, c) => sum + (c.total_clients || 0), 0),
+  filteredCompanyList.value.reduce((sum, c) => sum + (c.total_clients || 0), 0),
 )
 const totalSubmittedClients = computed(() =>
-  companyList.value.reduce((sum, c) => sum + (c.submitted_clients || 0), 0),
+  filteredCompanyList.value.reduce((sum, c) => sum + (c.submitted_clients || 0), 0),
 )
 const totalPrescriptionCount = computed(() =>
-  companyList.value.reduce((sum, c) => sum + (c.prescription_count || 0), 0),
+  filteredCompanyList.value.reduce((sum, c) => sum + (c.prescription_count || 0), 0),
 )
 const totalPrescriptionAmount = computed(() =>
-  companyList.value.reduce((sum, c) => sum + Math.round(c.prescription_amount || 0), 0),
+  filteredCompanyList.value.reduce((sum, c) => sum + Math.round(c.prescription_amount || 0), 0),
 )
 const totalReviewCompleted = computed(() =>
-  companyList.value.reduce((sum, c) => sum + (c.review_completed || 0), 0),
+  filteredCompanyList.value.reduce((sum, c) => sum + (c.review_completed || 0), 0),
 )
 const totalReviewInProgress = computed(() =>
-  companyList.value.reduce((sum, c) => sum + (c.review_in_progress || 0), 0),
+  filteredCompanyList.value.reduce((sum, c) => sum + (c.review_in_progress || 0), 0),
 )
 const totalReviewPending = computed(() =>
-  companyList.value.reduce((sum, c) => sum + (c.review_pending || 0), 0),
+  filteredCompanyList.value.reduce((sum, c) => sum + (c.review_pending || 0), 0),
 )
 
 // 엑셀 다운로드
 const downloadExcel = async () => {
-  if (companyList.value.length === 0) {
+  if (filteredCompanyList.value.length === 0) {
     alert('다운로드할 데이터가 없습니다.')
     return
   }
 
   // 엑셀용 데이터 준비
-  const excelData = companyList.value.map((company, index) => ({
+  const excelData = filteredCompanyList.value.map((company, index) => ({
     No: index + 1,
     구분: company.company_group || '',
     업체명: company.company_name || '',
@@ -1111,11 +1160,17 @@ watch(selectedSettlementMonth, () => {
     fetchCompanyList()
   } else {
     companyList.value = []
+    filteredCompanyList.value = []
   }
+})
+
+watch(selectedCompanyGroup, () => {
+  applyCompanyGroupFilter()
 })
 
 // 마운트
 onMounted(() => {
   fetchAvailableMonths()
+  fetchAvailableCompanyGroups()
 })
 </script>

@@ -201,12 +201,29 @@
     <!-- 담당업체 지정 모달 -->
     <Dialog v-model:visible="assignModalVisible" header="업체 지정" :modal="true" :style="{ width: '60vw' }">
       <div>
-        <InputText
-          v-model="companySearch"
-          placeholder="구분, 업체명, 사업자등록번호, 대표자명"
-          style="width: 100%; margin-bottom: 12px; margin-top: 0px"
-          class="modal-search-input"
-        />
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; margin-top: 0px">
+          <InputText
+            v-model="companySearch"
+            placeholder="구분, 업체명, 사업자등록번호, 대표자명"
+            style="flex: 1"
+            class="modal-search-input"
+            @keyup.enter="searchCompanies"
+          />
+          <button
+            class="search-btn"
+            @click="searchCompanies"
+            :disabled="!companySearch.trim()"
+          >
+            검색
+          </button>
+          <button
+            class="search-btn"
+            @click="clearCompanySearch"
+            :disabled="!companySearchKeyword"
+          >
+            초기화
+          </button>
+        </div>
         <DataTable
           :value="filteredCompanies"
           v-model:selection="selectedCompanies"
@@ -297,6 +314,7 @@ const assignModalVisible = ref(false)
 const selectedClient = ref(null)
 const selectedCompanies = ref([])
 const companySearch = ref('')
+const companySearchKeyword = ref('')
 const currentPageFirstIndex = ref(0)
 const fileInput = ref(null)
 
@@ -379,8 +397,8 @@ function clearSearch() {
 // (filteredClients를 ref로만 관리, 검색 버튼/X버튼/검색 버튼 클릭 시에만 갱신)
 
 const filteredCompanies = computed(() => {
-  if (!companySearch.value) return companies.value
-  const search = companySearch.value.toLowerCase()
+  if (!companySearchKeyword.value) return companies.value
+  const search = companySearchKeyword.value.toLowerCase()
   return companies.value.filter(
     (c) =>
       c.company_name.toLowerCase().includes(search) ||
@@ -392,12 +410,27 @@ const filteredCompanies = computed(() => {
 function openAssignModal(client) {
   selectedClient.value = client
   selectedCompanies.value = []
+  companySearch.value = ''
+  companySearchKeyword.value = ''
   assignModalVisible.value = true
 }
 function closeAssignModal() {
   assignModalVisible.value = false
   selectedClient.value = null
   selectedCompanies.value = []
+  companySearch.value = ''
+  companySearchKeyword.value = ''
+}
+function searchCompanies() {
+  if (companySearch.value.trim()) {
+    companySearchKeyword.value = companySearch.value.trim()
+  } else {
+    companySearchKeyword.value = ''
+  }
+}
+function clearCompanySearch() {
+  companySearch.value = ''
+  companySearchKeyword.value = ''
 }
 async function assignCompanies() {
   if (!selectedClient.value || selectedCompanies.value.length === 0) return
