@@ -385,7 +385,7 @@ const downloadTemplate = async () => {
 
   // 헤더 정의
   const headers = [
-    '보험코드', '표준코드', '단위포장형태', '단위수량', '비고', '상태'
+    '제품명', '보험코드', '표준코드', '단위포장형태', '단위수량', '비고', '상태'
   ]
 
   // 헤더 추가
@@ -405,7 +405,7 @@ const downloadTemplate = async () => {
 
   // 예시 데이터 추가
   const exampleData = [
-    ['601234567', '8800123456789', '정 10개', 10, '', '활성'],
+    ['팜플정', '601234567', '8800123456789', '정 10개', 10, '', '활성'],
   ]
 
   exampleData.forEach((rowData) => {
@@ -417,7 +417,7 @@ const downloadTemplate = async () => {
       cell.alignment = { vertical: 'middle' }
 
       // 가운데 정렬이 필요한 컬럼들 (보험코드, 표준코드, 단위수량, 상태)
-      if (colNumber === 1 || colNumber === 2 || colNumber === 3 || colNumber === 4 || colNumber === 6) {
+      if (colNumber === 2 || colNumber === 3 || colNumber === 5 || colNumber === 7) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
     })
@@ -425,6 +425,7 @@ const downloadTemplate = async () => {
 
   // 컬럼 너비 설정
   worksheet.columns = [
+    { width: 20 }, // 제품명
     { width: 12 }, // 보험코드
     { width: 16 }, // 표준코드
     { width: 16 }, // 단위포장형태
@@ -500,6 +501,10 @@ const handleFileUpload = async (event) => {
     jsonData.forEach((row, index) => {
       const rowNum = index + 2
 
+      if (!row['제품명']) {
+        errors.push(`${rowNum}행: 제품명이 필요합니다.`)
+        return
+      }
       if (!row['보험코드']) {
         errors.push(`${rowNum}행: 보험코드가 필요합니다.`)
         return
@@ -545,6 +550,7 @@ const handleFileUpload = async (event) => {
       }
 
              uploadData.push({
+         product_name: row['제품명'],
          insurance_code: row['보험코드'],
          standard_code: row['표준코드'],
          unit_packaging_desc: row['단위포장형태'] || '',
@@ -594,8 +600,35 @@ const handleFileUpload = async (event) => {
       return
     }
 
+    // 제품명을 products 테이블에 저장/업데이트
+    for (const item of uploadData) {
+      const { data: existingProduct } = await supabase
+        .from('products')
+        .select('id')
+        .eq('insurance_code', item.insurance_code)
+        .single()
+
+      if (existingProduct) {
+        // 기존 제품이 있으면 제품명 업데이트
+        await supabase
+          .from('products')
+          .update({ product_name: item.product_name })
+          .eq('insurance_code', item.insurance_code)
+      } else {
+        // 기존 제품이 없으면 새로 생성
+        await supabase
+          .from('products')
+          .insert({
+            insurance_code: item.insurance_code,
+            product_name: item.product_name,
+            status: 'active',
+            created_by: user.id
+          })
+      }
+    }
+
     const insertData = uploadData.map(item => {
-      const { rowNum, ...data } = item
+      const { rowNum, product_name, ...data } = item
       return data
     })
 
