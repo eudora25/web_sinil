@@ -614,7 +614,7 @@ export default {
 }
 
 .table-content {
-  height: 740px;
+  height: 500px;
   overflow: hidden;
 }
 
@@ -640,23 +640,23 @@ export default {
 }
 
 .checkbox-cell {
-  width: 60px;
+  width: 50px;
   text-align: center;
 }
 
 .name-cell {
-  width: 160px;
+  width: 200px;
   justify-content: flex-start;
 }
 
 .number-cell {
-  width: 120px;
+  width: 140px;
   text-align: center !important;
   justify-content: center !important;
 }
 
 .rep-cell {
-  width: 80px;
+  width: 100px;
   text-align: center !important;
   justify-content: center !important;
 }
@@ -667,7 +667,7 @@ export default {
 }
 
 .table-body {
-  max-height: 400px;
+  max-height: 420px;
   overflow-y: auto;
 }
 
