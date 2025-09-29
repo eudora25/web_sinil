@@ -77,7 +77,7 @@
           field="product_name" header="제품명" :headerStyle="{ width: columnWidths.product_name }" :sortable="true">
           <template #body="slotProps">
             <a href="#" class="text-link ellipsis-cell" :title="slotProps.data.product_name" @click.prevent="goToDetail(slotProps.data.id)" @mouseenter="checkProductOverflow" @mouseleave="removeOverflowClass">
-              {{ slotProps.data.product_name || '제품명 없음' }}
+              {{ slotProps.data.product_name || '제품 목록 등록 필요' }}
             </a>
           </template>
         </Column>
@@ -306,22 +306,45 @@ const fetchStandardCodes = async () => {
       return;
     }
 
-    // 2. products 테이블에서 product_name 가져오기
+    // 2. products 테이블에서 product_name 가져오기 (최신 등록순으로 정렬)
     const { data: productsData, error: productsError } = await supabase
       .from('products')
-      .select('insurance_code, product_name')
-      .eq('status', 'active');
+      .select('insurance_code, product_name, status, created_at')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
 
     if (productsError) {
       console.error('제품 데이터 로딩 오류:', productsError);
       return;
     }
 
-    // 3. insurance_code로 product_name 매핑
+    // 3. insurance_code로 product_name 매핑 (중복 제거 - 첫 번째 제품만 사용)
     const productsMap = {};
     productsData?.forEach(product => {
-      productsMap[product.insurance_code] = product.product_name;
+      if (!productsMap[product.insurance_code]) {
+        productsMap[product.insurance_code] = product.product_name;
+      }
     });
+    
+    // 디버깅: productsMap 확인
+    console.log('Products data:', productsData);
+    console.log('Products map:', productsMap);
+    
+    // 특정 보험코드 디버깅 (653806230) - 최신 등록순으로 정렬된 결과 확인
+    const specificInsuranceCode = '653806230';
+    const specificProducts = productsData?.filter(p => p.insurance_code === specificInsuranceCode);
+    if (specificProducts && specificProducts.length > 0) {
+      console.log(`🔍 특정 보험코드 ${specificInsuranceCode}의 모든 제품 (최신순):`, specificProducts);
+      console.log(`🔍 선택된 제품명:`, specificProducts[0].product_name);
+    }
+    
+    // 모든 상태의 제품 조회 (디버깅용) - 최신 등록순으로 정렬
+    const { data: allProductsData } = await supabase
+      .from('products')
+      .select('insurance_code, product_name, status, created_at')
+      .eq('insurance_code', specificInsuranceCode)
+      .order('created_at', { ascending: false });
+    console.log(`🔍 보험코드 ${specificInsuranceCode}의 모든 상태 제품 (최신순):`, allProductsData);
 
     // 4. companies 테이블에서 업체명 가져오기 (user와 admin 모두 포함)
     const { data: companiesData, error: companiesError } = await supabase
@@ -355,12 +378,16 @@ const fetchStandardCodes = async () => {
     }
 
     // 6. 표준코드 데이터에 product_name과 업체명 추가
-    const mappedData = standardCodesData?.map(item => ({
-      ...item,
-      product_name: productsMap[item.insurance_code] || null,
-      created_by_name: companiesMap[item.created_by] || '',
-      updated_by_name: companiesMap[item.updated_by] || ''
-    })) || [];
+    const mappedData = standardCodesData?.map(item => {
+      const productName = productsMap[item.insurance_code] || '제품 목록 등록 필요'
+      console.log(`🔍 제품명 매핑 - insurance_code: ${item.insurance_code}, product_name: ${productName}`)
+      return {
+        ...item,
+        product_name: productName,
+        created_by_name: companiesMap[item.created_by] || '',
+        updated_by_name: companiesMap[item.updated_by] || ''
+      }
+    }) || [];
 
     standardCodes.value = mappedData;
   } catch (err) {
@@ -385,7 +412,7 @@ const downloadTemplate = async () => {
 
   // 헤더 정의
   const headers = [
-    '제품명', '보험코드', '표준코드', '단위포장형태', '단위수량', '비고', '상태'
+    '보험코드', '표준코드', '단위포장형태', '단위수량', '비고', '상태'
   ]
 
   // 헤더 추가
@@ -405,7 +432,7 @@ const downloadTemplate = async () => {
 
   // 예시 데이터 추가
   const exampleData = [
-    ['팜플정', '601234567', '8800123456789', '정 10개', 10, '', '활성'],
+    ['601234567', '8800123456789', '정 10개', 10, '', '활성'],
   ]
 
   exampleData.forEach((rowData) => {
@@ -417,7 +444,7 @@ const downloadTemplate = async () => {
       cell.alignment = { vertical: 'middle' }
 
       // 가운데 정렬이 필요한 컬럼들 (보험코드, 표준코드, 단위수량, 상태)
-      if (colNumber === 2 || colNumber === 3 || colNumber === 5 || colNumber === 7) {
+      if (colNumber === 1 || colNumber === 2 || colNumber === 4 || colNumber === 6) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
     })
@@ -425,7 +452,6 @@ const downloadTemplate = async () => {
 
   // 컬럼 너비 설정
   worksheet.columns = [
-    { width: 20 }, // 제품명
     { width: 12 }, // 보험코드
     { width: 16 }, // 표준코드
     { width: 16 }, // 단위포장형태
@@ -501,10 +527,6 @@ const handleFileUpload = async (event) => {
     jsonData.forEach((row, index) => {
       const rowNum = index + 2
 
-      if (!row['제품명']) {
-        errors.push(`${rowNum}행: 제품명이 필요합니다.`)
-        return
-      }
       if (!row['보험코드']) {
         errors.push(`${rowNum}행: 보험코드가 필요합니다.`)
         return
@@ -550,7 +572,6 @@ const handleFileUpload = async (event) => {
       }
 
              uploadData.push({
-         product_name: row['제품명'],
          insurance_code: row['보험코드'],
          standard_code: row['표준코드'],
          unit_packaging_desc: row['단위포장형태'] || '',
@@ -559,6 +580,12 @@ const handleFileUpload = async (event) => {
          status: statusValue,
          created_by: user.id,
          rowNum: rowNum
+       })
+       
+       // 디버깅: 업로드 데이터 확인
+       console.log(`행 ${rowNum} 데이터:`, {
+         insurance_code: row['보험코드'],
+         standard_code: row['표준코드']
        })
     })
 
@@ -600,35 +627,12 @@ const handleFileUpload = async (event) => {
       return
     }
 
-    // 제품명을 products 테이블에 저장/업데이트
-    for (const item of uploadData) {
-      const { data: existingProduct } = await supabase
-        .from('products')
-        .select('id')
-        .eq('insurance_code', item.insurance_code)
-        .single()
-
-      if (existingProduct) {
-        // 기존 제품이 있으면 제품명 업데이트
-        await supabase
-          .from('products')
-          .update({ product_name: item.product_name })
-          .eq('insurance_code', item.insurance_code)
-      } else {
-        // 기존 제품이 없으면 새로 생성
-        await supabase
-          .from('products')
-          .insert({
-            insurance_code: item.insurance_code,
-            product_name: item.product_name,
-            status: 'active',
-            created_by: user.id
-          })
-      }
-    }
-
+    // 바로 products_standard_code 테이블에 등록
+    console.log('📝 표준코드 등록 시작 - 총', uploadData.length, '개 항목')
+    
     const insertData = uploadData.map(item => {
-      const { rowNum, product_name, ...data } = item
+      const { rowNum, ...data } = item
+      console.log(`📝 표준코드 저장 데이터:`, data)
       return data
     })
 
@@ -647,8 +651,17 @@ const handleFileUpload = async (event) => {
         alert('업로드 실패: ' + error.message)
       }
     } else {
-      alert(`${insertData.length}건의 표준코드 데이터가 업로드되었습니다.`)
+      // 최종 성공 메시지 생성
+      let finalMessage = `✅ 표준코드 등록 완료!\n\n`
+      finalMessage += `📊 처리 결과:\n`
+      finalMessage += `• 전체 데이터: ${uploadData.length}건\n`
+      finalMessage += `• 등록 성공: ${insertData.length}건\n\n`
+      finalMessage += `🎉 모든 데이터가 성공적으로 등록되었습니다!`
+      
+      alert(finalMessage)
+      console.log('🔄 표준코드 목록 새로고침 시작')
       await fetchStandardCodes()
+      console.log('✅ 표준코드 목록 새로고침 완료')
     }
   } catch (error) {
     console.error('파일 처리 오류:', error)

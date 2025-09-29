@@ -123,24 +123,28 @@ onMounted(async () => {
   if (data.insurance_code) {
     console.log('🔍 제품명 조회 시작 - insurance_code:', data.insurance_code);
     try {
-      const { data: productData, error: productError } = await supabase
+      const { data: productsData, error: productError } = await supabase
         .from('products')
-        .select('product_name')
+        .select('product_name, created_at')
         .eq('insurance_code', data.insurance_code)
         .eq('status', 'active')
-        .limit(1)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(1);
       
-      console.log('🔍 제품명 조회 결과:', { productData, productError });
+      console.log('🔍 제품명 조회 결과:', { productsData, productError });
       
       if (productError) {
         console.error('제품명 조회 에러:', productError);
         standardCode.value.product_name = '제품명 조회 실패';
-      } else if (productData?.product_name) {
+      } else if (productsData && productsData.length > 0) {
+        const productData = productsData[0]; // 첫 번째 제품 사용
         standardCode.value.product_name = productData.product_name;
         console.log('✅ 제품명 조회 성공:', productData.product_name);
+        if (productsData.length > 1) {
+          console.log(`⚠️ 보험코드 ${data.insurance_code}에 ${productsData.length}개의 제품이 있습니다. 첫 번째 제품을 사용합니다.`);
+        }
       } else {
-        standardCode.value.product_name = '제품명 없음';
+        standardCode.value.product_name = '제품 목록 등록 필요';
         console.log('⚠️ 제품명 없음 - insurance_code:', data.insurance_code);
       }
     } catch (err) {
