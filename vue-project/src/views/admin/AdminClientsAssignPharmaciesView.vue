@@ -222,35 +222,46 @@
       <div>
         <div style="display: flex; gap: 8px; margin-bottom: 12px; margin-top: 0px">
           <InputText
-            v-model="pharmacySearch"
+            ref="pharmacySearchInput"
             placeholder="약국명, 사업자등록번호 검색"
             style="flex: 1"
             class="modal-search-input"
-            @keyup.enter="searchPharmacies"
+            @keyup.enter="performPharmacySearch"
           />
           <button
             class="search-btn"
-            @click="searchPharmacies"
-            :disabled="!pharmacySearch.trim()"
+            @click="performPharmacySearch"
           >
             검색
           </button>
           <button
-            class="search-btn"
+            class="search-btn clear-btn-style"
             @click="clearPharmacySearch"
-            :disabled="!pharmacySearchKeyword"
           >
             초기화
           </button>
         </div>
-        <DataTable
-          :value="filteredPharmacies"
-          v-model:selection="selectedPharmacies"
-          selectionMode="multiple"
-          class="custom-table modal-assign-pharmacies-table"
-          scrollable
-          scrollHeight="480px"
+        <div 
+          ref="pharmacyTableContainer"
+          class="pharmacy-table-container"
+          style="height: 480px; overflow-y: auto; border: 1px solid #ddd; position: relative;"
+          @scroll="handlePharmacyTableScroll"
         >
+          <!-- 로딩 오버레이 - 스크롤과 상관없이 고정 -->
+          <div v-if="pharmacyLoading" class="loading-overlay-fixed">
+            <div class="loading-content">
+              <div class="loading-spinner"></div>
+              <span style="color: #333; font-weight: 500;">약국 목록을 불러오는 중...</span>
+            </div>
+          </div>
+          
+          <DataTable
+            :value="pharmacies"
+            v-model:selection="selectedPharmacies"
+            selectionMode="multiple"
+            class="custom-table modal-assign-pharmacies-table"
+            :scrollable="false"
+          >
           <Column selectionMode="multiple" :headerStyle="{ width: '6%' }" />
           <Column field="name" header="약국명" :headerStyle="{ width: '28%' }" :sortable="true" />
           <Column
@@ -260,7 +271,13 @@
             :sortable="true"
           />
           <Column field="address" header="주소" :headerStyle="{ width: '50%' }" :sortable="true" />
-        </DataTable>
+          </DataTable>
+          
+          <!-- 더 이상 로드할 데이터가 없을 때 -->
+          <div v-if="!pharmacyHasMore && pharmacies.length > 0" style="text-align: center; padding: 10px; color: #666; border-top: 1px solid #eee;">
+            모든 약국을 불러왔습니다. (총 {{ pharmacyTotalCount }}개)
+          </div>
+        </div>
       </div>
 
       <template #footer>
@@ -310,8 +327,13 @@ const filters = ref({ global: { value: null, matchMode: 'contains' } })
 const assignModalVisible = ref(false)
 const selectedClient = ref(null)
 const selectedPharmacies = ref([])
-const pharmacySearch = ref('')
-const pharmacySearchKeyword = ref('')
+const pharmacySearchInput = ref(null)
+const pharmacyTableContainer = ref(null)
+const pharmacyPage = ref(1)
+const pharmacyPageSize = ref(20)
+const pharmacyTotalCount = ref(0)
+const pharmacyLoading = ref(false)
+const pharmacyHasMore = ref(true)
 const currentPageFirstIndex = ref(0)
 const fileInput = ref(null)
 
@@ -361,9 +383,42 @@ const fetchClients = async () => {
     loading.value = false;
   }
 }
-const fetchPharmacies = async () => {
-  const { data, error } = await supabase.from('pharmacies').select('*').eq('status', 'active')
-  if (!error && data) pharmacies.value = data
+const fetchPharmacies = async (page = 1, searchKeyword = '') => {
+  pharmacyLoading.value = true
+  try {
+    let query = supabase
+      .from('pharmacies')
+      .select('*', { count: 'exact' })
+      .eq('status', 'active')
+      .order('name', { ascending: true })
+      .range((page - 1) * pharmacyPageSize.value, page * pharmacyPageSize.value - 1)
+
+    // 검색어가 있으면 필터링
+    if (searchKeyword) {
+      query = query.or(`name.ilike.%${searchKeyword}%,business_registration_number.ilike.%${searchKeyword}%`)
+    }
+
+    const { data, error, count } = await query
+    
+    console.log('약국 데이터 로드 결과:', { page, searchKeyword, dataLength: data?.length, count, error })
+    
+    if (!error && data) {
+      if (page === 1) {
+        pharmacies.value = data
+        console.log('첫 페이지 로드:', data.length, '개')
+      } else {
+        pharmacies.value = [...pharmacies.value, ...data]
+        console.log('추가 페이지 로드:', data.length, '개, 총:', pharmacies.value.length, '개')
+      }
+      pharmacyTotalCount.value = count || 0
+      pharmacyHasMore.value = pharmacies.value.length < pharmacyTotalCount.value
+      console.log('페이징 상태:', { total: pharmacyTotalCount.value, loaded: pharmacies.value.length, hasMore: pharmacyHasMore.value })
+    }
+  } catch (error) {
+    console.error('약국 데이터 로드 실패:', error)
+  } finally {
+    pharmacyLoading.value = false
+  }
 }
 const searchInput = ref('');
 const searchKeyword = ref('');
@@ -430,37 +485,59 @@ function applyFilters() {
 
 // (filteredClients를 ref로만 관리, 검색 버튼/X버튼/검색 버튼 클릭 시에만 갱신)
 
-const filteredPharmacies = computed(() => {
-  if (!pharmacySearchKeyword.value) return pharmacies.value
-  const search = pharmacySearchKeyword.value.toLowerCase()
-  return pharmacies.value.filter(
-    (p) => p.name.toLowerCase().includes(search) || p.business_registration_number.includes(search),
-  )
-})
+// 검색 결과를 ref로 관리하여 computed 속성 제거
+const filteredPharmacies = ref([])
+const currentSearchKeyword = ref('')
 function openAssignModal(client) {
   selectedClient.value = client
   selectedPharmacies.value = []
-  pharmacySearch.value = ''
-  pharmacySearchKeyword.value = ''
+  pharmacyPage.value = 1
+  currentSearchKeyword.value = ''
   assignModalVisible.value = true
+  // 검색창 초기화
+  if (pharmacySearchInput.value) {
+    pharmacySearchInput.value.$el.value = ''
+  }
+  // 초기 약국 데이터 로드
+  fetchPharmacies(1, '')
 }
 function closeAssignModal() {
   assignModalVisible.value = false
   selectedClient.value = null
   selectedPharmacies.value = []
-  pharmacySearch.value = ''
-  pharmacySearchKeyword.value = ''
-}
-function searchPharmacies() {
-  if (pharmacySearch.value.trim()) {
-    pharmacySearchKeyword.value = pharmacySearch.value.trim()
-  } else {
-    pharmacySearchKeyword.value = ''
+  // 검색창 초기화
+  if (pharmacySearchInput.value) {
+    pharmacySearchInput.value.$el.value = ''
   }
 }
+function performPharmacySearch() {
+  const searchValue = pharmacySearchInput.value ? pharmacySearchInput.value.$el.value.trim() : ''
+  currentSearchKeyword.value = searchValue
+  pharmacyPage.value = 1
+  fetchPharmacies(1, searchValue)
+}
 function clearPharmacySearch() {
-  pharmacySearch.value = ''
-  pharmacySearchKeyword.value = ''
+  // 검색창 초기화
+  if (pharmacySearchInput.value) {
+    pharmacySearchInput.value.$el.value = ''
+  }
+  currentSearchKeyword.value = ''
+  pharmacyPage.value = 1
+  fetchPharmacies(1, '')
+}
+
+// 스크롤 이벤트 핸들러
+function handlePharmacyTableScroll(event) {
+  const { scrollTop, scrollHeight, clientHeight } = event.target
+  const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50
+  
+  console.log('스크롤 이벤트:', { scrollTop, scrollHeight, clientHeight, isNearBottom, hasMore: pharmacyHasMore.value, loading: pharmacyLoading.value })
+  
+  if (isNearBottom && pharmacyHasMore.value && !pharmacyLoading.value) {
+    console.log('다음 페이지 로드 시작:', pharmacyPage.value + 1)
+    pharmacyPage.value++
+    fetchPharmacies(pharmacyPage.value, currentSearchKeyword.value)
+  }
 }
 async function assignPharmacies() {
   if (!selectedClient.value || selectedPharmacies.value.length === 0) return
@@ -897,6 +974,68 @@ function goToCompanyDetail(companyId) {
 
 onMounted(() => {
   fetchClients()
-  fetchPharmacies()
+  // fetchPharmacies는 모달 열 때만 호출
 })
 </script>
+
+<style scoped>
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.pharmacy-table-container {
+  position: relative;
+}
+
+.loading-overlay-fixed {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  border: 2px solid #007bff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  min-width: 200px;
+  min-height: 120px;
+}
+
+.loading-content {
+  text-align: center;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 15px;
+}
+
+.clear-btn-style {
+  background-color: #6c757d !important;
+  border-color: #6c757d !important;
+}
+
+.clear-btn-style:hover {
+  background-color: #5a6268 !important;
+  border-color: #545b62 !important;
+}
+
+.clear-btn-style:active {
+  background-color: #545b62 !important;
+  border-color: #4e555b !important;
+}
+</style>
+
