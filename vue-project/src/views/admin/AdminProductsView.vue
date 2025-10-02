@@ -62,7 +62,8 @@
           />
           <button class="btn-excell-download" @click="downloadExcel" style="margin-right: 1rem;">엑셀 다운로드</button>
 <!--          <button class="btn-delete" @click="deleteAllProducts" style="margin-right: 1rem;">모두 삭제</button>-->
-          <button class="btn-save" @click="goCreate">개별 등록</button>
+          <button class="btn-save" @click="goCreate" style="margin-right: 1rem;">개별 등록</button>
+          <button class="btn-save" @click="openMonthlyRegisterModal">월별 등록</button>
         </div>
       </div>
 
@@ -275,12 +276,57 @@
       </div>
     </div>
 
+    <!-- 월별 등록 모달 -->
+    <div v-if="showMonthlyRegisterModal" class="modal-overlay" @click="!monthlyRegisterLoading && closeMonthlyRegisterModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>월별 제품 등록</h3>
+          <button class="modal-close" @click="closeMonthlyRegisterModal" :disabled="monthlyRegisterLoading">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="monthly-register-form">
+            <!-- 로딩 오버레이 -->
+            <div v-if="monthlyRegisterLoading" class="form-loading-overlay">
+              <div class="loading-spinner"></div>
+              <div class="loading-text">데이터 복사 중...</div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label>복사할 기준월<span class="required">*</span></label>
+                <select v-model="selectedSourceMonth" class="form-select" :disabled="monthlyRegisterLoading">
+                  <option value="">기준월을 선택하세요</option>
+                  <option v-for="month in availableMonths" :key="month" :value="month">
+                    {{ month }}
+                  </option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>적용할 월<span class="required">*</span></label>
+                <select v-model="selectedTargetMonth" class="form-select" :disabled="monthlyRegisterLoading">
+                  <option value="">적용할 월을 선택하세요</option>
+                  <option v-for="month in targetMonths" :key="month" :value="month">
+                    {{ month }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn-cancel" @click="closeMonthlyRegisterModal" :disabled="monthlyRegisterLoading">취소</button>
+              <button class="btn-save" @click="executeMonthlyRegister" :disabled="!isMonthlyRegisterValid || monthlyRegisterLoading">
+                {{ monthlyRegisterLoading ? '복사 중...' : '적용' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
@@ -319,6 +365,13 @@ const availableMonths = ref([])
 const router = useRouter()
 const fileInput = ref(null)
 const currentPageFirstIndex = ref(0)
+
+// 월별 등록 모달 관련 변수들
+const showMonthlyRegisterModal = ref(false)
+const selectedSourceMonth = ref('')
+const selectedTargetMonth = ref('')
+const targetMonths = ref([])
+const monthlyRegisterLoading = ref(false)
 
 
 
@@ -388,6 +441,173 @@ function goToDetail(id) {
   router.push(`/admin/products/${id}`)
 }
 
+// 월별 등록 모달 관련 함수들
+const openMonthlyRegisterModal = () => {
+  generateTargetMonths()
+  showMonthlyRegisterModal.value = true
+}
+
+const closeMonthlyRegisterModal = (force = false) => {
+  if (monthlyRegisterLoading.value && !force) {
+    return // 로딩 중일 때는 모달을 닫지 않음 (강제 닫기가 아닌 경우)
+  }
+  showMonthlyRegisterModal.value = false
+  selectedSourceMonth.value = ''
+  selectedTargetMonth.value = ''
+  monthlyRegisterLoading.value = false // 로딩 상태도 초기화
+}
+
+// 이번달부터 6개월 후까지의 월 목록 생성
+const generateTargetMonths = () => {
+  const months = []
+  const currentDate = new Date()
+  
+  for (let i = 0; i < 7; i++) { // 이번달 포함 7개월
+    const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1)
+    const year = targetDate.getFullYear()
+    const month = String(targetDate.getMonth() + 1).padStart(2, '0')
+    months.push(`${year}-${month}`)
+  }
+  
+  targetMonths.value = months
+}
+
+// 월별 등록 폼 유효성 검사
+const isMonthlyRegisterValid = computed(() => {
+  return selectedSourceMonth.value && selectedTargetMonth.value && 
+         selectedSourceMonth.value !== selectedTargetMonth.value
+})
+
+// 월별 등록 실행
+const executeMonthlyRegister = async () => {
+  if (!isMonthlyRegisterValid.value) {
+    alert('복사할 기준월과 적용할 월을 모두 선택해주세요.')
+    return
+  }
+
+  if (selectedSourceMonth.value === selectedTargetMonth.value) {
+    alert('복사할 기준월과 적용할 월이 같을 수 없습니다.')
+    return
+  }
+
+  if (!confirm(`${selectedSourceMonth.value}월의 제품 데이터를 ${selectedTargetMonth.value}월로 복사하시겠습니까?`)) {
+    return
+  }
+
+  monthlyRegisterLoading.value = true
+
+  try {
+    // 현재 사용자 정보 가져오기
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      alert('로그인 정보가 없습니다.')
+      return
+    }
+
+    // 1. 복사할 기준월의 제품 데이터 조회
+    const { data: sourceProducts, error: productsError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('base_month', selectedSourceMonth.value)
+
+    if (productsError) {
+      throw new Error('제품 데이터 조회 실패: ' + productsError.message)
+    }
+
+    if (!sourceProducts || sourceProducts.length === 0) {
+      alert(`${selectedSourceMonth.value}월에 복사할 제품 데이터가 없습니다.`)
+      return
+    }
+
+
+    // 2. 복사할 기준월의 업체 할당 데이터 조회
+    const { data: sourceAssignments, error: assignmentsError } = await supabase
+      .from('product_company_not_assignments')
+      .select(`
+        product_id,
+        company_id,
+        products!inner(
+          id,
+          base_month
+        )
+      `)
+      .eq('products.base_month', selectedSourceMonth.value)
+
+    if (assignmentsError) {
+      throw new Error('업체 할당 데이터 조회 실패: ' + assignmentsError.message)
+    }
+
+
+    // 3. 새로운 제품 데이터 생성 (base_month 변경)
+    const newProducts = sourceProducts.map(product => {
+      const { id, created_at, updated_at, ...productData } = product
+      return {
+        ...productData,
+        base_month: selectedTargetMonth.value,
+        created_by: user.id,
+        updated_by: user.id
+      }
+    })
+
+    // 4. 제품 데이터 삽입
+    const { data: insertedProducts, error: insertError } = await supabase
+      .from('products')
+      .insert(newProducts)
+      .select('id, insurance_code')
+
+    if (insertError) {
+      throw new Error('제품 데이터 삽입 실패: ' + insertError.message)
+    }
+
+
+    // 5. 업체 할당 데이터 복사 (새로운 제품 ID로 매핑)
+    if (sourceAssignments && sourceAssignments.length > 0) {
+      const newAssignments = []
+      
+      for (const assignment of sourceAssignments) {
+        // 원본 제품의 보험코드로 새 제품 찾기
+        const originalProduct = sourceProducts.find(p => p.id === assignment.product_id)
+        const newProduct = insertedProducts.find(p => p.insurance_code === originalProduct.insurance_code)
+        
+        if (newProduct) {
+          newAssignments.push({
+            product_id: newProduct.id,
+            company_id: assignment.company_id
+          })
+        }
+      }
+
+      if (newAssignments.length > 0) {
+        const { error: assignmentInsertError } = await supabase
+          .from('product_company_not_assignments')
+          .insert(newAssignments)
+
+        if (assignmentInsertError) {
+          // 업체 할당 실패해도 제품 복사는 성공으로 처리
+        }
+      }
+    }
+
+    alert(`${insertedProducts.length}개의 제품이 ${selectedTargetMonth.value}월로 복사되었습니다.`)
+    
+    // 6. 모달 닫기 및 데이터 새로고침
+    closeMonthlyRegisterModal(true) // 강제로 모달 닫기
+    await fetchProducts()
+    
+    // 7. 복사된 월로 자동 이동
+    if (availableMonths.value.includes(selectedTargetMonth.value)) {
+      selectedMonth.value = selectedTargetMonth.value
+      await fetchProductsByMonth(selectedTargetMonth.value)
+    }
+
+    // 8. 복사 결과 검증 (개발용)
+
+  } catch (error) {
+    alert('월별 등록 중 오류가 발생했습니다: ' + error.message)
+    monthlyRegisterLoading.value = false // 오류 시에만 로딩 상태 해제
+  }
+}
+
 const fetchProducts = async () => {
   loading.value = true;
   try {
@@ -406,7 +626,6 @@ const fetchProducts = async () => {
         .range(offset, offset + limit - 1);
 
       if (monthError) {
-        console.error('기준월 목록 로딩 오류:', monthError);
         return;
       }
 
@@ -423,8 +642,6 @@ const fetchProducts = async () => {
       }
     }
 
-    console.log('가져온 기준월 데이터 개수:', allMonthData.length);
-    console.log('기준월 데이터 샘플:', allMonthData.slice(0, 10));
 
     // 중복 제거하고 최신순으로 정렬
     const monthSet = new Set();
@@ -438,7 +655,6 @@ const fetchProducts = async () => {
       return b.localeCompare(a); // 최신순 정렬
     });
 
-    console.log('추출된 기준월 목록:', availableMonths.value);
 
     // 최신 연월을 기본값으로 설정하고 해당 월의 제품 불러오기
     if (availableMonths.value.length > 0) {
@@ -446,7 +662,6 @@ const fetchProducts = async () => {
       await fetchProductsByMonth(selectedMonth.value);
     }
   } catch (err) {
-    console.error('기준월 목록 로딩 오류:', err);
   } finally {
     loading.value = false;
   }
@@ -467,7 +682,6 @@ const fetchProductsByMonth = async (month) => {
       .limit(1000);
 
     if (productsError) {
-      console.error('제품 데이터 로딩 오류:', productsError);
       return;
     }
 
@@ -488,7 +702,6 @@ const fetchProductsByMonth = async (month) => {
       .eq('companies.approval_status', 'approved');
 
     if (assignmentError) {
-      console.error('업체 할당 데이터 로딩 오류:', assignmentError);
       return;
     }
 
@@ -506,7 +719,6 @@ const fetchProductsByMonth = async (month) => {
       .eq('approval_status', 'approved');
 
     if (companiesError) {
-      console.error('업체 데이터 로딩 오류:', companiesError);
       return;
     }
 
@@ -517,18 +729,6 @@ const fetchProductsByMonth = async (month) => {
     });
 
     // 디버깅: created_by, updated_by 값 확인
-    console.log('Companies data:', companiesData);
-    console.log('Companies map:', companiesMap);
-    if (productsData && productsData.length > 0) {
-      console.log('Sample product created_by:', productsData[0].created_by);
-      console.log('Sample product updated_by:', productsData[0].updated_by);
-      console.log('Sample product created_by type:', typeof productsData[0].created_by);
-      console.log('Sample product updated_by type:', typeof productsData[0].updated_by);
-
-      // companiesMap에서 해당 값이 있는지 확인
-      console.log('created_by in companiesMap:', companiesMap[productsData[0].created_by]);
-      console.log('updated_by in companiesMap:', companiesMap[productsData[0].updated_by]);
-    }
 
     // 4. 제품별 업체 할당 정보 매핑 (할당 안된 업체만 저장하는 방식)
     const productsWithAssignments = productsData.map(product => {
@@ -554,7 +754,6 @@ const fetchProductsByMonth = async (month) => {
 
     products.value = productsWithAssignments || [];
   } catch (err) {
-    console.error('제품 데이터 로딩 오류:', err);
   } finally {
     loading.value = false;
   }
@@ -932,7 +1131,6 @@ const handleFileUpload = async (event) => {
       await fetchProducts()
     }
   } catch (error) {
-    console.error('파일 처리 오류:', error)
     alert('파일 처리 중 오류가 발생했습니다.')
   } finally {
     // 엑셀 등록 로딩 종료
@@ -1334,7 +1532,6 @@ const saveEdit = async (row) => {
 
     alert('수정되었습니다.')
   } catch (error) {
-    console.error('수정 오류:', error)
     alert('수정 중 오류가 발생했습니다.')
   }
 }
@@ -1373,7 +1570,6 @@ const deleteProduct = async (row) => {
 
     alert('삭제되었습니다.')
   } catch (error) {
-    console.error('삭제 오류:', error)
     alert('삭제 중 오류가 발생했습니다.');
   }
 }
@@ -1475,26 +1671,16 @@ const checkProductOverflow = (event) => {
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
 
-  console.log('오버플로우 체크:', {
-    text: element.textContent,
-    textWidth,
-    availableWidth,
-    isOverflowed
-  });
-
   if (isOverflowed) {
     element.classList.add('overflowed');
-    console.log('오버플로우 클래스 추가됨');
   } else {
     element.classList.remove('overflowed'); // Ensure class is removed if not overflowed
-    console.log('오버플로우 아님 - 클래스 제거됨');
   }
 }
 
 const removeOverflowClass = (event) => {
   const element = event.target;
   element.classList.remove('overflowed');
-  console.log('오버플로우 클래스 제거됨');
 }
 
 // 업체 할당 관련 함수들
@@ -1744,6 +1930,365 @@ function showUploadChoiceModal() {
   font-weight: 500;
 }
 
+/* 월별 등록 모달 스타일 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease-out;
+}
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border-radius: 16px;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.15),
+    0 8px 25px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.8);
+  max-width: 650px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: slideIn 0.3s ease-out;
+  border: 1px solid rgba(118, 147, 60, 0.1);
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 8px 8px 0 0;
+  position: relative;
+  height: 40px;
+}
+
+.modal-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+  border-radius: 16px 16px 0 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.modal-close:hover {
+  background-color: #f5f5f5;
+}
+
+.modal-body {
+  padding: 32px 28px;
+  background: white;
+}
+
+.monthly-register-form {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  position: relative;
+}
+
+.form-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: 12px;
+}
+
+.form-loading-overlay .loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #76933C;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+.form-loading-overlay .loading-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #76933C;
+  text-align: center;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+
+.form-group label {
+  font-weight: 600 !important;
+  color: #2c3e50 !important;
+  font-size: 16px !important;
+  margin-top: 10px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.form-group label .required {
+  color: #e74c3c;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.form-select {
+  padding: 14px 16px;
+  border: 2px solid #e1e8ed;
+  border-radius: 12px;
+  font-size: 15px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  position: relative;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: #76933C;
+  box-shadow: 
+    0 0 0 4px rgba(118, 147, 60, 0.15),
+    0 4px 12px rgba(118, 147, 60, 0.1);
+  transform: translateY(-1px);
+}
+
+.form-select:hover:not(:disabled) {
+  border-color: #76933C;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  padding-top: 24px;
+  padding-bottom: 20px;
+  border-top: 1px solid rgba(118, 147, 60, 0.1);
+  margin-top: 8px;
+}
+
+.modal-actions .btn-cancel {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-actions .btn-cancel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.modal-actions .btn-cancel:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a6268 0%, #495057 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
+}
+
+.modal-actions .btn-cancel:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.modal-actions .btn-save {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #76933C 0%, #5a7a2e 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(118, 147, 60, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-actions .btn-save::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.modal-actions .btn-save:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a7a2e 0%, #4a6b2a 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(118, 147, 60, 0.4);
+}
+
+.modal-actions .btn-save:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.modal-actions .btn-save:disabled {
+  background: linear-gradient(135deg, #ccc 0%, #bbb 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.modal-close:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.form-select:disabled {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  cursor: not-allowed;
+  opacity: 0.6;
+  border-color: #dee2e6;
+  box-shadow: none;
+}
+
+.modal-actions .btn-cancel:disabled {
+  background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  opacity: 0.6;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .modal-content {
+    width: 95%;
+    margin: 20px;
+    border-radius: 12px;
+  }
+  
+  .modal-header {
+    padding: 20px 24px 16px;
+    border-radius: 12px 12px 0 0;
+  }
+  
+  .modal-header::before {
+    border-radius: 12px 12px 0 0;
+  }
+  
+  .modal-body {
+    padding: 24px 20px;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .modal-actions .btn-cancel,
+  .modal-actions .btn-save {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .form-select {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+  
+  .modal-header h3 {
+    font-size: 18px;
+  }
+}
 
 </style>
