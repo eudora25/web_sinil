@@ -397,7 +397,7 @@ async function loadSettlementData() {
     
     while (true) {
     const { data: records, error: recordsError } = await supabase
-      .from('performance_records')
+      .from('performance_records_absorption')
       .select(`
         id,
         company_id,
@@ -406,11 +406,11 @@ async function loadSettlementData() {
         prescription_qty,
         commission_rate,
         review_action,
+        applied_absorption_rate,
         company:companies(*),
         product:products(price)
       `)
         .eq('settlement_month', selectedMonth.value)
-        .eq('review_status', '완료')
         .range(from, from + batchSize - 1);
 
     if (recordsError) throw recordsError;
@@ -479,7 +479,7 @@ async function loadSettlementData() {
           summary.payment_prescription_amount += prescriptionAmount;
         }
         
-        // 지급액: 정상 건의 수수료 합계
+        // 지급액: 정상 건의 수수료 합계 (반영 흡수율 적용)
         let paymentAmount;
         if (record.commission_rate && record.commission_rate > 1) {
           // 수수료율이 1보다 크면 퍼센트(%) 단위로 간주
@@ -488,7 +488,12 @@ async function loadSettlementData() {
           // 수수료율이 1 이하면 소수점 단위로 간주
           paymentAmount = Math.round(prescriptionAmount * (record.commission_rate || 0));
         }
-        summary.payment_amount += paymentAmount;
+        
+        // 반영 흡수율 적용하여 최종 지급액 계산
+        const appliedAbsorptionRate = record.applied_absorption_rate !== null && record.applied_absorption_rate !== undefined ? record.applied_absorption_rate : 1.0;
+        const finalPaymentAmount = Math.round(paymentAmount * appliedAbsorptionRate);
+        
+        summary.payment_amount += finalPaymentAmount;
       }
     }
 
