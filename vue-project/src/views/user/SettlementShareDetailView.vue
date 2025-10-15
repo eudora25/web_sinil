@@ -392,24 +392,45 @@ async function fetchAllDataForMonth() {
   }
   */
 
-  // 2. 공유된 경우에만 performance_records 데이터 조회
-  const { data, error } = await supabase
-    .from('performance_records')
-    .select(`
-      *,
-      clients ( name ),
-      products ( product_name, insurance_code, price )
-    `)
-    .eq('settlement_month', selectedMonth.value)
-    .eq('company_id', companyId.value)
-    .eq('review_status', '완료'); // 검토 완료된 건만 조회
+  // 2. 공유된 경우에만 performance_records 데이터 조회 (관리자 페이지와 동일한 방식)
+  let allData = [];
+  let from = 0;
+  const batchSize = 1000;
   
-  
-  if (error) {
-    allDataForMonth.value = [];
-    return;
+  while (true) {
+    const { data, error } = await supabase
+      .from('performance_records')
+      .select(`
+        *,
+        clients ( name ),
+        products ( product_name, insurance_code, price )
+      `)
+      .eq('settlement_month', selectedMonth.value)
+      .eq('company_id', companyId.value)
+      .range(from, from + batchSize - 1)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('데이터 조회 오류:', error);
+      allDataForMonth.value = [];
+      return;
+    }
+    
+    if (!data || data.length === 0) {
+      break;
+    }
+    
+    allData = allData.concat(data);
+    
+    if (data.length < batchSize) {
+      break;
+    }
+    
+    from += batchSize;
   }
   
+  // 검토 완료된 건만 필터링 (사용자 페이지는 완료된 실적만 표시)
+  const data = allData.filter(record => record.review_status === '완료');
   // 반영 흡수율 데이터를 별도로 조회합니다.
   const recordIds = data.map(record => record.id);
   let absorptionRates = {};
