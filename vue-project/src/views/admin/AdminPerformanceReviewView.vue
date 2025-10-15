@@ -117,8 +117,25 @@
     <div class="data-card" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
       <div class="data-card-header" style="flex-shrink: 0;">
         <div class="total-count-display">전체 {{ displayRows.length }} 건</div>
-        <div v-if="!loading && displayRows.length === 0" class="header-center-message">
-          해당 정산월의 실적 데이터가 없습니다.
+        <div v-if="selectedHospitalRemarks && selectedHospitalId" 
+          class="settlement-remarks" 
+          style="background: #e3f2fd; 
+          color: #1976d2; 
+          padding: 0.25rem 1rem;
+          max-width: 500px;
+          min-width: 240px;
+          text-align: left;
+          border-radius: 4px; 
+          border: 1px solid #bbdefb; 
+          font-size: 0.9rem; 
+          font-weight: 500;
+          margin-left: 1rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          cursor: help;
+          title: selectedHospitalRemarks;">
+          {{ selectedHospitalRemarks }}
         </div>
         <div class="data-card-buttons" style="margin-left: auto;">
            <button class="btn-primary" @click="changeReviewStatus" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing" style="margin-right: 1rem;">
@@ -534,6 +551,9 @@ const prescriptionOffset = ref(null);
 const selectedCompanyId = ref(null);
 const selectedHospitalId = ref(null);
 
+// 선택된 병의원의 정산 비고 정보
+const selectedHospitalRemarks = ref('');
+
 const statusOptions = ref([
   { value: null, label: '- 전체 -' },
   { value: '완료', label: '완료' },
@@ -731,11 +751,14 @@ watch(selectedHospitalId, async () => {
     // 병의원이 변경되면 검색 텍스트도 업데이트
     if (selectedHospitalId.value === null) {
         hospitalSearchText.value = '';
+        selectedHospitalRemarks.value = ''; // 비고 정보 초기화
     } else {
         const selectedHospital = allHospitals.value.find(h => h.id === selectedHospitalId.value);
         if (selectedHospital) {
             hospitalSearchText.value = selectedHospital.name;
         }
+        // 선택된 병의원의 비고 정보 로드
+        await loadHospitalRemarks(selectedHospitalId.value);
     }
     
     // 병의원이 변경되면 자동으로 데이터 로드
@@ -1177,6 +1200,37 @@ async function fetchProductsForMonth(month) {
         console.error('제품 데이터 로딩 오류:', err);
         productsByMonth.value[month] = [];
     }
+}
+
+// 병의원 정산 비고 정보 로드 함수
+async function loadHospitalRemarks(hospitalId) {
+  if (!hospitalId) {
+    selectedHospitalRemarks.value = '';
+    return;
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('remarks_settlement')
+      .eq('id', hospitalId)
+      .single();
+    
+    if (error) {
+      console.error('병의원 정산 비고 조회 오류:', error);
+      selectedHospitalRemarks.value = '';
+      return;
+    }
+    
+    if (data && data.remarks_settlement) {
+      selectedHospitalRemarks.value = data.remarks_settlement;
+    } else {
+      selectedHospitalRemarks.value = '';
+    }
+  } catch (err) {
+    console.error('병의원 정산 비고 로드 오류:', err);
+    selectedHospitalRemarks.value = '';
+  }
 }
 
 // 기존 fetchProducts 함수는 호환성을 위해 유지
