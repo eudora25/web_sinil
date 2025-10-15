@@ -410,13 +410,36 @@ async function fetchAllDataForMonth() {
     return;
   }
   
+  // 반영 흡수율 데이터를 별도로 조회합니다.
+  const recordIds = data.map(record => record.id);
+  let absorptionRates = {};
+  
+  if (recordIds.length > 0) {
+    const { data: absorptionData, error: absorptionError } = await supabase
+      .from('applied_absorption_rates')
+      .select('performance_record_id, applied_absorption_rate')
+      .in('performance_record_id', recordIds);
+    
+    if (!absorptionError && absorptionData) {
+      absorptionRates = absorptionData.reduce((acc, item) => {
+        acc[item.performance_record_id] = item.applied_absorption_rate;
+        return acc;
+      }, {});
+    }
+  }
+  
   allDataForMonth.value = data.map(row => {
     const price = row.products?.price || 0;
     const qty = row.prescription_qty || 0;
     // review_action이 '삭제'인 경우 처방수량을 0으로 설정
     const finalQty = row.review_action === '삭제' ? 0 : qty;
     const prescriptionAmount = Math.round(finalQty * price);
-    const paymentAmount = Math.round(prescriptionAmount * (row.commission_rate || 0));
+    const commissionRate = row.commission_rate || 0;
+    const basePaymentAmount = Math.round(prescriptionAmount * commissionRate);
+    
+    // 반영 흡수율 적용하여 최종 지급액 계산
+    const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1.0;
+    const finalPaymentAmount = Math.round(basePaymentAmount * appliedAbsorptionRate);
     
     return {
       ...row,
@@ -426,13 +449,13 @@ async function fetchAllDataForMonth() {
       price: price,
       prescription_qty: finalQty,
       prescription_amount: prescriptionAmount,
-      payment_amount: paymentAmount,
-      commission_rate: `${((row.commission_rate || 0) * 100).toFixed(1)}%`,
+      payment_amount: finalPaymentAmount, // 최종 지급액 사용
+      commission_rate: `${((commissionRate || 0) * 100).toFixed(1)}%`,
       // 원본 숫자 데이터 보존
       _raw_price: price,
       _raw_qty: finalQty,
       _raw_prescription_amount: prescriptionAmount,
-      _raw_payment_amount: paymentAmount,
+      _raw_payment_amount: finalPaymentAmount, // 최종 지급액 사용
     };
   });
   

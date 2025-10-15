@@ -234,7 +234,7 @@ async function loadDetailData() {
     
     while (true) {
       const { data, error } = await supabase
-        .from('performance_records_absorption')
+        .from('performance_records')
         .select(`
           *,
           clients ( name ),
@@ -260,6 +260,23 @@ async function loadDetailData() {
       from += batchSize;
     }
     
+    // 반영 흡수율 데이터를 별도로 조회합니다.
+    const recordIds = allData.map(record => record.id);
+    let absorptionRates = {};
+    
+    if (recordIds.length > 0) {
+      const { data: absorptionData, error: absorptionError } = await supabase
+        .from('applied_absorption_rates')
+        .select('performance_record_id, applied_absorption_rate')
+        .in('performance_record_id', recordIds);
+      
+      if (!absorptionError && absorptionData) {
+        absorptionRates = absorptionData.reduce((acc, item) => {
+          acc[item.performance_record_id] = item.applied_absorption_rate;
+          return acc;
+        }, {});
+      }
+    }
     
     // 데이터 가공 (약가, 처방액, 지급액 계산)
     let mappedData = [];
@@ -274,8 +291,8 @@ async function loadDetailData() {
       const commissionRate = row.commission_rate ?? 0;
       const paymentAmount = Math.round(prescriptionAmount * commissionRate);
       
-      // 반영 흡수율 처리 (performance_records_absorption 테이블에서 가져온 값 사용)
-      const appliedAbsorptionRate = row.applied_absorption_rate !== null && row.applied_absorption_rate !== undefined ? row.applied_absorption_rate : 1.0;
+      // 반영 흡수율 처리 (별도 조회한 performance_records_absorption 테이블에서 가져온 값 사용)
+      const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1.0;
       
       // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
       const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);

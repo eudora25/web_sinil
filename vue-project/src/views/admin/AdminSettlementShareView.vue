@@ -397,7 +397,7 @@ async function loadSettlementData() {
     
     while (true) {
     const { data: records, error: recordsError } = await supabase
-      .from('performance_records_absorption')
+      .from('performance_records')
       .select(`
         id,
         company_id,
@@ -406,11 +406,11 @@ async function loadSettlementData() {
         prescription_qty,
         commission_rate,
         review_action,
-        applied_absorption_rate,
         company:companies(*),
         product:products(price)
       `)
         .eq('settlement_month', selectedMonth.value)
+        .eq('review_status', '완료')
         .range(from, from + batchSize - 1);
 
     if (recordsError) throw recordsError;
@@ -429,7 +429,25 @@ async function loadSettlementData() {
       from += batchSize;
     }
 
-    // 2. 회사별로 데이터를 집계합니다.
+    // 2. 반영 흡수율 데이터를 별도로 조회합니다.
+    const recordIds = allRecords.map(record => record.id);
+    let absorptionRates = {};
+    
+    if (recordIds.length > 0) {
+      const { data: absorptionData, error: absorptionError } = await supabase
+        .from('applied_absorption_rates')
+        .select('performance_record_id, applied_absorption_rate')
+        .in('performance_record_id', recordIds);
+      
+      if (!absorptionError && absorptionData) {
+        absorptionRates = absorptionData.reduce((acc, item) => {
+          acc[item.performance_record_id] = item.applied_absorption_rate;
+          return acc;
+        }, {});
+      }
+    }
+
+    // 3. 회사별로 데이터를 집계합니다.
     const summaryMap = new Map();
     for (const record of allRecords) {
       if (!record.company) continue;
@@ -490,7 +508,7 @@ async function loadSettlementData() {
         }
         
         // 반영 흡수율 적용하여 최종 지급액 계산
-        const appliedAbsorptionRate = record.applied_absorption_rate !== null && record.applied_absorption_rate !== undefined ? record.applied_absorption_rate : 1.0;
+        const appliedAbsorptionRate = absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined ? absorptionRates[record.id] : 1.0;
         const finalPaymentAmount = Math.round(paymentAmount * appliedAbsorptionRate);
         
         summary.payment_amount += finalPaymentAmount;

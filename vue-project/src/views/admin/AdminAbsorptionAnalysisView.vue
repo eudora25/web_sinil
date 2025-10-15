@@ -1149,6 +1149,24 @@ async function loadAbsorptionAnalysisResults() {
       }
     }
 
+    // 반영 흡수율 데이터를 별도로 조회합니다.
+    const recordIds = allData.map(record => record.id);
+    let absorptionRates = {};
+    
+    if (recordIds.length > 0) {
+      const { data: absorptionData, error: absorptionError } = await supabase
+        .from('applied_absorption_rates')
+        .select('performance_record_id, applied_absorption_rate')
+        .in('performance_record_id', recordIds);
+      
+      if (!absorptionError && absorptionData) {
+        absorptionRates = absorptionData.reduce((acc, item) => {
+          acc[item.performance_record_id] = item.applied_absorption_rate;
+          return acc;
+        }, {});
+      }
+    }
+
     // 데이터 매핑 최적화 (배치 처리)
     const mappedData = allData.map((row, i) => {
         try {
@@ -1161,10 +1179,10 @@ async function loadAbsorptionAnalysisResults() {
             const prescriptionAmount = Math.round(prescriptionQty * productPrice);
             const paymentAmount = Math.round(prescriptionAmount * commissionRate);
             
-            // 반영 흡수율 계산: 저장된 값이 있으면 사용, 없으면 기본값 100%
+            // 반영 흡수율 계산: applied_absorption_rates 테이블에서 조회한 값 사용, 없으면 기본값 100%
             let appliedAbsorptionRate = 100; // 기본값
-            if (row.applied_absorption_rate !== null && row.applied_absorption_rate !== undefined) {
-              const savedAppliedRate = Number(row.applied_absorption_rate);
+            if (absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined) {
+              const savedAppliedRate = Number(absorptionRates[row.id]);
               if (!isNaN(savedAppliedRate) && savedAppliedRate > 0) {
                 // 데이터베이스에 소수점으로 저장되어 있으면 퍼센트로 변환
                 appliedAbsorptionRate = savedAppliedRate > 1 ? savedAppliedRate : savedAppliedRate * 100;
@@ -1385,7 +1403,7 @@ const calculateAbsorptionRates = async () => {
   try {
     // 1단계: 필터 조건에 맞는 원본 데이터 복사
     
-    // 먼저 기존 분석 데이터에서 해당 조건의 데이터 삭제
+    // 먼저 기존 분석 데이터에서 해당 조건의 데이터 삭제 (반영 흡수율은 보존)
     let deleteQuery = supabase
       .from('performance_records_absorption')
       .delete()
@@ -1406,6 +1424,8 @@ const calculateAbsorptionRates = async () => {
     if (deleteError) {
       console.warn('기존 분석 데이터 삭제 중 오류 (무시):', deleteError);
     }
+    
+    // 반영 흡수율은 applied_absorption_rates 테이블에 별도로 보존되므로 삭제하지 않음
 
     // 필터 조건에 맞는 performance_records 데이터 조회
     let sourceQuery = supabase
@@ -1489,11 +1509,8 @@ const calculateAbsorptionRates = async () => {
             // 실제 수정된 데이터만 updated_at, updated_by 정보 가져옴
             updated_at: isActuallyModified ? record.updated_at : null,
             updated_by: isActuallyModified ? record.updated_by : null,
-            analysis_time: new Date().toISOString(), // 데이터 복사 시점의 시간
-            // 반영 흡수율 기본값 설정
-            applied_absorption_rate: 1.0000, // 기본값 100%
-            applied_absorption_rate_updated_at: new Date().toISOString(),
-            applied_absorption_rate_updated_by: null
+            analysis_time: new Date().toISOString() // 데이터 복사 시점의 시간
+            // 반영 흡수율은 applied_absorption_rates 테이블에서 별도 관리
           };
         }));
 
@@ -2178,15 +2195,21 @@ async function saveAbsorptionRate() {
   }
   
   try {
-    // 데이터베이스에 반영 흡수율 저장
+    // applied_absorption_rates 테이블에 반영 흡수율 저장
     const { error } = await supabase
-      .from('performance_records_absorption')
-      .update({
+      .from('applied_absorption_rates')
+      .upsert({
+        performance_record_id: editingRowData.value.id,
+        settlement_month: selectedSettlementMonth.value,
+        company_id: editingRowData.value.company_id,
+        client_id: editingRowData.value.client_id,
+        product_id: editingRowData.value.product_id,
         applied_absorption_rate: newRate / 100, // 퍼센트를 소수점으로 변환 (예: 85% -> 0.85)
-        applied_absorption_rate_updated_at: new Date().toISOString(),
-        applied_absorption_rate_updated_by: (await supabase.auth.getUser()).data.user?.id
-      })
-      .eq('id', editingRowData.value.id);
+        updated_at: new Date().toISOString(),
+        updated_by: (await supabase.auth.getUser()).data.user?.id
+      }, {
+        onConflict: 'performance_record_id'
+      });
     
     if (error) throw error;
     

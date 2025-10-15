@@ -808,6 +808,10 @@ const handleFileUpload = async (event) => {
       return
     }
 
+    // 디버깅: 첫 번째 행의 컬럼명과 데이터 확인
+    console.log('엑셀 파일 컬럼명:', Object.keys(jsonData[0]))
+    console.log('첫 번째 행 데이터:', jsonData[0])
+
     // 데이터 변환 및 검증
     const uploadData = []
     const errors = []
@@ -850,12 +854,41 @@ const handleFileUpload = async (event) => {
 
       // 매출액 형식 검증 (숫자, 마이너스 허용) - 없으면 0으로 설정
       let salesAmountValue = 0;
-      if (row['매출액'] !== undefined && row['매출액'] !== null && row['매출액'] !== '') {
-        salesAmountValue = Number(row['매출액']);
+      
+      // 매출액 컬럼명 확인 (다양한 가능한 컬럼명 체크)
+      const salesAmountKey = row['매출액'] !== undefined ? '매출액' : 
+                           row['매출금액'] !== undefined ? '매출금액' :
+                           row['금액'] !== undefined ? '금액' :
+                           row['amount'] !== undefined ? 'amount' :
+                           row['sales_amount'] !== undefined ? 'sales_amount' : null;
+      
+      // 디버깅: 첫 번째 행에서만 매출액 처리 과정 로그
+      if (index === 0) {
+        console.log('매출액 컬럼명:', salesAmountKey)
+        console.log('매출액 원본 값:', row[salesAmountKey])
+        console.log('매출액 값 타입:', typeof row[salesAmountKey])
+      }
+      
+      if (salesAmountKey && row[salesAmountKey] !== undefined && row[salesAmountKey] !== null && row[salesAmountKey] !== '') {
+        const rawValue = row[salesAmountKey];
+        
+        // 문자열인 경우 쉼표 제거
+        const cleanValue = typeof rawValue === 'string' ? rawValue.replace(/,/g, '') : rawValue;
+        
+        salesAmountValue = Number(cleanValue);
+        
+        // 디버깅: 첫 번째 행에서만 변환 과정 로그
+        if (index === 0) {
+          console.log('정리된 값:', cleanValue)
+          console.log('변환된 숫자:', salesAmountValue)
+        }
+        
         if (isNaN(salesAmountValue)) {
-          errors.push(`${rowNum}행: 매출액은 숫자여야 합니다.`)
+          errors.push(`${rowNum}행: 매출액은 숫자여야 합니다. (입력값: ${rawValue})`)
           return
         }
+      } else if (index === 0) {
+        console.log('매출액이 비어있거나 찾을 수 없음')
       }
 
       // 매출일자 형식 검증 (YYYY-MM-DD)
