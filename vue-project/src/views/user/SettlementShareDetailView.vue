@@ -142,6 +142,13 @@
               </span>
             </template>
           </Column>
+          <Column field="applied_absorption_rate" header="반영 흡수율" :headerStyle="{ width: columnWidths.applied_absorption_rate }" :bodyStyle="{ textAlign: 'center !important' }" :sortable="true">
+            <template #body="slotProps">
+              <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
+                {{ slotProps.data.review_action === '삭제' ? '0%' : formatAppliedAbsorptionRate(slotProps.data.applied_absorption_rate) }}
+              </span>
+            </template>
+          </Column>
           <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
               <span 
@@ -333,6 +340,7 @@ const columnWidths = {
    prescription_qty: '7%',
    prescription_amount: '7%',
    commission_rate: '7%',
+   applied_absorption_rate: '7%',
    payment_amount: '7%',
    remarks: '12%' };
 
@@ -787,7 +795,7 @@ async function downloadExcel() {
     const detailSheet = workbook.addWorksheet('상세내역');
     
     // 헤더 추가
-    const headers = ['No', '상태', '병의원명', '처방월', '제품명', '보험코드', '약가', '처방수량', '처방액', '수수료율', '지급액', '비고'];
+    const headers = ['No', '상태', '병의원명', '처방월', '제품명', '보험코드', '약가', '처방수량', '처방액', '수수료율', '반영 흡수율', '지급액', '비고'];
     detailSheet.addRow(headers);
     
     // 헤더 스타일 설정
@@ -815,6 +823,7 @@ async function downloadExcel() {
         row._raw_qty || 0,
         row._raw_prescription_amount || 0,
         Number(String(row.commission_rate).replace('%', '')) / 100,
+        row.applied_absorption_rate || 1.0,
         row._raw_payment_amount || 0,
         row.remarks || ''
       ]);
@@ -838,7 +847,9 @@ async function downloadExcel() {
           cell.numFmt = '#,##0';
         } else if (colNumber === 10) { // 수수료율
           cell.numFmt = '0.0%';
-        } else if (colNumber === 11) { // 지급액
+        } else if (colNumber === 11) { // 반영 흡수율
+          cell.numFmt = '0.0%';
+        } else if (colNumber === 12) { // 지급액
           cell.numFmt = '#,##0';
         }
       });
@@ -871,6 +882,7 @@ async function downloadExcel() {
       totalQtySum,
       totalPrescriptionAmountSum,
       '',
+      '',
       totalPaymentAmountWithCommission,
       `구간수수료 ${(sectionCommissionRate.value * 100)?.toFixed(1)}% 포함`
     ]);
@@ -894,7 +906,7 @@ async function downloadExcel() {
     // 합계행 숫자 형식 설정
     totalRow.getCell(8).numFmt = '#,##0.0'; // 처방수량
     totalRow.getCell(9).numFmt = '#,##0'; // 처방액
-    totalRow.getCell(11).numFmt = '#,##0'; // 지급액
+    totalRow.getCell(12).numFmt = '#,##0'; // 지급액
     
     // 컬럼 너비 설정
     detailSheet.columns = [
@@ -908,13 +920,14 @@ async function downloadExcel() {
       { width: 12 },  // 처방수량
       { width: 16 },  // 처방액
       { width: 12 },  // 수수료율
+      { width: 12 },  // 반영 흡수율
       { width: 16 },  // 지급액
       { width: 20 }   // 비고
     ];
     
     // 테이블 테두리 설정 - 전체를 얇은 실선으로 통일
     for (let row = 1; row <= detailSheet.rowCount; row++) {
-      for (let col = 1; col <= 12; col++) {
+      for (let col = 1; col <= 13; col++) {
         const cell = detailSheet.getCell(row, col);
         cell.border = {
           top: { style: 'thin', color: { argb: '000000' } },
@@ -1048,6 +1061,29 @@ async function closeNoticeModal() {
   showNoticeModal.value = false;
   noticeData.value = null;
   hideNoticeModal.value = false; // 체크박스 초기화
+}
+
+// 반영 흡수율 포맷팅 함수
+function formatAppliedAbsorptionRate(value) {
+  try {
+    if (value === null || value === undefined) {
+      return '100.0%';
+    }
+    
+    const numValue = Number(value);
+    if (isNaN(numValue)) {
+      return '100.0%';
+    }
+    
+    // 값이 1보다 크면 이미 퍼센트 형태로 저장된 것
+    // 값이 1 이하면 소수점 형태로 저장된 것
+    const percentage = numValue > 1 ? numValue : numValue * 100;
+    
+    return `${percentage.toFixed(1)}%`;
+  } catch (error) {
+    console.error('반영 흡수율 포맷 오류:', error, value);
+    return '100.0%';
+  }
 }
 </script>
 
