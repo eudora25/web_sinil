@@ -152,9 +152,10 @@
         </Column>
         <ColumnGroup type="footer">
             <Row>
-              <Column footer="합계" :colspan="8" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+              <Column footer="합계" :colspan="7" footerClass="footer-cell" footerStyle="text-align:center !important;" />
               <Column :footer="totalQty" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column :footer="totalPrescriptionAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+              <Column footer="" footerClass="footer-cell" />
               <Column footer="" footerClass="footer-cell" />
               <Column :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column footer="" footerClass="footer-cell" />
