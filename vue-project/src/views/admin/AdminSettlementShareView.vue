@@ -256,7 +256,7 @@ const columnWidths = {
   total_prescription_amount: '8%',
   payment_prescription_amount: '8%',
   section_commission_amount: '8%',
-  section_commission_rate: '6%',
+  section_commission_rate: '8%',
   payment_amount: '8%',
   total_payment_amount: '8%',
   notice_individual: '6%',
