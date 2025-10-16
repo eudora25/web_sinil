@@ -19,7 +19,6 @@ const route = useRoute();
 const isSideNavExpanded = ref(false);
 const toast = useToast();
 
-console.log('[App.vue] Script setup: Initializing');
 
 // 사용자 상태 설정 함수
 const setUserState = (sessionUser) => {
@@ -27,12 +26,10 @@ const setUserState = (sessionUser) => {
     user.value = sessionUser;
     userEmail.value = sessionUser.email;
     userType.value = sessionUser.user_metadata?.user_type || '';
-    console.log(`[App.vue] setUserState: User set - Email: ${userEmail.value}, Type: ${userType.value}`);
   } else {
     user.value = null;
     userEmail.value = '';
     userType.value = '';
-    console.log('[App.vue] setUserState: User cleared');
   }
 };
 
@@ -40,7 +37,6 @@ const setUserState = (sessionUser) => {
 const handleRedirect = async (currentSession) => {
   const currentPath = router.currentRoute.value.path;
   const actualPath = window.location.pathname; // 브라우저의 실제 URL 경로
-  console.log(`[App.vue] handleRedirect: Router path: ${currentPath}, Actual path: ${actualPath}, UserType: ${userType.value}`);
 
   if (currentSession && currentSession.user) {
     // 사용자가 로그인된 상태
@@ -49,7 +45,6 @@ const handleRedirect = async (currentSession) => {
     if (targetPath) {
       // 실제 브라우저 경로가 루트(/)나 로그인 페이지에서만 기본 페이지로 리다이렉션
       if (actualPath === '/' || actualPath === '/login') {
-         console.log(`[App.vue] handleRedirect: User logged in. Redirecting from ${actualPath} to ${targetPath}`);
          try {
              await router.push(targetPath);
          } catch (e) {
@@ -57,27 +52,23 @@ const handleRedirect = async (currentSession) => {
          }
       } else {
         // 다른 경로에서는 현재 경로 유지
-        console.log(`[App.vue] handleRedirect: User logged in. Staying at actual path ${actualPath}.`);
       }
     } else {
         // userType이 없거나 유효하지 않은 경우 (예: 메타데이터 누락)
         console.warn(`[App.vue] handleRedirect: User logged in but userType ('${userType.value}') is invalid. Staying at ${actualPath} or redirecting to login if critical.`);
         if (actualPath !== '/login' && actualPath !== '/signup') {
-             console.log(`[App.vue] handleRedirect: Invalid userType, pushing to /login from ${actualPath}`);
              await router.push('/login');
         }
     }
   } else {
     // 사용자가 로그인되지 않은 상태
     if (actualPath !== '/login' && actualPath !== '/signup' && actualPath !== '/reset-password') {
-      console.log(`[App.vue] handleRedirect: User not logged in. Redirecting from ${actualPath} to /login`);
       try {
         await router.push('/login');
       } catch (e) {
         console.error('[App.vue] handleRedirect: Failed to push to /login (user not logged in)', e);
       }
     } else {
-        console.log(`[App.vue] handleRedirect: User not logged in. Already at ${actualPath}. No redirect needed.`);
     }
   }
 };
@@ -173,7 +164,6 @@ onMounted(() => {
 });
 
 async function initializeApp() {
-  console.log('[App.vue] onMounted: Component mounted. Registering onAuthStateChange.');
   
   // URL 파라미터에서 비밀번호 재설정 토큰 확인
   const urlParams = new URLSearchParams(window.location.search);
@@ -181,7 +171,6 @@ async function initializeApp() {
   const token = urlParams.get('token');
   
   if (type === 'recovery' && token && window.location.pathname === '/') {
-    console.log('[App.vue] Password recovery token detected in URL. Redirecting to reset-password page.');
     // 비밀번호 재설정 플래그 설정
     window.isPasswordResetPage = true;
     // 비밀번호 재설정 페이지로 리다이렉트
@@ -196,13 +185,11 @@ async function initializeApp() {
   // INITIAL_SESSION을 주로 사용하고, getSession은 보조적으로 사용하거나 로그 확인용으로만 남겨둘 수 있습니다.
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    console.log('[App.vue] onMounted: getSession() completed.', { session });
     if (session && session.user) {
         // 이미 INITIAL_SESSION에서 처리될 가능성이 높지만, 만약을 대비해 한번 더 사용자 상태 설정
         // setUserState(session.user); 
         // INITIAL_SESSION 이벤트에서 주도적으로 처리하도록 이 부분은 주석 처리하거나 제거 가능.
     } else if (!session && router.currentRoute.value.path !== '/login' && router.currentRoute.value.path !== '/signup') {
-        // console.log('[App.vue] onMounted: No session from getSession(), redirecting to /login if not already there.');
         // await router.push('/login'); // INITIAL_SESSION에서 처리.
     }
   } catch (error) {
@@ -214,40 +201,31 @@ async function initializeApp() {
     setUserState(session?.user); // 이벤트 발생 시마다 사용자 상태 업데이트
 
     if (event === 'INITIAL_SESSION') {
-      console.log('[App.vue] Event: INITIAL_SESSION');
       await handleRedirect(session);
     } else if (event === 'SIGNED_IN') {
-      console.log('[App.vue] Event: SIGNED_IN');
       
       // 비밀번호 재설정 페이지가 아닌 경우에만 자동 로그인 처리
       if (!window.isPasswordResetPage) {
-        console.log('[App.vue] 일반 로그인 - 리디렉션 처리');
         await handleRedirect(session); // 로그인 시 리디렉션
       } else {
-        console.log('[App.vue] 비밀번호 재설정 페이지 - 자동 로그인 방지');
         // 비밀번호 재설정 페이지에서는 자동 리디렉션하지 않음
       }
     } else if (event === 'SIGNED_OUT') {
-      console.log('[App.vue] Event: SIGNED_OUT');
       await handleRedirect(null); // 로그아웃 시 리디렉션 (세션 없음)
     } else if (event === 'USER_UPDATED') {
-      console.log('[App.vue] Event: USER_UPDATED. User metadata might have changed.');
       // 필요하다면 handleRedirect(session) 호출
     } else if (event === 'PASSWORD_RECOVERY') {
-      console.log('[App.vue] Event: PASSWORD_RECOVERY. Redirecting to password reset page.');
       // 비밀번호 재설정 플래그 설정
       window.isPasswordResetPage = true;
       // 비밀번호 재설정 페이지로 리디렉션
       router.push('/reset-password');
     } else if (event === 'TOKEN_REFRESHED') {
-      console.log('[App.vue] Event: TOKEN_REFRESHED. Session token has been refreshed.');
       // 특별한 조치 불필요
     }
   });
 }
 
 const handleLogout = async () => {
-  console.log('[App.vue] handleLogout: Attempting logout');
   try {
     // 모든 Supabase 관련 스토리지 항목 삭제
     const keysToRemove = [];

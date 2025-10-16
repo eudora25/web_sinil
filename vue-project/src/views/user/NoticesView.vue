@@ -170,7 +170,7 @@ onMounted(async () => {
     return;
   }
   
-  console.log('공지사항 데이터:', noticesData);
+  // console.log('공지사항 데이터:', noticesData);
   
   // 2. notice_views 테이블에서 실제 조회수 계산
   const { data: viewsData, error: viewsError } = await supabase
@@ -191,7 +191,7 @@ onMounted(async () => {
     });
   }
   
-  console.log('조회수 데이터:', viewCounts);
+  // console.log('조회수 데이터:', viewCounts);
   
   if (noticesData) {
     notices.value = noticesData.map(n => {
@@ -247,6 +247,6 @@ onMounted(async () => {
 });
 
 watch(filteredNotices, (val) => {
-  console.log('filteredNotices:', val);
+  // console.log('filteredNotices:', val);
 });
 </script>

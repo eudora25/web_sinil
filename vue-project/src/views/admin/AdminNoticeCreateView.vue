@@ -120,8 +120,8 @@ function removeFile(idx) {
     }
     
     // 디버깅을 위한 로그
-    console.log('Current user ID:', user.id);
-    console.log('Current user email:', user.email);
+    // console.log('Current user ID:', user.id);
+    // console.log('Current user email:', user.email);
     
     // companies 테이블에서 사용자 정보 확인
     const { data: companyData, error: companyError } = await supabase
@@ -130,8 +130,8 @@ function removeFile(idx) {
       .eq('user_id', user.id)
       .single();
     
-    console.log('Company data:', companyData);
-    console.log('Company error:', companyError);
+    // console.log('Company data:', companyData);
+    // console.log('Company error:', companyError);
 
     // 1단계: 파일 업로드
     let fileData = [];

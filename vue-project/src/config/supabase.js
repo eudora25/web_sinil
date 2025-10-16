@@ -13,11 +13,5 @@ const getSupabaseConfig = () => {
 
 // 환경 정보 로깅
 const config = getSupabaseConfig()
-console.log('=== Supabase Configuration ===')
-console.log('Environment:', config.environment)
-console.log('URL:', config.url)
-console.log('Anon Key (first 20 chars):', config.anonKey?.substring(0, 20) + '...')
-console.log('Current URL:', window.location.href)
-console.log('================================')
 
 export default config

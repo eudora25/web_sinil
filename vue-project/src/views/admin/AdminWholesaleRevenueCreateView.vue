@@ -72,7 +72,7 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 
-console.log('supabase:', supabase);
+// console.log('supabase:', supabase);
 
 const pharmacyCode = ref('');
 const pharmacyName = ref('');
@@ -86,7 +86,7 @@ const router = useRouter();
 
 (async () => {
   const { data: { user } } = await supabase.auth.getUser();
-  console.log('userId:', user?.id);
+  // console.log('userId:', user?.id);
 })();
 
 // 필수 필드 검증

@@ -341,17 +341,17 @@ const fetchStandardCodes = async () => {
     });
 
     // 디버깅: created_by, updated_by 값 확인
-    console.log('Companies data:', companiesData);
-    console.log('Companies map:', companiesMap);
+    // console.log('Companies data:', companiesData);
+    // console.log('Companies map:', companiesMap);
     if (standardCodesData && standardCodesData.length > 0) {
-      console.log('Sample standard code created_by:', standardCodesData[0].created_by);
-      console.log('Sample standard code updated_by:', standardCodesData[0].updated_by);
-      console.log('Sample standard code created_by type:', typeof standardCodesData[0].created_by);
-      console.log('Sample standard code updated_by type:', typeof standardCodesData[0].updated_by);
+      // console.log('Sample standard code created_by:', standardCodesData[0].created_by);
+      // console.log('Sample standard code updated_by:', standardCodesData[0].updated_by);
+      // console.log('Sample standard code created_by type:', typeof standardCodesData[0].created_by);
+      // console.log('Sample standard code updated_by type:', typeof standardCodesData[0].updated_by);
 
       // companiesMap에서 해당 값이 있는지 확인
-      console.log('created_by in companiesMap:', companiesMap[standardCodesData[0].created_by]);
-      console.log('updated_by in companiesMap:', companiesMap[standardCodesData[0].updated_by]);
+      // console.log('created_by in companiesMap:', companiesMap[standardCodesData[0].created_by]);
+      // console.log('updated_by in companiesMap:', companiesMap[standardCodesData[0].updated_by]);
     }
 
     // 6. 표준코드 데이터에 product_name과 업체명 추가

@@ -84,7 +84,7 @@
         <Column field="section_commission_amount" header="구간 수수료" :headerStyle="{ width: columnWidths.section_commission_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
               <!-- 디버깅용: 실제 값 확인 -->
-              <!-- {{ console.log('section_commission_rate:', slotProps.data.section_commission_rate, 'type:', typeof slotProps.data.section_commission_rate) }} -->
+              <!-- {{ // console.log('section_commission_rate:', slotProps.data.section_commission_rate, 'type:', typeof slotProps.data.section_commission_rate) }} -->
               <div v-if="slotProps.data.section_commission_rate == null || slotProps.data.section_commission_rate == 0">
                 <button 
                   class="btn-commission-input" 
@@ -558,9 +558,9 @@ async function loadSettlementData() {
     });
     
     // 디버깅용 로그: 최종 결과 확인
-    console.log('최종 정산내역서 요약:', companySummary.value);
+    // console.log('최종 정산내역서 요약:', companySummary.value);
     companySummary.value.forEach(company => {
-      console.log(`${company.company_name}: 병의원수=${company.client_count.size}, 처방건수=${company.total_records}, 총처방액=${company.total_prescription_amount} (삭제건 처방수량=0), 지급처방액=${company.payment_prescription_amount} (삭제건 제외), 총지급액=${company.total_payment_amount} (삭제건 제외)`);
+      // console.log(`${company.company_name}: 병의원수=${company.client_count.size}, 처방건수=${company.total_records}, 총처방액=${company.total_prescription_amount} (삭제건 처방수량=0), 지급처방액=${company.payment_prescription_amount} (삭제건 제외), 총지급액=${company.total_payment_amount} (삭제건 제외)`);
     });
 
   } catch (err) {
@@ -602,7 +602,7 @@ async function saveShareStatus() {
   }
   loading.value = true;
   
-  console.log('shareChanges.value:', shareChanges.value);
+  // console.log('shareChanges.value:', shareChanges.value);
 
   try {
     // 1단계: 기존 settlement_share 레코드가 있는지 확인
@@ -615,7 +615,7 @@ async function saveShareStatus() {
 
     if (checkError) throw checkError;
 
-    console.log('기존 레코드:', existingShares);
+    // console.log('기존 레코드:', existingShares);
 
     // 2단계: 기존 레코드가 있는 회사와 없는 회사 분리
     const existingCompanyIds = new Set(existingShares?.map(share => share.company_id) || []);
@@ -635,11 +635,11 @@ async function saveShareStatus() {
         // 기존 레코드가 있는 경우: id 포함하여 UPDATE
         data.id = existingSharesMap.get(companyId);
         dataToUpdate.push(data);
-        console.log(`UPDATE용 데이터:`, data);
+        // console.log(`UPDATE용 데이터:`, data);
       } else {
         // 기존 레코드가 없는 경우: id 제외하여 INSERT
         dataToInsert.push(data);
-        console.log(`INSERT용 데이터:`, data);
+        // console.log(`INSERT용 데이터:`, data);
       }
     });
 
@@ -648,7 +648,7 @@ async function saveShareStatus() {
 
     // UPDATE 실행 (기존 레코드가 있는 경우)
     if (dataToUpdate.length > 0) {
-      console.log('UPDATE 실행:', dataToUpdate);
+      // console.log('UPDATE 실행:', dataToUpdate);
       const { error: updateError } = await supabase
         .from('settlement_share')
         .upsert(dataToUpdate, { onConflict: 'id' });
@@ -661,7 +661,7 @@ async function saveShareStatus() {
 
     // INSERT 실행 (기존 레코드가 없는 경우)
     if (dataToInsert.length > 0 && !error) {
-      console.log('INSERT 실행:', dataToInsert);
+      // console.log('INSERT 실행:', dataToInsert);
       const { error: insertError } = await supabase
         .from('settlement_share')
         .insert(dataToInsert);

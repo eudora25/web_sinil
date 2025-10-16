@@ -268,11 +268,11 @@ import ExcelJS from 'exceljs'
 import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 
-console.log('supabase:', supabase);
+// console.log('supabase:', supabase);
 
 (async () => {
   const { data: { user } } = await supabase.auth.getUser();
-  console.log('userId:', user?.id);
+  // console.log('userId:', user?.id);
 })();
 
 // 컬럼 너비 한 곳에서 관리
@@ -469,7 +469,7 @@ const fetchAvailableMonths = () => {
 
 // 페이지 변경 처리
 const onPageChange = async (event) => {
-  console.log('페이지 변경:', event)
+  // console.log('페이지 변경:', event)
   currentPage.value = event.page + 1
   currentPageFirstIndex.value = event.first
   await fetchRevenues()
@@ -477,13 +477,13 @@ const onPageChange = async (event) => {
 
 // 필터 적용
 const applyFilters = async () => {
-  console.log('필터 적용 시작:', { fromMonth: fromMonth.value, toMonth: toMonth.value, searchInput: searchInput.value })
+  // console.log('필터 적용 시작:', { fromMonth: fromMonth.value, toMonth: toMonth.value, searchInput: searchInput.value })
   currentPage.value = 1
   currentPageFirstIndex.value = 0
   loading.value = true
   try {
     await fetchSummary()
-    console.log('fetchSummary 완료:', { totalCount: totalCount.value, totalSalesAmount: totalSalesAmount.value })
+    // console.log('fetchSummary 완료:', { totalCount: totalCount.value, totalSalesAmount: totalSalesAmount.value })
     await fetchRevenues()
   } finally {
     loading.value = false
@@ -1171,26 +1171,21 @@ const checkOverflow = (event) => {
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
 
-  console.log('도매매출 오버플로우 체크:', {
-    text: element.textContent,
-    textWidth,
-    availableWidth,
-    isOverflowed
-  });
+  // console.log('도매매출 오버플로우 체크:', { text: element.textContent, textWidth, availableWidth, isOverflowed });
 
   if (isOverflowed) {
     element.classList.add('overflowed');
-    console.log('도매매출 오버플로우 클래스 추가됨');
+    // console.log('도매매출 오버플로우 클래스 추가됨');
   } else {
     element.classList.remove('overflowed'); // Ensure class is removed if not overflowed
-    console.log('도매매출 오버플로우 아님 - 클래스 제거됨');
+    // console.log('도매매출 오버플로우 아님 - 클래스 제거됨');
   }
 }
 
 const removeOverflowClass = (event) => {
   const element = event.target;
   element.classList.remove('overflowed');
-  console.log('도매매출 오버플로우 클래스 제거됨');
+  // console.log('도매매출 오버플로우 클래스 제거됨');
 }
 
 // 숫자만 입력 허용

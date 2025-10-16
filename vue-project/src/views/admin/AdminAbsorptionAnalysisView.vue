@@ -730,7 +730,7 @@ async function fetchAllHospitals() {
             });
             
             allHospitals.value = uniqueHospitals;
-            console.log(`전체 병의원 ${hospitals.length}개 → 중복 제거 후 ${allHospitals.value.length}개 로드 완료`);
+            // console.log(`전체 병의원 ${hospitals.length}개 → 중복 제거 후 ${allHospitals.value.length}개 로드 완료`);
         }
     } catch (err) {
         console.error('병의원 데이터 로딩 오류:', err);
@@ -861,7 +861,7 @@ async function fetchAllCompanies() {
         if (error) throw error;
         
         allCompanies.value = companies || [];
-        console.log('전체 업체 목록 로드 완료:', allCompanies.value.length);
+        // console.log('전체 업체 목록 로드 완료:', allCompanies.value.length);
     } catch (err) {
         console.error('전체 업체 목록 로딩 실패:', err);
         allCompanies.value = [];

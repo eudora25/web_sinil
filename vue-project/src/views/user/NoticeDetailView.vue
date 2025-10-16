@@ -105,7 +105,7 @@ async function increaseViewCount(noticeId) {
 
     // 이미 조회한 기록이 있으면 조회수 증가하지 않음
     if (existingView) {
-      console.log('이미 조회한 공지사항입니다.');
+      // console.log('이미 조회한 공지사항입니다.');
       return;
     }
 
@@ -143,7 +143,7 @@ async function increaseViewCount(noticeId) {
     if (updateError) {
       console.error('조회수 증가 실패:', updateError);
     } else {
-      console.log('조회수 증가 성공:', newViewCount);
+      // console.log('조회수 증가 성공:', newViewCount);
     }
   } catch (err) {
     console.error('조회수 증가 중 오류:', err);

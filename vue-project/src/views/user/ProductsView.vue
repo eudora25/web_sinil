@@ -188,7 +188,7 @@ const fetchProducts = async () => {
       }
     }
     
-    console.log('가져온 기준월 데이터 개수:', allMonthData.length);
+    // console.log('가져온 기준월 데이터 개수:', allMonthData.length);
     
     // 중복 제거하고 최신순으로 정렬
     const monthSet = new Set();
@@ -202,7 +202,7 @@ const fetchProducts = async () => {
       return b.localeCompare(a); // 최신순 정렬
     });
     
-    console.log('추출된 기준월 목록:', availableMonths.value);
+    // console.log('추출된 기준월 목록:', availableMonths.value);
     
     // 최신 연월을 기본값으로 설정하고 해당 월의 제품 불러오기
     if (availableMonths.value.length > 0) {

@@ -387,7 +387,7 @@ function checkEditMode() {
   // 편집 모드가 변경되면 변경사항 초기화
   if (prevEditMode !== isEditMode.value) {
     hasChanges.value = false
-    console.log('편집 모드 변경:', {
+    // console.log('편집 모드 변경:', {
       prevEditMode,
       newEditMode: isEditMode.value,
       hasChanges: hasChanges.value,
@@ -915,7 +915,7 @@ function handlePrescriptionQtyBlur(rowIdx) {
 
 function openProductModalForAdd() {
   // 제품 선택 모달 열기 (향후 구현)
-  console.log('제품 선택 모달 열기')
+  // console.log('제품 선택 모달 열기')
 }
 
 // 테이블 네비게이션 함수들
@@ -1345,22 +1345,22 @@ function syncTableWidths() {
 // 라이프사이클
 onMounted(async () => {
   try {
-    console.log('컴포넌트 마운트 시작')
+    // console.log('컴포넌트 마운트 시작')
 
     // 1. 사용자 정보 먼저 로드
     await fetchUserInfo()
-    console.log('사용자 정보 로드 완료:', {
+    // console.log('사용자 정보 로드 완료:', {
       userType: userType.value,
       companyId: currentUserCompanyId.value,
     })
 
     // 2. 기본 데이터들 로드
     await fetchAvailableMonths();
-    console.log('기본 데이터 로드 완료')
+    // console.log('기본 데이터 로드 완료')
 
     // 3. 기본 정산월 설정
     await setDefaultSettlementMonth()
-    console.log('기본 정산월 설정 완료:', selectedSettlementMonth.value)
+    // console.log('기본 정산월 설정 완료:', selectedSettlementMonth.value)
 
     // 4. 정산월이 설정되면 거래처 조회 (watch에서 자동으로 호출됨)
 
@@ -1374,7 +1374,7 @@ onMounted(async () => {
     // 7. 윈도우 리사이즈 시에도 너비 동기화
     window.addEventListener('resize', syncTableWidths)
 
-    console.log('컴포넌트 마운트 완료')
+    // console.log('컴포넌트 마운트 완료')
   } catch (err) {
     console.error('컴포넌트 마운트 오류:', err)
   }
@@ -1545,7 +1545,7 @@ async function fetchPerformanceRecords() {
     // 변경사항 플래그 명시적으로 초기화
     hasChanges.value = false
 
-    console.log('실적 데이터 로드 완료:', {
+    // console.log('실적 데이터 로드 완료:', {
       recordsCount: performanceRecords.value.length,
       displayRowsCount: displayRows.value.length,
       hasChanges: hasChanges.value,
@@ -1565,8 +1565,8 @@ async function fetchPerformanceRecords() {
 }
 
 async function downloadExcel() {
-  console.log('엑셀 다운로드 - displayRows:', displayRows.value)
-  console.log('엑셀 다운로드 - sortedDisplayRows:', sortedDisplayRows.value)
+  // console.log('엑셀 다운로드 - displayRows:', displayRows.value)
+  // console.log('엑셀 다운로드 - sortedDisplayRows:', sortedDisplayRows.value)
 
   // sortedDisplayRows와 displayRows 모두 확인
   const dataToExport =
@@ -1799,26 +1799,21 @@ const checkOverflow = (event) => {
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
   
-  console.log('이용자 실적등록 오버플로우 체크:', {
-    text: element.textContent,
-    textWidth,
-    availableWidth,
-    isOverflowed
-  });
+  // console.log('이용자 실적등록 오버플로우 체크:', { text: element.textContent, textWidth, availableWidth, isOverflowed });
   
   if (isOverflowed) {
     element.classList.add('overflowed');
-    console.log('이용자 실적등록 오버플로우 클래스 추가됨');
+    // console.log('이용자 실적등록 오버플로우 클래스 추가됨');
   } else {
     element.classList.remove('overflowed'); // Ensure class is removed if not overflowed
-    console.log('이용자 실적등록 오버플로우 아님 - 클래스 제거됨');
+    // console.log('이용자 실적등록 오버플로우 아님 - 클래스 제거됨');
   }
 }
 
 const removeOverflowClass = (event) => {
   const element = event.target;
   element.classList.remove('overflowed');
-  console.log('이용자 실적등록 오버플로우 클래스 제거됨');
+  // console.log('이용자 실적등록 오버플로우 클래스 제거됨');
 }
 
 // 검수 상태에 따른 툴팁 텍스트 반환

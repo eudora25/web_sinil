@@ -169,7 +169,7 @@ const handleSubmit = async () => {
   // 병의원 코드 중복 체크 (입력된 경우에만)
   if (clientCode.value && clientCode.value.trim() !== '') {
     try {
-      console.log('병의원 코드 중복 검사 시작...');
+      // console.log('병의원 코드 중복 검사 시작...');
       const { data: existingClientByCode, error: codeCheckError } = await supabase
         .from('clients')
         .select('id, name, client_code')
@@ -179,7 +179,7 @@ const handleSubmit = async () => {
       if (codeCheckError) {
         if (codeCheckError.code === 'PGRST116') {
           // 결과가 없는 경우 - 중복 없음
-          console.log('병의원 코드 중복 없음');
+          // console.log('병의원 코드 중복 없음');
         } else {
           // 다른 모든 오류 (HTTP 406, 500 등) - 중단
           console.error('병의원 코드 중복 검사 실패:', codeCheckError);
@@ -197,7 +197,7 @@ const handleSubmit = async () => {
         }, 100);
         return;
       }
-      console.log('병의원 코드 중복 검사 통과');
+      // console.log('병의원 코드 중복 검사 통과');
     } catch (codeDuplicateCheckError) {
       console.error('병의원 코드 중복 검사 중 예외 발생:', codeDuplicateCheckError);
       alert('병의원 코드 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
@@ -207,7 +207,7 @@ const handleSubmit = async () => {
 
   // 사업자등록번호 중복 체크 (정규화된 값으로 검색)
   try {
-    console.log('사업자등록번호 중복 검사 시작...');
+    // console.log('사업자등록번호 중복 검사 시작...');
     const { data: existingClient, error: checkError } = await supabase
       .from('clients')
       .select('id, name')
@@ -229,7 +229,7 @@ const handleSubmit = async () => {
       }, 100);
       return;
     }
-    console.log('사업자등록번호 중복 검사 통과');
+    // console.log('사업자등록번호 중복 검사 통과');
   } catch (duplicateCheckError) {
     console.error('사업자등록번호 중복 검사 중 예외 발생:', duplicateCheckError);
     alert('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');

@@ -327,15 +327,15 @@ const fetchStandardCodes = async () => {
     });
     
     // 디버깅: productsMap 확인
-    console.log('Products data:', productsData);
-    console.log('Products map:', productsMap);
+    // console.log('Products data:', productsData);
+    // console.log('Products map:', productsMap);
     
     // 특정 보험코드 디버깅 (653806230) - 최신 등록순으로 정렬된 결과 확인
     const specificInsuranceCode = '653806230';
     const specificProducts = productsData?.filter(p => p.insurance_code === specificInsuranceCode);
     if (specificProducts && specificProducts.length > 0) {
-      console.log(`🔍 특정 보험코드 ${specificInsuranceCode}의 모든 제품 (최신순):`, specificProducts);
-      console.log(`🔍 선택된 제품명:`, specificProducts[0].product_name);
+      // console.log(`🔍 특정 보험코드 ${specificInsuranceCode}의 모든 제품 (최신순):`, specificProducts);
+      // console.log(`🔍 선택된 제품명:`, specificProducts[0].product_name);
     }
     
     // 모든 상태의 제품 조회 (디버깅용) - 최신 등록순으로 정렬
@@ -344,7 +344,7 @@ const fetchStandardCodes = async () => {
       .select('insurance_code, product_name, status, created_at')
       .eq('insurance_code', specificInsuranceCode)
       .order('created_at', { ascending: false });
-    console.log(`🔍 보험코드 ${specificInsuranceCode}의 모든 상태 제품 (최신순):`, allProductsData);
+    // console.log(`🔍 보험코드 ${specificInsuranceCode}의 모든 상태 제품 (최신순):`, allProductsData);
 
     // 4. companies 테이블에서 업체명 가져오기 (user와 admin 모두 포함)
     const { data: companiesData, error: companiesError } = await supabase
@@ -364,23 +364,23 @@ const fetchStandardCodes = async () => {
     });
 
     // 디버깅: created_by, updated_by 값 확인
-    console.log('Companies data:', companiesData);
-    console.log('Companies map:', companiesMap);
+    // console.log('Companies data:', companiesData);
+    // console.log('Companies map:', companiesMap);
     if (standardCodesData && standardCodesData.length > 0) {
-      console.log('Sample standard code created_by:', standardCodesData[0].created_by);
-      console.log('Sample standard code updated_by:', standardCodesData[0].updated_by);
-      console.log('Sample standard code created_by type:', typeof standardCodesData[0].created_by);
-      console.log('Sample standard code updated_by type:', typeof standardCodesData[0].updated_by);
+      // console.log('Sample standard code created_by:', standardCodesData[0].created_by);
+      // console.log('Sample standard code updated_by:', standardCodesData[0].updated_by);
+      // console.log('Sample standard code created_by type:', typeof standardCodesData[0].created_by);
+      // console.log('Sample standard code updated_by type:', typeof standardCodesData[0].updated_by);
 
       // companiesMap에서 해당 값이 있는지 확인
-      console.log('created_by in companiesMap:', companiesMap[standardCodesData[0].created_by]);
-      console.log('updated_by in companiesMap:', companiesMap[standardCodesData[0].updated_by]);
+      // console.log('created_by in companiesMap:', companiesMap[standardCodesData[0].created_by]);
+      // console.log('updated_by in companiesMap:', companiesMap[standardCodesData[0].updated_by]);
     }
 
     // 6. 표준코드 데이터에 product_name과 업체명 추가
     const mappedData = standardCodesData?.map(item => {
       const productName = productsMap[item.insurance_code] || '제품 목록 등록 필요'
-      console.log(`🔍 제품명 매핑 - insurance_code: ${item.insurance_code}, product_name: ${productName}`)
+      // console.log(`🔍 제품명 매핑 - insurance_code: ${item.insurance_code}, product_name: ${productName}`)
       return {
         ...item,
         product_name: productName,
@@ -583,7 +583,7 @@ const handleFileUpload = async (event) => {
        })
        
        // 디버깅: 업로드 데이터 확인
-       console.log(`행 ${rowNum} 데이터:`, {
+       // console.log(`행 ${rowNum} 데이터:`, {
          insurance_code: row['보험코드'],
          standard_code: row['표준코드']
        })
@@ -628,11 +628,11 @@ const handleFileUpload = async (event) => {
     }
 
     // 바로 products_standard_code 테이블에 등록
-    console.log('📝 표준코드 등록 시작 - 총', uploadData.length, '개 항목')
+    // console.log('📝 표준코드 등록 시작 - 총', uploadData.length, '개 항목')
     
     const insertData = uploadData.map(item => {
       const { rowNum, ...data } = item
-      console.log(`📝 표준코드 저장 데이터:`, data)
+      // console.log(`📝 표준코드 저장 데이터:`, data)
       return data
     })
 
@@ -659,9 +659,9 @@ const handleFileUpload = async (event) => {
       finalMessage += `🎉 모든 데이터가 성공적으로 등록되었습니다!`
       
       alert(finalMessage)
-      console.log('🔄 표준코드 목록 새로고침 시작')
+      // console.log('🔄 표준코드 목록 새로고침 시작')
       await fetchStandardCodes()
-      console.log('✅ 표준코드 목록 새로고침 완료')
+      // console.log('✅ 표준코드 목록 새로고침 완료')
     }
   } catch (error) {
     console.error('파일 처리 오류:', error)

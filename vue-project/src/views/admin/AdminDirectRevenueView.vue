@@ -455,7 +455,7 @@ const fetchAvailableMonths = () => {
 
 // 페이지 변경 처리
 const onPageChange = async (event) => {
-  console.log('페이지 변경:', event)
+  // console.log('페이지 변경:', event)
   currentPage.value = event.page + 1
   currentPageFirstIndex.value = event.first
   await fetchRevenues()
@@ -463,13 +463,13 @@ const onPageChange = async (event) => {
 
 // 필터 적용
 const applyFilters = async () => {
-  console.log('필터 적용 시작:', { fromMonth: fromMonth.value, toMonth: toMonth.value, searchInput: searchInput.value })
+  // console.log('필터 적용 시작:', { fromMonth: fromMonth.value, toMonth: toMonth.value, searchInput: searchInput.value })
   currentPage.value = 1
   currentPageFirstIndex.value = 0
   loading.value = true
   try {
     await fetchSummary()
-    console.log('fetchSummary 완료:', { totalCount: totalCount.value, totalSalesAmount: totalSalesAmount.value })
+    // console.log('fetchSummary 완료:', { totalCount: totalCount.value, totalSalesAmount: totalSalesAmount.value })
     await fetchRevenues()
   } finally {
     loading.value = false
@@ -809,8 +809,8 @@ const handleFileUpload = async (event) => {
     }
 
     // 디버깅: 첫 번째 행의 컬럼명과 데이터 확인
-    console.log('엑셀 파일 컬럼명:', Object.keys(jsonData[0]))
-    console.log('첫 번째 행 데이터:', jsonData[0])
+    // console.log('엑셀 파일 컬럼명:', Object.keys(jsonData[0]))
+    // console.log('첫 번째 행 데이터:', jsonData[0])
 
     // 데이터 변환 및 검증
     const uploadData = []
@@ -864,9 +864,9 @@ const handleFileUpload = async (event) => {
       
       // 디버깅: 첫 번째 행에서만 매출액 처리 과정 로그
       if (index === 0) {
-        console.log('매출액 컬럼명:', salesAmountKey)
-        console.log('매출액 원본 값:', row[salesAmountKey])
-        console.log('매출액 값 타입:', typeof row[salesAmountKey])
+        // console.log('매출액 컬럼명:', salesAmountKey)
+        // console.log('매출액 원본 값:', row[salesAmountKey])
+        // console.log('매출액 값 타입:', typeof row[salesAmountKey])
       }
       
       if (salesAmountKey && row[salesAmountKey] !== undefined && row[salesAmountKey] !== null && row[salesAmountKey] !== '') {
@@ -879,8 +879,8 @@ const handleFileUpload = async (event) => {
         
         // 디버깅: 첫 번째 행에서만 변환 과정 로그
         if (index === 0) {
-          console.log('정리된 값:', cleanValue)
-          console.log('변환된 숫자:', salesAmountValue)
+          // console.log('정리된 값:', cleanValue)
+          // console.log('변환된 숫자:', salesAmountValue)
         }
         
         if (isNaN(salesAmountValue)) {
@@ -888,7 +888,7 @@ const handleFileUpload = async (event) => {
           return
         }
       } else if (index === 0) {
-        console.log('매출액이 비어있거나 찾을 수 없음')
+        // console.log('매출액이 비어있거나 찾을 수 없음')
       }
 
       // 매출일자 형식 검증 (YYYY-MM-DD)

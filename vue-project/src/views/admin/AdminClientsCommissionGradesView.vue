@@ -679,26 +679,21 @@ const checkOverflow = (event) => {
   const availableWidth = rect.width - paddingLeft - paddingRight - borderLeft - borderRight;
   const isOverflowed = textWidth > availableWidth;
 
-  console.log('병의원 수수료등급 오버플로우 체크:', {
-    text: element.textContent,
-    textWidth,
-    availableWidth,
-    isOverflowed
-  });
+  // console.log('병의원 수수료등급 오버플로우 체크:', { text: element.textContent, textWidth, availableWidth, isOverflowed });
 
   if (isOverflowed) {
     element.classList.add('overflowed');
-    console.log('병의원 수수료등급 오버플로우 클래스 추가됨');
+    // console.log('병의원 수수료등급 오버플로우 클래스 추가됨');
   } else {
     element.classList.remove('overflowed'); // Ensure class is removed if not overflowed
-    console.log('병의원 수수료등급 오버플로우 아님 - 클래스 제거됨');
+    // console.log('병의원 수수료등급 오버플로우 아님 - 클래스 제거됨');
   }
 }
 
 const removeOverflowClass = (event) => {
   const element = event.target;
   element.classList.remove('overflowed');
-  console.log('병의원 수수료등급 오버플로우 클래스 제거됨');
+  // console.log('병의원 수수료등급 오버플로우 클래스 제거됨');
 }
 
 // 병의원 상세 화면으로 이동

@@ -254,12 +254,12 @@ export default {
     const loadAllCompanies = async () => {
       if (!route.params.productId) return
       
-      console.log('🔍 전체 업체 로드 시작 - product_id:', route.params.productId)
+      // console.log('🔍 전체 업체 로드 시작 - product_id:', route.params.productId)
       loading.value = true
       
       try {
         // 1. 먼저 미할당 업체 ID들을 가져옴
-        console.log('📋 1단계: 미할당 업체 ID 조회 중...')
+        // console.log('📋 1단계: 미할당 업체 ID 조회 중...')
         const { data: unassignedData, error: unassignedError } = await supabase
           .from('product_company_not_assignments')
           .select('company_id')
@@ -271,10 +271,10 @@ export default {
         }
 
         const unassignedCompanyIds = unassignedData.map(item => item.company_id)
-        console.log('✅ 미할당 업체 ID 목록:', unassignedCompanyIds)
+        // console.log('✅ 미할당 업체 ID 목록:', unassignedCompanyIds)
 
         // 2. 미할당 업체를 제외한 모든 승인된 업체를 가져옴
-        console.log('📋 2단계: 전체 승인된 업체 조회 중...')
+        // console.log('📋 2단계: 전체 승인된 업체 조회 중...')
         let query = supabase
           .from('companies')
           .select('id, company_name, business_registration_number, representative_name, business_address')
@@ -283,7 +283,7 @@ export default {
           .order('company_name')
 
         if (unassignedCompanyIds.length > 0) {
-          console.log('🔍 미할당 업체 제외 필터 적용')
+          // console.log('🔍 미할당 업체 제외 필터 적용')
           query = query.not('id', 'in', `(${unassignedCompanyIds.join(',')})`)
         }
 
@@ -294,15 +294,15 @@ export default {
           throw error
         }
 
-        console.log('✅ 전체 업체 조회 성공 - 개수:', data.length)
-        console.log('📋 전체 업체 샘플:', data.slice(0, 3))
+        // console.log('✅ 전체 업체 조회 성공 - 개수:', data.length)
+        // console.log('📋 전체 업체 샘플:', data.slice(0, 3))
 
         allCompanies.value = data.map(company => ({
           ...company,
           is_checked: false
         }))
         
-        console.log('✅ 전체 업체 목록 설정 완료 - 개수:', allCompanies.value.length)
+        // console.log('✅ 전체 업체 목록 설정 완료 - 개수:', allCompanies.value.length)
       } catch (error) {
         console.error('❌ 전체 업체 로드 실패:', error)
         alert('전체 업체 목록을 불러오는데 실패했습니다.')
@@ -315,11 +315,11 @@ export default {
     const loadUnassignedCompanies = async () => {
       if (!route.params.productId) return
       
-      console.log('🔍 미할당 업체 로드 시작 - product_id:', route.params.productId)
+      // console.log('🔍 미할당 업체 로드 시작 - product_id:', route.params.productId)
       loading.value = true
       
       try {
-        console.log('📋 product_company_not_assignments 테이블 조회 중...')
+        // console.log('📋 product_company_not_assignments 테이블 조회 중...')
         const { data, error } = await supabase
           .from('product_company_not_assignments')
           .select(`
@@ -339,8 +339,8 @@ export default {
           throw error
         }
 
-        console.log('✅ 미할당 업체 조회 성공 - 개수:', data.length)
-        console.log('📋 미할당 업체 원본 데이터:', data)
+        // console.log('✅ 미할당 업체 조회 성공 - 개수:', data.length)
+        // console.log('📋 미할당 업체 원본 데이터:', data)
 
         unassignedCompanies.value = data.map(item => ({
           id: item.companies.id,
@@ -351,12 +351,12 @@ export default {
           is_checked: false
         }))
 
-        console.log('✅ 미할당 업체 목록 설정 완료 - 개수:', unassignedCompanies.value.length)
-        console.log('📋 미할당 업체 변환된 데이터:', unassignedCompanies.value)
+        // console.log('✅ 미할당 업체 목록 설정 완료 - 개수:', unassignedCompanies.value.length)
+        // console.log('📋 미할당 업체 변환된 데이터:', unassignedCompanies.value)
 
         // 원본 데이터 저장
         originalAssignments.value = [...unassignedCompanies.value]
-        console.log('✅ 원본 할당 데이터 저장 완료')
+        // console.log('✅ 원본 할당 데이터 저장 완료')
       } catch (error) {
         console.error('❌ 미할당 업체 로드 실패:', error)
         alert('미할당 업체 목록을 불러오는데 실패했습니다.')

@@ -400,19 +400,19 @@ const fetchPharmacies = async (page = 1, searchKeyword = '') => {
 
     const { data, error, count } = await query
     
-    console.log('약국 데이터 로드 결과:', { page, searchKeyword, dataLength: data?.length, count, error })
+    // console.log('약국 데이터 로드 결과:', { page, searchKeyword, dataLength: data?.length, count, error })
     
     if (!error && data) {
       if (page === 1) {
         pharmacies.value = data
-        console.log('첫 페이지 로드:', data.length, '개')
+        // console.log('첫 페이지 로드:', data.length, '개')
       } else {
         pharmacies.value = [...pharmacies.value, ...data]
-        console.log('추가 페이지 로드:', data.length, '개, 총:', pharmacies.value.length, '개')
+        // console.log('추가 페이지 로드:', data.length, '개, 총:', pharmacies.value.length, '개')
       }
       pharmacyTotalCount.value = count || 0
       pharmacyHasMore.value = pharmacies.value.length < pharmacyTotalCount.value
-      console.log('페이징 상태:', { total: pharmacyTotalCount.value, loaded: pharmacies.value.length, hasMore: pharmacyHasMore.value })
+      // console.log('페이징 상태:', { total: pharmacyTotalCount.value, loaded: pharmacies.value.length, hasMore: pharmacyHasMore.value })
     }
   } catch (error) {
     console.error('약국 데이터 로드 실패:', error)
@@ -531,10 +531,10 @@ function handlePharmacyTableScroll(event) {
   const { scrollTop, scrollHeight, clientHeight } = event.target
   const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50
   
-  console.log('스크롤 이벤트:', { scrollTop, scrollHeight, clientHeight, isNearBottom, hasMore: pharmacyHasMore.value, loading: pharmacyLoading.value })
+  // console.log('스크롤 이벤트:', { scrollTop, scrollHeight, clientHeight, isNearBottom, hasMore: pharmacyHasMore.value, loading: pharmacyLoading.value })
   
   if (isNearBottom && pharmacyHasMore.value && !pharmacyLoading.value) {
-    console.log('다음 페이지 로드 시작:', pharmacyPage.value + 1)
+    // console.log('다음 페이지 로드 시작:', pharmacyPage.value + 1)
     pharmacyPage.value++
     fetchPharmacies(pharmacyPage.value, currentSearchKeyword.value)
   }
@@ -758,7 +758,7 @@ const handleFileUpload = async (event) => {
           console.error('전체 오류:', JSON.stringify(error, null, 2));
           alert('업로드 실패: ' + error.message)
         } else {
-          console.log('엑셀 업로드 성공 응답:', data);
+          // console.log('엑셀 업로드 성공 응답:', data);
           alert(`${assignmentsToUpload.length}건의 문전약국 지정 정보가 업로드/갱신되었습니다.`)
           await fetchClients()
         }

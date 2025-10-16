@@ -541,8 +541,8 @@ const handleSubmit = async () => {
               return;
             }
             
-            console.log('✅ 사용자 계정 생성됨:', data.user.id);
-            console.log('✅ 회사 정보 생성됨:', data.company.id);
+            // console.log('✅ 사용자 계정 생성됨:', data.user.id);
+            // console.log('✅ 회사 정보 생성됨:', data.company.id);
     
     alert('등록되었습니다.');
     const from = route.query?.from === 'pending' ? 'pending' : 'approved';

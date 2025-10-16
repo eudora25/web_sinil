@@ -572,7 +572,7 @@ watch(prescriptionOffset, (val) => {
 });
 // 처방월이 변경되면 편집 상태 재확인
 watch(prescriptionMonth, (val) => {
-  console.log('처방월 변경 감지:', val);
+  // console.log('처방월 변경 감지:', val);
   if (val) {
     fetchProducts(val);
     checkPerformanceEditStatus();
@@ -641,7 +641,7 @@ async function fetchProducts(prescriptionMonth) {
 
     if (!error && data) {
       products.value = data;
-      console.log('불러온 제품 개수:', data.length, '처방월:', prescriptionMonth);
+      // console.log('불러온 제품 개수:', data.length, '처방월:', prescriptionMonth);
     }
   } catch (err) {
     console.error('제품 데이터 로딩 오류:', err);
@@ -663,7 +663,7 @@ function handleProductNameInput(rowIndex, event) {
     productSearchForRow.value.results = [];
     // 제품명이 삭제되면 관련 필드들 초기화
     clearProductRelatedFields(rowIndex);
-    console.log('show:', productSearchForRow.value.show, 'results:', productSearchForRow.value.results);
+    // console.log('show:', productSearchForRow.value.show, 'results:', productSearchForRow.value.results);
     return;
   }
   // 처방월에 맞는 제품만 필터링
@@ -676,7 +676,7 @@ function handleProductNameInput(rowIndex, event) {
   );
   productSearchForRow.value.selectedIndex = -1;
   productSearchForRow.value.show = productSearchForRow.value.results.length > 0;
-  console.log('show:', productSearchForRow.value.show, 'results:', productSearchForRow.value.results);
+  // console.log('show:', productSearchForRow.value.show, 'results:', productSearchForRow.value.results);
 }
 
 function navigateProductSearchList(direction) {
@@ -834,7 +834,7 @@ function toggleProductDropdown(rowIndex) {
   productSearchForRow.value.results = productsByMonth.value[month] || [];
   productSearchForRow.value.selectedIndex = -1;
   productSearchForRow.value.show = productSearchForRow.value.results.length > 0;
-  console.log('show:', productSearchForRow.value.show, 'results:', productSearchForRow.value.results);
+  // console.log('show:', productSearchForRow.value.show, 'results:', productSearchForRow.value.results);
   nextTick(() => {
     focusField(rowIndex, 'product_name');
   });
@@ -1091,11 +1091,7 @@ function calculatePaymentAmount(rowIdx) {
   const prescriptionAmount = Number(row.prescription_amount.toString().replace(/,/g, ''));
   const commissionRate = Number(row.commission_rate.toString().replace(/,/g, '').replace(/%/g, ''));
   
-  console.log(`지급액 계산 - 행 ${rowIdx}:`, {
-    prescriptionAmount,
-    commissionRate,
-    commissionRateRaw: row.commission_rate
-  });
+  // console.log(`지급액 계산 - 행 ${rowIdx}:`, { prescriptionAmount, commissionRate, commissionRateRaw: row.commission_rate });
   
   // 지급액 계산 (처방액과 수수료율이 모두 있을 때만)
   if (!isNaN(prescriptionAmount) && prescriptionAmount !== 0 && !isNaN(commissionRate) && commissionRate >= 0) {
@@ -1104,18 +1100,10 @@ function calculatePaymentAmount(rowIdx) {
     const paymentAmount = (prescriptionAmount * rateForCalculation / 100);
     row.payment_amount = paymentAmount.toLocaleString();
     
-    console.log(`지급액 계산 결과:`, {
-      rateForCalculation,
-      paymentAmount,
-      formattedPaymentAmount: row.payment_amount
-    });
+    // console.log(`지급액 계산 결과:`, { rateForCalculation, paymentAmount, formattedPaymentAmount: row.payment_amount });
   } else {
     row.payment_amount = '';
-    console.log(`지급액 계산 실패:`, {
-      prescriptionAmountValid: !isNaN(prescriptionAmount),
-      commissionRateValid: !isNaN(commissionRate),
-      prescriptionAmountNonZero: prescriptionAmount !== 0
-    });
+    // console.log(`지급액 계산 실패:`, { prescriptionAmountValid: !isNaN(prescriptionAmount), commissionRateValid: !isNaN(commissionRate), prescriptionAmountNonZero: prescriptionAmount !== 0 });
   }
 }
 
@@ -2048,7 +2036,7 @@ async function updateProductInfoForMonthChange(rowIdx) {
 
     if (!data || data.length === 0) {
       // 새 처방월에 해당 제품이 없으면 제품 선택 해제
-      console.log(`보험코드 ${row.insurance_code} 제품이 ${row.prescription_month}에 존재하지 않습니다. 제품 선택을 해제합니다.`);
+      // console.log(`보험코드 ${row.insurance_code} 제품이 ${row.prescription_month}에 존재하지 않습니다. 제품 선택을 해제합니다.`);
       row.product_name_display = '';
       row.product_id = null;
       row.insurance_code = '';
@@ -2063,12 +2051,7 @@ async function updateProductInfoForMonthChange(rowIdx) {
     const productData = data[0]; // 첫 번째 결과 사용
 
     // 새 처방월에 해당 제품이 있으면 정보 업데이트
-    console.log(`보험코드 ${row.insurance_code} 제품의 ${row.prescription_month} 정보로 업데이트:`, {
-      product_id: productData.id,
-      product_name: productData.product_name,
-      price: productData.price,
-      commission_rate_a: productData.commission_rate_a,
-      commission_rate_b: productData.commission_rate_b
+    // console.log(`보험코드 ${row.insurance_code} 제품의 ${row.prescription_month} 정보로 업데이트:`, { product_id: productData.id, product_name: productData.product_name, price: productData.price, commission_rate_a: productData.commission_rate_a, commission_rate_b: productData.commission_rate_b });
     });
 
     row.product_id = productData.id; // 새로운 product_id로 업데이트

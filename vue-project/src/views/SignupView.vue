@@ -299,7 +299,7 @@ const handleSignup = async () => {
   try {
     // 1단계: 사업자등록번호 중복 검증 (인증 전)
     try {
-      console.log('사업자등록번호 중복 검사 시작...');
+      // console.log('사업자등록번호 중복 검사 시작...');
       // 사업자등록번호에서 하이픈 제거하여 검색
       const cleanBusinessNumber = formData.value.businessRegistrationNumber.replace(/-/g, '');
       
@@ -313,7 +313,7 @@ const handleSignup = async () => {
       if (checkError) {
         if (checkError.code === 'PGRST116') {
           // 결과가 없는 경우 - 중복 없음
-          console.log('사업자등록번호 중복 없음');
+          // console.log('사업자등록번호 중복 없음');
         } else {
           // 다른 모든 오류 (HTTP 406, 500 등) - 중단
           console.error('사업자등록번호 중복 검사 실패:', checkError);
@@ -334,7 +334,7 @@ const handleSignup = async () => {
         }, 100);
         return;
       }
-      console.log('사업자등록번호 중복 검사 통과');
+      // console.log('사업자등록번호 중복 검사 통과');
     } catch (duplicateCheckError) {
       console.error('사업자등록번호 중복 검사 중 예외 발생:', duplicateCheckError);
       alert('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
@@ -343,8 +343,8 @@ const handleSignup = async () => {
 
     // 2단계: 이메일 중복 검증 (인증 전)
     try {
-      console.log('이메일 중복 검사 시작...');
-      console.log('검사할 이메일:', formData.value.email);
+      // console.log('이메일 중복 검사 시작...');
+      // console.log('검사할 이메일:', formData.value.email);
       
       const { data: existingUser, error: emailCheckError } = await supabase
         .from('companies')
@@ -352,13 +352,13 @@ const handleSignup = async () => {
         .eq('email', formData.value.email)
         .single();
       
-      console.log('이메일 중복 검사 결과:', { existingUser, emailCheckError });
+      // console.log('이메일 중복 검사 결과:', { existingUser, emailCheckError });
       
       // 모든 오류 상황에서 중단 (PGRST116 제외)
       if (emailCheckError) {
         if (emailCheckError.code === 'PGRST116') {
           // 결과가 없는 경우 - 중복 없음
-          console.log('이메일 중복 없음 (PGRST116)');
+          // console.log('이메일 중복 없음 (PGRST116)');
         } else {
           // 다른 모든 오류 (HTTP 406, 500 등) - 중단
           console.error('이메일 중복 검사 실패:', emailCheckError);
@@ -369,7 +369,7 @@ const handleSignup = async () => {
         }
       } else if (existingUser) {
         // 중복 발견
-        console.log('이메일 중복 발견:', existingUser);
+        // console.log('이메일 중복 발견:', existingUser);
         alert(`동일한 이메일로 이미 가입된 이력이 있습니다.\n\n이메일: ${existingUser.email}\n회사명: ${existingUser.company_name}`);
         setTimeout(() => {
           const emailInput = document.getElementById('email');
@@ -380,7 +380,7 @@ const handleSignup = async () => {
         }, 100);
         return;
       }
-      console.log('이메일 중복 검사 통과');
+      // console.log('이메일 중복 검사 통과');
     } catch (emailDuplicateCheckError) {
       console.error('이메일 중복 검사 중 예외 발생:', emailDuplicateCheckError);
       alert('이메일 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
@@ -549,7 +549,7 @@ const handleSignup = async () => {
         return;
       }
       
-      console.log('회사 정보 등록 성공');
+      // console.log('회사 정보 등록 성공');
     }
     
     // 회원가입 완료 - 자동 로그인 방지를 위해 세션 제거

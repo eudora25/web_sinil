@@ -457,23 +457,14 @@ const router = createRouter({
 
 // (선택 사항) 네비게이션 가드 추가: requiresAuth 메타 필드가 있는 라우트에 대해 인증 여부 확인
 router.beforeEach(async (to, from, next) => {
-  console.log(`[Router Guard] Navigating from: ${from.fullPath} to: ${to.fullPath}`);
-  console.log(`[Router Guard] To path: ${to.path}, To name: ${to.name}`);
-  console.log(`[Router Guard] Window isPasswordResetPage: ${window.isPasswordResetPage}`);
 
   // 비밀번호 재설정 페이지는 완전히 라우터 가드 우회 (가장 먼저 체크)
   if (to.path === '/reset-password' || to.name === 'ResetPassword' || window.isPasswordResetPage) {
-    console.log('[Router Guard] Password reset page detected. Bypassing all guards.');
-    console.log('[Router Guard] Condition check:');
-    console.log(`  - to.path === '/reset-password': ${to.path === '/reset-password'}`);
-    console.log(`  - to.name === 'ResetPassword': ${to.name === 'ResetPassword'}`);
-    console.log(`  - window.isPasswordResetPage: ${window.isPasswordResetPage}`);
     return next();
   }
 
   // 로그인, 회원가입 페이지는 항상 접근 허용
   if (to.name === 'login' || to.name === 'signup') {
-    console.log('[Router Guard] Accessing login/signup page. Allowing.');
     return next();
   }
   
@@ -484,14 +475,11 @@ router.beforeEach(async (to, from, next) => {
     // 세션 가져오기 실패 시 로그인 페이지로 (심각한 오류 상황)
     return next({ name: 'login', query: { redirect: to.fullPath } });
   }
-  console.log('[Router Guard] Session:', session ? 'Exists' : 'Does not exist');
 
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
-  console.log(`[Router Guard] Route requiresAuth: ${requiresAuth}`);
 
   if (requiresAuth) {
     if (!session) {
-      console.log('[Router Guard] Auth required, but no session. Redirecting to login.');
       return next({ name: 'login', query: { redirect: to.fullPath } }); // 로그인 후 원래 경로로 리디렉션하기 위한 query 추가
     }
 
@@ -510,7 +498,6 @@ router.beforeEach(async (to, from, next) => {
       
       // 미등록 회원인 경우 로그인 페이지로 리다이렉트
       if (!companyRow) {
-        console.log('[Router Guard] User not registered in companies table. Redirecting to login.');
         alert('미등록 회원입니다. 회원가입을 먼저 진행해주세요.');
         await supabase.auth.signOut();
         return next({ name: 'login', query: { redirect: to.fullPath } });
@@ -518,7 +505,6 @@ router.beforeEach(async (to, from, next) => {
       
       // 미승인 회원인 경우 로그인 페이지로 리다이렉트
       if (companyRow.approval_status !== 'approved') {
-        console.log('[Router Guard] User not approved. Redirecting to login.');
         alert('미승인 회원입니다. 관리자에게 승인을 요청해주세요.');
         await supabase.auth.signOut();
         return next({ name: 'login', query: { redirect: to.fullPath } });
@@ -526,36 +512,29 @@ router.beforeEach(async (to, from, next) => {
       
       // 사용자 역할을 데이터베이스에서 가져온 값으로 업데이트
       const userRole = companyRow.user_type;
-      console.log(`[Router Guard] User role from database: ${userRole}`);
 
       // 관리자 권한이 필요한 페이지인지 확인
       const requiresAdmin = to.meta.isAdmin;
       const requiredRole = to.meta.role;
-      console.log(`[Router Guard] Route requiresAdmin: ${requiresAdmin}, requiredRole: ${requiredRole}`);
 
       if (requiresAdmin) {
         // 관리자 권한이 필요한 페이지
         if (userRole === 'admin') {
-          console.log('[Router Guard] Admin access granted. Proceeding.');
           return next();
         } else {
-          console.log(`[Router Guard] Admin access denied. User role: ${userRole}. Redirecting to home.`);
           alert('관리자 권한이 필요한 페이지입니다.');
           return next({ name: 'home' });
         }
       } else if (requiredRole) {
         // 특정 역할이 필요한 페이지
         if (userRole === requiredRole) {
-          console.log('[Router Guard] Role matched. Proceeding.');
           return next();
         } else {
-          console.log(`[Router Guard] Role mismatch. User role: ${userRole}, Required: ${requiredRole}. Redirecting to home.`);
           alert('접근 권한이 없습니다. (역할 불일치)');
           return next({ name: 'home' });
         }
       } else {
         // requiresAuth는 true이지만, 특정 권한이 명시되지 않은 경우 (일반 사용자 접근 가능)
-        console.log('[Router Guard] Auth required, no specific role. Session exists. Proceeding.');
         return next();
       }
     } catch (error) {
@@ -564,7 +543,6 @@ router.beforeEach(async (to, from, next) => {
     }
   } else {
     // 인증이 필요 없는 페이지
-    console.log('[Router Guard] No auth required for this route. Proceeding.');
     return next();
   }
 });
@@ -606,12 +584,5 @@ async function uploadFiles() {
   ]);
 }
 
-const userType = ref('');
-
-onMounted(async () => {
-  // 기존 공지사항 데이터 불러오는 코드 아래에 추가
-  const { data: { session } } = await supabase.auth.getSession();
-  userType.value = session?.user?.user_metadata?.user_type || '';
-});
 
 export default router

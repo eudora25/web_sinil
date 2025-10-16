@@ -148,7 +148,7 @@ const handleLogin = async () => {
         alert('등록되지 않은 이메일입니다. 회원가입을 먼저 진행해주세요.');
       } else if (authError.message && authError.message.includes('Email not confirmed')) {
         // 이메일 미확인 오류는 무시하고 로그인 허용
-        console.log('이메일 미확인 상태이지만 로그인 허용');
+        // console.log('이메일 미확인 상태이지만 로그인 허용');
         // 오류를 무시하고 계속 진행
       } else {
         alert(`로그인 오류: ${authError.message || '알 수 없는 오류가 발생했습니다.'}`);

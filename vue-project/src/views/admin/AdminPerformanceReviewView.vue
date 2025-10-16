@@ -337,7 +337,6 @@
               />
               <span v-else>{{ (() => {
                 const rate = slotProps.data.commission_rate;
-                console.log('수수료율 디버그:', { rate, type: typeof rate, isNull: rate === null, isUndefined: rate === undefined });
                 if (rate === null || rate === undefined) return '';
                 return `${(rate * 100).toFixed(1)}%`;
               })() }}</span>
@@ -532,6 +531,13 @@ const totalPaymentAmount = computed(() => {
   const total = displayRows.value
     .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
     .reduce((sum, row) => sum + (row._raw_payment_amount || 0), 0);
+  return total.toLocaleString();
+});
+
+const totalActualPayment = computed(() => {
+  const total = displayRows.value
+    .filter(row => row.review_action !== '삭제') // 삭제 항목 제외
+    .reduce((sum, row) => sum + (row._raw_final_payment_amount || 0), 0);
   return total.toLocaleString();
 });
 
@@ -755,8 +761,6 @@ watch(selectedStatus, async (newStatus, oldStatus) => {
 });
 
 watch(selectedHospitalId, async () => {
-    console.log('병의원 watcher 실행:', selectedHospitalId.value);
-    
     // 병의원이 변경되면 검색 텍스트도 업데이트
     if (selectedHospitalId.value === null) {
         hospitalSearchText.value = '';
@@ -772,10 +776,7 @@ watch(selectedHospitalId, async () => {
     
     // 병의원이 변경되면 자동으로 데이터 로드
     if (selectedSettlementMonth.value) {
-        console.log('정산월이 있으므로 데이터 로드 시작');
         await loadPerformanceData();
-    } else {
-        console.log('정산월이 없어서 데이터 로드 안함');
     }
 });
 
@@ -811,13 +812,10 @@ function handleHospitalSearch() {
 }
 
 function selectHospital(hospital) {
-    console.log('병의원 선택:', hospital);
     selectedHospitalId.value = hospital.id;
     hospitalSearchText.value = hospital.id === null ? '' : hospital.name;
     showHospitalDropdown.value = false;
     hospitalHighlightedIndex.value = -1;
-    console.log('선택된 병의원 ID:', selectedHospitalId.value);
-    console.log('정산월:', selectedSettlementMonth.value);
     // watcher가 자동으로 loadPerformanceData()를 호출함
 }
 
@@ -901,7 +899,6 @@ async function fetchAllCompanies() {
     if (error) throw error;
     
     allCompanies.value = companies || [];
-    console.log('전체 업체 목록 로드 완료:', allCompanies.value.length);
   } catch (err) {
     console.error('전체 업체 목록 로딩 실패:', err);
     allCompanies.value = [];
@@ -1020,13 +1017,11 @@ watch(currentPageFirstIndex, () => {
 const route = useRoute();
 
 onMounted(async () => {
-  console.log("1. onMounted 시작");
   await fetchAvailableMonths();
   // 전체 업체 목록도 로드 (검색용)
   await fetchAllCompanies();
   if (availableMonths.value.length > 0) {
     selectedSettlementMonth.value = availableMonths.value[0].settlement_month;
-    console.log(`2. 기본 정산월 선택됨: ${selectedSettlementMonth.value}`);
     await fetchFilterOptions(selectedSettlementMonth.value);
   }
 
@@ -1057,7 +1052,6 @@ onMounted(async () => {
     // 처방월이 "전체"인 경우 제품 목록을 불러올 필요 없음
     products.value = [];
   }
-  console.log("7. onMounted 종료");
 });
 
 // --- 데이터 로딩 함수 ---
@@ -1069,7 +1063,6 @@ async function fetchAvailableMonths() {
 
 
 async function fetchFilterOptions(settlementMonth) {
-    console.log(`3. fetchFilterOptions 시작: ${settlementMonth}월`);
     loading.value = true;
 
     // === 업체 리스트: 모든 승인된 업체를 별도로 쿼리 ===
@@ -1086,7 +1079,6 @@ async function fetchFilterOptions(settlementMonth) {
             monthlyCompanies.value = [];
         } else {
             monthlyCompanies.value = companies || [];
-            console.log(`4. 전체 승인된 업체 ${monthlyCompanies.value.length}개 로드 완료`);
         }
     } catch (err) {
         console.error('업체 데이터 로딩 오류:', err);
@@ -1117,7 +1109,6 @@ async function fetchFilterOptions(settlementMonth) {
             });
             
             allHospitals.value = uniqueHospitals;
-            console.log(`5. 전체 병의원 ${hospitals.length}개 → 중복 제거 후 ${allHospitals.value.length}개 로드 완료`);
             
             // 같은 이름의 병의원이 있는지 확인 (디버깅용)
             const nameCounts = {};
@@ -1127,10 +1118,8 @@ async function fetchFilterOptions(settlementMonth) {
             
             Object.entries(nameCounts).forEach(([name, count]) => {
                 if (count > 1) {
-                    console.log(`같은 이름의 병의원이 ${count}개 있습니다: ${name}`);
                     const duplicates = (hospitals || []).filter(h => h.name === name);
                     duplicates.forEach(h => {
-                        console.log(`  - ID: ${h.id}, Name: ${h.name}`);
                     });
                 }
             });
@@ -1171,11 +1160,9 @@ async function fetchFilterOptions(settlementMonth) {
         from += batchSize;
     }
 
-    console.log(`6. ${settlementMonth}월의 performance_records 데이터 ${allPerformanceData.length}건 확인`);
 
     monthlyPerformanceLinks.value = allPerformanceData;
     const clientIds = [...new Set(allPerformanceData.map(p => p.client_id).filter(id => id))];
-    console.log(`7. 고유 병원 ${clientIds.length}개 발견`);
 
     if (clientIds.length > 0) {
         const { data: clients, error: clientError } = await supabase.from('clients').select('id, name').in('id', clientIds);
@@ -1184,7 +1171,6 @@ async function fetchFilterOptions(settlementMonth) {
     } else {
         monthlyHospitals.value = [];
     }
-    console.log(`8. 필터 옵션 로딩 완료: 업체 ${monthlyCompanies.value.length}개, 전체 병원 ${allHospitals.value.length}개, 해당월 병원 ${monthlyHospitals.value.length}개`);
     loading.value = false;
 }
 
@@ -1204,7 +1190,6 @@ async function fetchProductsForMonth(month) {
 
         if (!error && data) {
             productsByMonth.value[month] = data;
-            console.log(`처방월 ${month} 제품 로드 완료:`, data.length, '개');
         } else {
             console.error('제품 목록 로딩 실패:', error);
             productsByMonth.value[month] = [];
@@ -1255,7 +1240,6 @@ async function fetchCompanyHospitals(companyId) {
     
     // 이름순으로 정렬
     companyHospitals.value = uniqueHospitals.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
-    console.log(`업체 ${companyId}의 병원 ${companyHospitals.value.length}개 로드 완료`);
   } catch (err) {
     console.error('업체별 병원 데이터 로딩 오류:', err);
     companyHospitals.value = [];
@@ -1304,7 +1288,6 @@ async function fetchProducts(prescriptionMonth) {
 }
 
 async function loadPerformanceData() {
-  console.log("8. loadPerformanceData 시작");
   if (!selectedSettlementMonth.value) {
     toast.add({ severity: 'warn', summary: '알림', detail: '정산월을 선택해주세요.', life: 3000 });
     return;
@@ -1336,17 +1319,14 @@ async function loadPerformanceData() {
     // --- 데이터 처리 로직 ---
     // 자동 상태 변경 기능 제거: 이제 상태 변경 없이 데이터만 조회합니다.
     if (selectedStatus.value === '대기') {
-      console.log("처리 방식: 대기 상태 데이터 조회 (자동 상태 변경 없음)");
       // 자동 상태 변경 제거: 단순히 대기 상태 데이터만 조회
     }
     else if (!selectedStatus.value) {
-      console.log("처리 방식: 전체 데이터 조회 (자동 상태 변경 없음)");
       // 자동 상태 변경 제거: 단순히 전체 데이터만 조회
     }
     // 3. '검수중' 또는 '완료' 선택 시: 상태 변경 없이 데이터만 불러옵니다.
 
     // --- 데이터 조회 로직 ---
-    console.log("데이터 조회 시작");
     let query = supabase.from('performance_records').select(`
       *,
       companies ( company_name ),
@@ -1355,9 +1335,7 @@ async function loadPerformanceData() {
     `);
 
     if (shouldFetchByIds) {
-      console.log("shouldFetchByIds가 true입니다. idsToFetch:", idsToFetch);
       if (!idsToFetch || idsToFetch.length === 0) {
-          console.log("idsToFetch가 비어있어 빈 결과를 반환합니다.");
           rows.value = [];
           originalRows.value = [];
           loading.value = false;
@@ -1368,7 +1346,6 @@ async function loadPerformanceData() {
       const validIds = idsToFetch.filter(id => id !== null && id !== undefined && id !== '');
       if (validIds.length !== idsToFetch.length) {
           console.warn("idsToFetch에 유효하지 않은 ID가 포함되어 있습니다:", idsToFetch);
-          console.log("유효한 ID만 사용합니다:", validIds);
       }
 
       query = query.in('id', validIds);
@@ -1443,7 +1420,6 @@ async function loadPerformanceData() {
       }
     }
 
-    console.log(`10. 최종 데이터 ${allData.length}건 불러옴`);
 
     // 데이터 가공: Join된 객체를 펼치고, 화면 표시에 필요한 값을 설정
     rows.value = allData.map(item => {
@@ -1497,7 +1473,6 @@ async function loadPerformanceData() {
   } finally {
     loading.value = false;
     selectedRows.value = [];
-    console.log("11. loadPerformanceData 종료");
   }
 }
 
@@ -1632,7 +1607,6 @@ async function saveEdit(rowData) {
 function onRowEditSave(event) {
   // DataTable의 기본 편집 기능은 사용하지 않고 커스텀 편집을 사용하므로
   // 이 함수는 빈 함수로 두거나 기본 동작을 정의할 수 있습니다.
-  console.log('onRowEditSave called:', event);
 }
 
 function addRowBelow(referenceRow) {
@@ -2069,13 +2043,11 @@ function handleProductNameFocus(rowData) {
   const prescriptionMonth = reactiveRow.prescription_month_modify || reactiveRow.prescription_month;
 
   if (!prescriptionMonth) {
-    console.log('[제품 검색] 처방월이 지정되지 않음');
     return;
   }
 
   // 해당 처방월의 제품 목록이 없으면 먼저 불러오기
   if (!productsByMonth.value[prescriptionMonth]) {
-    console.log(`[제품 검색] 처방월 ${prescriptionMonth} 제품 목록을 불러옵니다.`);
     fetchProductsForMonth(prescriptionMonth).then(() => {
       const filteredList = getFilteredProductList(prescriptionMonth);
       reactiveRow.availableProducts = filteredList;
@@ -2123,19 +2095,16 @@ function updateProductDropdownPosition(rowData) {
 // --- 제품 검색 헬퍼 ---
 function getFilteredProductList(prescriptionMonth) {
   if (!prescriptionMonth) {
-    console.log('[제품 검색] 처방월이 지정되지 않음');
     return [];
   }
 
   // 해당 처방월의 제품 목록 가져오기 (없으면 자동으로 불러옴)
   if (!productsByMonth.value[prescriptionMonth]) {
-    console.log(`[제품 검색] 처방월 ${prescriptionMonth} 제품 목록이 없어서 불러옵니다.`);
     fetchProductsForMonth(prescriptionMonth);
     return [];
   }
 
   const productList = productsByMonth.value[prescriptionMonth] || [];
-  console.log(`[제품 검색] 처방월 ${prescriptionMonth} 기준 전체 제품 수:`, productList.length);
 
   return productList;
 }
@@ -2162,7 +2131,6 @@ async function updateProductInfoForMonthChange(rowData) {
 
     if (!data || data.length === 0) {
       // 새 처방월에 해당 제품이 없으면 제품 선택 해제
-      console.log(`보험코드 ${reactiveRow.insurance_code} 제품이 ${reactiveRow.prescription_month_modify}에 존재하지 않습니다. 제품 선택을 해제합니다.`);
       reactiveRow.product_id_modify = null;
       reactiveRow.product_name_search = '';
       reactiveRow.product_name_display = '';
@@ -2177,11 +2145,6 @@ async function updateProductInfoForMonthChange(rowData) {
     const productData = data[0]; // 첫 번째 결과 사용
 
     // 새 처방월에 해당 제품이 있으면 정보 업데이트
-    console.log(`보험코드 ${reactiveRow.insurance_code} 제품의 ${reactiveRow.prescription_month_modify} 정보로 업데이트:`, {
-      product_id: productData.id,
-      product_name: productData.product_name,
-      price: productData.price
-    });
 
     reactiveRow.product_id_modify = productData.id;
     reactiveRow.product_name_search = productData.product_name;
@@ -2286,9 +2249,6 @@ async function handleBulkChange() {
           updateData.company_id = selectedCompany.id;
 
           // 선택된 실적 기록들의 client_id를 가져와서 매핑 관계 확인 및 추가
-          console.log('=== 매핑 관계 추가 시작 ===');
-          console.log('선택된 업체:', selectedCompany);
-          console.log('선택된 실적 기록 ID들:', ids);
 
           const { data: performanceRecords, error: fetchError } = await supabase
             .from('performance_records')
@@ -2299,15 +2259,12 @@ async function handleBulkChange() {
             throw new Error(`실적 기록 조회 실패: ${fetchError.message}`);
           }
 
-          console.log('조회된 실적 기록들:', performanceRecords);
 
           // 고유한 client_id 목록 생성
           const uniqueClientIds = [...new Set(performanceRecords.map(record => record.client_id).filter(id => id))];
-          console.log('고유한 client_id 목록:', uniqueClientIds);
 
           // 각 client_id에 대해 매핑 관계 확인 및 추가
           for (const clientId of uniqueClientIds) {
-            console.log(`\n--- client_id ${clientId} 처리 시작 ---`);
 
             // 기존 매핑 관계 확인
             const { data: existingMapping, error: mappingError } = await supabase
@@ -2317,7 +2274,6 @@ async function handleBulkChange() {
               .eq('company_id', selectedCompany.id)
               .single();
 
-            console.log('기존 매핑 관계 확인 결과:', { existingMapping, mappingError });
 
             if (mappingError && mappingError.code !== 'PGRST116') { // PGRST116는 결과가 없는 경우
               console.error(`매핑 관계 확인 오류 (client_id: ${clientId}, company_id: ${selectedCompany.id}):`, mappingError);
@@ -2325,17 +2281,14 @@ async function handleBulkChange() {
 
             // 매핑 관계가 없으면 새로 추가
             if (!existingMapping) {
-              console.log(`매핑 관계가 없으므로 새로 추가합니다. (client_id: ${clientId}, company_id: ${selectedCompany.id})`);
 
               const currentUser = await supabase.auth.getUser();
-              console.log('현재 사용자:', currentUser.data.user);
 
               const insertData = {
                 client_id: clientId,
                 company_id: selectedCompany.id,
                 created_by: currentUser.data.user?.id
               };
-              console.log('삽입할 데이터:', insertData);
 
               const { error: insertError } = await supabase
                 .from('client_company_assignments')
@@ -2345,13 +2298,10 @@ async function handleBulkChange() {
                 console.error(`매핑 관계 추가 실패 (client_id: ${clientId}, company_id: ${selectedCompany.id}):`, insertError);
                 // 매핑 추가 실패해도 실적 기록 업데이트는 계속 진행
               } else {
-                console.log(`매핑 관계 추가 완료 (client_id: ${clientId}, company_id: ${selectedCompany.id})`);
               }
             } else {
-              console.log(`이미 매핑 관계가 존재합니다. (client_id: ${clientId}, company_id: ${selectedCompany.id})`);
             }
           }
-          console.log('=== 매핑 관계 추가 완료 ===');
         }
         break;
       case 'prescription_type':
