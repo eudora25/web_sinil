@@ -287,7 +287,9 @@ const settlementSummary = computed(() => {
   // 지급 처방액 계산 (수수료율이 있는 정상 건의 처방액만)
   const paymentPrescriptionAmount = detailRows.value.reduce((sum, row) => {
     if (row.review_action === '삭제') return sum;
-    if (row.commission_rate && parseFloat(row.commission_rate.replace('%', '')) > 0) {
+    // 수수료율을 숫자로 변환하여 비교 (목록 페이지와 동일한 로직)
+    const commissionRate = parseFloat(row.commission_rate?.replace('%', '') || '0') / 100;
+    if (commissionRate > 0) {
       return sum + (row._raw_prescription_amount || 0);
     }
     return sum;
