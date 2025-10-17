@@ -388,10 +388,10 @@ function checkEditMode() {
   if (prevEditMode !== isEditMode.value) {
     hasChanges.value = false
     // console.log('편집 모드 변경:', {
-      prevEditMode,
-      newEditMode: isEditMode.value,
-      hasChanges: hasChanges.value,
-    })
+    //   prevEditMode,
+    //   newEditMode: isEditMode.value,
+    //   hasChanges: hasChanges.value,
+    // })
   }
 }
 
@@ -1350,9 +1350,9 @@ onMounted(async () => {
     // 1. 사용자 정보 먼저 로드
     await fetchUserInfo()
     // console.log('사용자 정보 로드 완료:', {
-      userType: userType.value,
-      companyId: currentUserCompanyId.value,
-    })
+    //   userType: userType.value,
+    //   companyId: currentUserCompanyId.value,
+    // })
 
     // 2. 기본 데이터들 로드
     await fetchAvailableMonths();
@@ -1546,12 +1546,12 @@ async function fetchPerformanceRecords() {
     hasChanges.value = false
 
     // console.log('실적 데이터 로드 완료:', {
-      recordsCount: performanceRecords.value.length,
-      displayRowsCount: displayRows.value.length,
-      hasChanges: hasChanges.value,
-      isEditMode: isEditMode.value,
-      prescriptionOffset: prescriptionOffset.value,
-    })
+    //   recordsCount: performanceRecords.value.length,
+    //   displayRowsCount: displayRows.value.length,
+    //   hasChanges: hasChanges.value,
+    //   isEditMode: isEditMode.value,
+    //   prescriptionOffset: prescriptionOffset.value,
+    // })
   } catch (err) {
     console.error('실적 조회 예외:', err)
     // 예외 발생 시에도 빈 배열로 초기화

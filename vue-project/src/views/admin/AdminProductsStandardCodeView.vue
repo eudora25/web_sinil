@@ -582,11 +582,11 @@ const handleFileUpload = async (event) => {
          rowNum: rowNum
        })
        
-       // 디버깅: 업로드 데이터 확인
-       // console.log(`행 ${rowNum} 데이터:`, {
-         insurance_code: row['보험코드'],
-         standard_code: row['표준코드']
-       })
+      // 디버깅: 업로드 데이터 확인
+      // console.log(`행 ${rowNum} 데이터:`, {
+      //   insurance_code: row['보험코드'],
+      //   standard_code: row['표준코드']
+      // })
     })
 
     if (errors.length > 0) {
