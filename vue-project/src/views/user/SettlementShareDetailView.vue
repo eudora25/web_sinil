@@ -354,22 +354,31 @@ async function fetchCompanyId() {
 async function fetchAvailableMonths() {
   if (!companyId.value) return;
   
-  // 2025-09 정산월 강제 설정 (테스트용)
-  availableMonths.value = ['2025-09'];
-  selectedMonth.value = '2025-09';
-  
-  // 원래 로직 (주석 처리)
-  /*
-  const { data, error } = await supabase
-    .from('settlement_share')
-    .select('settlement_month')
-    .eq('company_id', companyId.value)
-    .eq('share_enabled', true);
-  if (!error && data) {
-    availableMonths.value = Array.from(new Set(data.map(d => d.settlement_month))).sort((a, b) => b.localeCompare(a));
-    if (availableMonths.value.length > 0) selectedMonth.value = availableMonths.value[0];
+  try {
+    const { data, error } = await supabase
+      .from('settlement_share')
+      .select('settlement_month')
+      .eq('company_id', companyId.value)
+      .eq('share_enabled', true);
+    
+    if (error) {
+      console.error('정산월 조회 오류:', error);
+      availableMonths.value = [];
+      return;
+    }
+    
+    if (data && data.length > 0) {
+      availableMonths.value = Array.from(new Set(data.map(d => d.settlement_month))).sort((a, b) => b.localeCompare(a));
+      if (availableMonths.value.length > 0) {
+        selectedMonth.value = availableMonths.value[0];
+      }
+    } else {
+      availableMonths.value = [];
+    }
+  } catch (err) {
+    console.error('정산월 조회 예외:', err);
+    availableMonths.value = [];
   }
-  */
 }
 
 async function fetchAllDataForMonth() {
@@ -381,17 +390,13 @@ async function fetchAllDataForMonth() {
 
   try {
   
-  // 1. settlement_share 테이블에서 공유 여부 확인 (2025-09 테스트용으로 우회)
-  
-  // 원래 로직 (주석 처리)
-  /*
+  // 1. settlement_share 테이블에서 공유 여부 확인
   const { data: shareData, error: shareError } = await supabase
     .from('settlement_share')
     .select('share_enabled')
     .eq('settlement_month', selectedMonth.value)
     .eq('company_id', companyId.value)
     .maybeSingle();
-
 
   // 공유되지 않았거나 오류 발생 시, 빈 화면 처리
   if (shareError || !shareData || !shareData.share_enabled) {
@@ -400,7 +405,6 @@ async function fetchAllDataForMonth() {
     filterDetailRows();
     return;
   }
-  */
 
   // 2. 공유된 경우에만 performance_records 데이터 조회 (관리자 페이지와 동일한 방식)
   let allData = [];
