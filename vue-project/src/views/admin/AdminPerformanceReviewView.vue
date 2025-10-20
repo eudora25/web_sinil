@@ -733,6 +733,11 @@ watch(selectedCompanyId, async () => {
     selectedHospitalId.value = null;
     hospitalSearchText.value = '';
     
+    // 업체가 선택되었을 때 해당 업체의 병원 목록을 즉시 표시
+    if (selectedCompanyId.value && companyHospitals.value.length > 0) {
+        handleHospitalSearch();
+    }
+    
     // 업체가 변경되면 자동으로 데이터 로드
     if (selectedSettlementMonth.value) {
         await loadPerformanceData();
@@ -786,6 +791,14 @@ function handleHospitalFocus() {
     const sourceHospitals = selectedCompanyId.value ? companyHospitals.value : allHospitals.value;
     if (sourceHospitals.length > 0) {
         handleHospitalSearch();
+    } else if (selectedCompanyId.value) {
+        // 업체가 선택되었지만 병원 목록이 아직 로드되지 않은 경우
+        // 병원 목록을 다시 로드 시도
+        fetchCompanyHospitals(selectedCompanyId.value).then(() => {
+            if (companyHospitals.value.length > 0) {
+                handleHospitalSearch();
+            }
+        });
     }
 }
 
