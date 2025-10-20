@@ -1401,14 +1401,21 @@ watch(sortCriteria, () => {
 });
 
 // --- 유틸리티 함수 ---
+const isCalculating = ref(false); // 중복 실행 방지 플래그
+
 const calculateAbsorptionRates = async () => {
   if (!selectedSettlementMonth.value) {
     alert('정산월을 선택해주세요.');
     return;
   }
 
-  // 2번 모달 제거 - 바로 분석 시작
+  // 중복 실행 방지
+  if (isCalculating.value) {
+    console.log('흡수율 분석이 이미 진행 중입니다.');
+    return;
+  }
 
+  isCalculating.value = true;
   loading.value = true;
   try {
     // 1단계: 필터 조건에 맞는 원본 데이터 복사
@@ -1551,6 +1558,7 @@ const calculateAbsorptionRates = async () => {
     alert(`흡수율 분석 중 오류가 발생했습니다: ${err.message}`);
   } finally {
     loading.value = false;
+    isCalculating.value = false; // 플래그 리셋
   }
 }
 
