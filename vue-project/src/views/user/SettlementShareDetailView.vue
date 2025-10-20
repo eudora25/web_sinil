@@ -487,6 +487,7 @@ async function fetchAllDataForMonth() {
       prescription_amount: prescriptionAmount,
       payment_amount: finalPaymentAmount, // 최종 지급액 사용
       commission_rate: `${((commissionRate || 0) * 100).toFixed(1)}%`,
+      applied_absorption_rate: appliedAbsorptionRate, // 반영 흡수율 추가
       // 원본 숫자 데이터 보존
       _raw_price: price,
       _raw_qty: finalQty,
