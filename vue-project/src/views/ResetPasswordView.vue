@@ -131,18 +131,7 @@ onMounted(async () => {
     const errorCode = urlParams.get('error_code');
     const errorDescription = urlParams.get('error_description');
     
-    // console.log('URL 파라미터 분석:', {
-      accessToken: !!accessToken,
-      refreshToken: !!refreshToken,
-      token: !!token,
-      code: !!code,
-      type: type,
-      error: error,
-      errorCode: errorCode,
-      errorDescription: errorDescription,
-      fullSearch: window.location.search
-    });
-    
+  
     // 에러 파라미터가 있는 경우 처리
     if (error) {
       // console.log('에러 파라미터 감지됨:', { error, errorCode, errorDescription });

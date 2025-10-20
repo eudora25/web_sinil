@@ -2052,7 +2052,7 @@ async function updateProductInfoForMonthChange(rowIdx) {
 
     // 새 처방월에 해당 제품이 있으면 정보 업데이트
     // console.log(`보험코드 ${row.insurance_code} 제품의 ${row.prescription_month} 정보로 업데이트:`, { product_id: productData.id, product_name: productData.product_name, price: productData.price, commission_rate_a: productData.commission_rate_a, commission_rate_b: productData.commission_rate_b });
-    });
+    
 
     row.product_id = productData.id; // 새로운 product_id로 업데이트
     row.product_name_display = productData.product_name;
