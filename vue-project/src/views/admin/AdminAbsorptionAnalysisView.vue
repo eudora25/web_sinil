@@ -265,7 +265,7 @@
               </div>
             </template>
           </Column>
-          <Column field="final_payment_amount" header="최종 지급액" :headerStyle="{ width: columnWidths.final_payment_amount }" :sortable="true">
+          <Column field="final_payment_amount" header="최종 지급액" :headerStyle="{ width: columnWidths.final_payment_amount }" :sortable="true" :bodyStyle="{ textAlign: 'right !important' }">
             <template #body="slotProps">
               <span :title="slotProps.data.review_action === '삭제' ? '0' : slotProps.data.final_payment_amount">
                 {{ slotProps.data.review_action === '삭제' ? '0' : slotProps.data.final_payment_amount }}
@@ -315,7 +315,7 @@
               <Column :footer="averageCommissionRate" footerClass="footer-cell" footerStyle="text-align:center !important;" />
               <Column :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column footer="" footerClass="footer-cell" />
-              <Column footer="" footerClass="footer-cell" />
+              <Column :footer="totalFinalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               <Column footer="" footerClass="footer-cell" />
               <Column footer="" footerClass="footer-cell" />
               <Column footer="" footerClass="footer-cell" />
@@ -512,6 +512,16 @@ const totalPaymentAmount = computed(() => {
     // 삭제된 건은 지급액을 0으로 계산
     if (row.review_action === '삭제') return sum;
     return sum + (Number(String(row.payment_amount).replace(/,/g, '')) || 0);
+  }, 0);
+  return total.toLocaleString();
+});
+
+const totalFinalPaymentAmount = computed(() => {
+  if (!displayRows.value || displayRows.value.length === 0) return '0';
+  const total = displayRows.value.reduce((sum, row) => {
+    // 삭제된 건은 최종 지급액을 0으로 계산
+    if (row.review_action === '삭제') return sum;
+    return sum + (Number(String(row.final_payment_amount).replace(/,/g, '')) || 0);
   }, 0);
   return total.toLocaleString();
 });
