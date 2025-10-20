@@ -14,6 +14,7 @@
               placeholder="구분, 업체명, 사업자등록번호, 대표자명"
               class="search-input"
               @keyup.enter="doSearch"
+              @input="onSearchInput"
               style="width:100%;"
             />
             <button
@@ -278,6 +279,14 @@ function doSearch() {
       (c.representative_name && c.representative_name.toLowerCase().includes(keyword)) ||
       (c.company_group && c.company_group.toLowerCase().includes(keyword))
     );
+  }
+}
+
+function onSearchInput() {
+  // 검색어가 2글자 미만이거나 비어있으면 전체 목록 표시
+  if (searchInput.value.length < 2) {
+    searchKeyword.value = '';
+    filteredCompanies.value = approvedCompanies.value;
   }
 }
 function clearSearch() {
