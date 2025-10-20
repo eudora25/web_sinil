@@ -1215,21 +1215,21 @@ async function fetchProductsForMonth(month) {
 
 // 선택된 업체의 병원 목록 가져오기
 async function fetchCompanyHospitals(companyId) {
-  if (!companyId || !selectedSettlementMonth.value) {
+  if (!companyId) {
     companyHospitals.value = [];
     return;
   }
   
   try {
-    // 해당 업체와 정산월에 실적이 있는 병원들만 조회
+    // 해당 업체에 할당된 모든 병원 조회 (실적 유무와 관계없이)
     const { data, error } = await supabase
-      .from('performance_records')
+      .from('client_company_assignments')
       .select(`
         client_id,
-        clients!inner(id, name)
+        clients!inner(id, name, status)
       `)
       .eq('company_id', companyId)
-      .eq('settlement_month', selectedSettlementMonth.value);
+      .eq('clients.status', 'active'); // 활성 상태인 병원만
     
     if (error) {
       console.error('업체별 병원 조회 오류:', error);
@@ -1241,12 +1241,12 @@ async function fetchCompanyHospitals(companyId) {
     const uniqueHospitals = [];
     const seenIds = new Set();
     
-    data?.forEach(record => {
-      if (record.clients && !seenIds.has(record.clients.id)) {
-        seenIds.add(record.clients.id);
+    data?.forEach(assignment => {
+      if (assignment.clients && !seenIds.has(assignment.clients.id)) {
+        seenIds.add(assignment.clients.id);
         uniqueHospitals.push({
-          id: record.clients.id,
-          name: record.clients.name
+          id: assignment.clients.id,
+          name: assignment.clients.name
         });
       }
     });
