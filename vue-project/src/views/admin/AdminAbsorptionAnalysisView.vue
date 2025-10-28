@@ -1199,7 +1199,7 @@ async function loadAbsorptionAnalysisResults() {
               }
             }
             
-            // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
+            // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
             const finalPaymentAmount = Math.round(prescriptionAmount * (appliedAbsorptionRate / 100) * commissionRate);
 
             return {

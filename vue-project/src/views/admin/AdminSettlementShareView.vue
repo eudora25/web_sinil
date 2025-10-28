@@ -507,7 +507,7 @@ async function loadSettlementData() {
           paymentAmount = Math.round(prescriptionAmount * (record.commission_rate || 0));
         }
         
-        // 반영 흡수율 적용하여 최종 지급액 계산
+        // 반영 흡수율 적용하여 최종 지급액 계산 (정수 반올림)
         const appliedAbsorptionRate = absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined ? absorptionRates[record.id] : 1.0;
         const finalPaymentAmount = Math.round(paymentAmount * appliedAbsorptionRate);
         

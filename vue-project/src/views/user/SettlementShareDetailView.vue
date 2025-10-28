@@ -473,7 +473,7 @@ async function fetchAllDataForMonth() {
     const commissionRate = row.commission_rate || 0;
     const basePaymentAmount = Math.round(prescriptionAmount * commissionRate);
     
-    // 반영 흡수율 적용하여 최종 지급액 계산
+    // 반영 흡수율 적용하여 최종 지급액 계산 (정수 반올림)
     const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1.0;
     const finalPaymentAmount = Math.round(basePaymentAmount * appliedAbsorptionRate);
     

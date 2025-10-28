@@ -295,7 +295,7 @@ async function loadDetailData() {
       // 반영 흡수율 처리 (별도 조회한 performance_records_absorption 테이블에서 가져온 값 사용)
       const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1.0;
       
-      // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
+      // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
       const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
       
       return {
