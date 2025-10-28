@@ -155,6 +155,8 @@ docs/
 admin-scripts/
 test-data/
 test-scripts/
+database/
+documentation/
 
 # Database optimization and testing folders
 database-optimization/
