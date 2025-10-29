@@ -566,7 +566,7 @@ const statusOptions = ref([
   { value: '검수중', label: '검수중' },
   { value: '대기', label: '대기' },
 ]);
-const selectedStatus = ref('검수중');
+const selectedStatus = ref(null); // 기본값을 전체(null)로 설정
 
 const monthlyPerformanceLinks = ref([]);
 const monthlyCompanies = ref([]);
@@ -759,6 +759,7 @@ watch(prescriptionOffset, async () => {
 });
 
 watch(selectedStatus, async (newStatus, oldStatus) => {
+    console.log('상태 필터 변경:', { oldStatus, newStatus });
     // 상태가 변경되면 자동으로 데이터 로드
     if (selectedSettlementMonth.value) {
         await loadPerformanceData();
@@ -1588,9 +1589,11 @@ async function saveEdit(rowData) {
       if (selectedStatus.value === null) {
         // 전체 상태일 때는 대기로 설정
         newRecordStatus = '대기';
+        console.log('신규 등록 - 전체 상태: 대기로 설정');
       } else {
         // 특정 상태가 선택되었을 때는 해당 상태로 설정
         newRecordStatus = selectedStatus.value;
+        console.log('신규 등록 - 특정 상태:', selectedStatus.value);
       }
       
       saveData = {
@@ -1600,6 +1603,7 @@ async function saveEdit(rowData) {
         registered_by: adminUserId,
         review_action: '추가',
       };
+      console.log('신규 등록 저장 데이터:', saveData);
       const { error: insertError } = await supabase.from('performance_records').insert(saveData);
       error = insertError;
     } else {
@@ -1608,9 +1612,11 @@ async function saveEdit(rowData) {
       if (selectedStatus.value === null) {
         // 전체 상태일 때는 현재 상태 유지
         updateStatus = rowData.review_status;
+        console.log('기존 수정 - 전체 상태: 현재 상태 유지', rowData.review_status);
       } else {
         // 특정 상태가 선택되었을 때는 해당 상태로 설정
         updateStatus = selectedStatus.value;
+        console.log('기존 수정 - 특정 상태:', selectedStatus.value);
       }
       
       saveData = {
@@ -1618,6 +1624,7 @@ async function saveEdit(rowData) {
         review_status: updateStatus,
         review_action: '수정',
       };
+      console.log('기존 수정 저장 데이터:', saveData);
       const { error: updateError } = await supabase.from('performance_records').update(saveData).eq('id', rowData.id);
       error = updateError;
     }
