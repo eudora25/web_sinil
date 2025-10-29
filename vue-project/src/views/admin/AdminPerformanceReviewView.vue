@@ -144,6 +144,10 @@
            <button class="btn-primary" @click="openBulkChangeModal" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing">
              일괄 변경 ({{ selectedRows.length }}건)
            </button>
+           <!-- 디버깅 정보 -->
+           <div style="font-size: 12px; color: #666; margin-left: 10px;">
+             디버그: selectedRows={{ selectedRows?.length || 0 }}, isAnyEditing={{ isAnyEditing }}
+           </div>
         </div>
       </div>
 
@@ -616,7 +620,11 @@ const statusChangeOptions = ref([
 ]);
 
 // --- Computed 속성 ---
-const isAnyEditing = computed(() => activeEditingRowId.value !== null);
+const isAnyEditing = computed(() => {
+  const result = activeEditingRowId.value !== null;
+  console.log('isAnyEditing 상태:', { activeEditingRowId: activeEditingRowId.value, isAnyEditing: result });
+  return result;
+});
 
 // --- 헤더 체크박스 상태 관리 ---
 const isAllSelected = computed(() => {
