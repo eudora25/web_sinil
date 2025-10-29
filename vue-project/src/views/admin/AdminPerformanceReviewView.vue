@@ -1587,9 +1587,9 @@ async function saveEdit(rowData) {
       // 추가 (INSERT) - 신규 등록
       let newRecordStatus;
       if (selectedStatus.value === null) {
-        // 전체 상태일 때는 대기로 설정
-        newRecordStatus = '대기';
-        console.log('신규 등록 - 전체 상태: 대기로 설정');
+        // 전체 상태일 때는 검수중으로 설정
+        newRecordStatus = '검수중';
+        console.log('신규 등록 - 전체 상태: 검수중으로 설정');
       } else {
         // 특정 상태가 선택되었을 때는 해당 상태로 설정
         newRecordStatus = selectedStatus.value;
@@ -1652,11 +1652,24 @@ function addRowBelow(referenceRow) {
   if (isAnyEditing.value) return;
 
   const refIndex = rows.value.findIndex(r => r.id === referenceRow.id);
+  
+  // 상태 필터에 따른 초기 상태 설정
+  let initialStatus;
+  if (selectedStatus.value === null) {
+    // 전체 상태일 때는 검수중으로 설정
+    initialStatus = '검수중';
+  } else {
+    // 특정 상태가 선택되었을 때는 해당 상태로 설정
+    initialStatus = selectedStatus.value;
+  }
+  
+  console.log('신규 추가 폼 - 초기 상태 설정:', { selectedStatus: selectedStatus.value, initialStatus });
+  
   const newRow = {
     id: uuidv4(),
     isEditing: true,
     review_action: '추가',
-    review_status: '검수중',
+    review_status: initialStatus, // 상태 필터에 따라 동적으로 설정
 
     // --- 복사되는 데이터 ---
     settlement_month: referenceRow.settlement_month,
