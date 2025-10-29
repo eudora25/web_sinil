@@ -144,10 +144,6 @@
            <button class="btn-primary" @click="openBulkChangeModal" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing">
              일괄 변경 ({{ selectedRows.length }}건)
            </button>
-           <!-- 디버깅 정보 -->
-           <div style="font-size: 12px; color: #666; margin-left: 10px;">
-             디버그: selectedRows={{ selectedRows?.length || 0 }}, isAnyEditing={{ isAnyEditing }}
-           </div>
         </div>
       </div>
 
@@ -620,11 +616,7 @@ const statusChangeOptions = ref([
 ]);
 
 // --- Computed 속성 ---
-const isAnyEditing = computed(() => {
-  const result = activeEditingRowId.value !== null;
-  console.log('isAnyEditing 상태:', { activeEditingRowId: activeEditingRowId.value, isAnyEditing: result });
-  return result;
-});
+const isAnyEditing = computed(() => activeEditingRowId.value !== null);
 
 // --- 헤더 체크박스 상태 관리 ---
 const isAllSelected = computed(() => {
@@ -767,12 +759,9 @@ watch(prescriptionOffset, async () => {
 });
 
 watch(selectedStatus, async (newStatus, oldStatus) => {
-    console.log('상태 필터 변경:', { oldStatus, newStatus });
-    
     // 상태 필터 변경 시 자동으로 편집 모드 해제
     if (activeEditingRowId.value !== null) {
       activeEditingRowId.value = null;
-      console.log('상태 필터 변경으로 인한 편집 모드 자동 해제');
     }
     
     // 상태가 변경되면 자동으로 데이터 로드
@@ -1604,11 +1593,9 @@ async function saveEdit(rowData) {
       if (selectedStatus.value === null) {
         // 전체 상태일 때는 검수중으로 설정
         newRecordStatus = '검수중';
-        console.log('신규 등록 - 전체 상태: 검수중으로 설정');
       } else {
         // 특정 상태가 선택되었을 때는 해당 상태로 설정
         newRecordStatus = selectedStatus.value;
-        console.log('신규 등록 - 특정 상태:', selectedStatus.value);
       }
       
       saveData = {
@@ -1618,7 +1605,6 @@ async function saveEdit(rowData) {
         registered_by: adminUserId,
         review_action: '추가',
       };
-      console.log('신규 등록 저장 데이터:', saveData);
       const { error: insertError } = await supabase.from('performance_records').insert(saveData);
       error = insertError;
     } else {
@@ -1627,11 +1613,9 @@ async function saveEdit(rowData) {
       if (selectedStatus.value === null) {
         // 전체 상태일 때는 현재 상태 유지
         updateStatus = rowData.review_status;
-        console.log('기존 수정 - 전체 상태: 현재 상태 유지', rowData.review_status);
       } else {
         // 특정 상태가 선택되었을 때는 해당 상태로 설정
         updateStatus = selectedStatus.value;
-        console.log('기존 수정 - 특정 상태:', selectedStatus.value);
       }
       
       saveData = {
@@ -1639,7 +1623,6 @@ async function saveEdit(rowData) {
         review_status: updateStatus,
         review_action: '수정',
       };
-      console.log('기존 수정 저장 데이터:', saveData);
       const { error: updateError } = await supabase.from('performance_records').update(saveData).eq('id', rowData.id);
       error = updateError;
     }
@@ -1677,8 +1660,6 @@ function addRowBelow(referenceRow) {
     // 특정 상태가 선택되었을 때는 해당 상태로 설정
     initialStatus = selectedStatus.value;
   }
-  
-  console.log('신규 추가 폼 - 초기 상태 설정:', { selectedStatus: selectedStatus.value, initialStatus });
   
   const newRow = {
     id: uuidv4(),
@@ -1901,7 +1882,6 @@ async function confirmStatusChange() {
       
       // 상태 변경 완료 후 편집 모드 해제 유지
       activeEditingRowId.value = null;
-      console.log('상태 변경 완료 - isAnyEditing을 false로 유지');
       
       // 모달 닫기
       showStatusChangeModal.value = false;
