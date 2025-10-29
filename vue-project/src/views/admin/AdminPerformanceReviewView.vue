@@ -1576,7 +1576,6 @@ async function saveEdit(rowData) {
       prescription_type: rowData.prescription_type_modify,
       commission_rate: Number(rowData.commission_rate_modify) || 0,
       remarks: rowData.remarks_modify,
-      review_status: rowData.review_status, // 현재 상태 유지 (자동으로 완료로 변경하지 않음)
       updated_at: new Date().toISOString(),
       updated_by: adminUserId,
     };
@@ -1584,10 +1583,19 @@ async function saveEdit(rowData) {
     let error;
 
     if (isNewRecord) {
-      // 추가 (INSERT) - 새 레코드는 기본적으로 '대기' 상태로 설정
+      // 추가 (INSERT) - 신규 등록
+      let newRecordStatus;
+      if (selectedStatus.value === null) {
+        // 전체 상태일 때는 대기로 설정
+        newRecordStatus = '대기';
+      } else {
+        // 특정 상태가 선택되었을 때는 해당 상태로 설정
+        newRecordStatus = selectedStatus.value;
+      }
+      
       saveData = {
         ...saveData,
-        review_status: '대기', // 새 레코드는 대기 상태로 시작
+        review_status: newRecordStatus,
         created_at: new Date().toISOString(),
         registered_by: adminUserId,
         review_action: '추가',
@@ -1595,9 +1603,19 @@ async function saveEdit(rowData) {
       const { error: insertError } = await supabase.from('performance_records').insert(saveData);
       error = insertError;
     } else {
-      // 수정 (UPDATE) - 기존 레코드는 현재 상태 유지
+      // 수정 (UPDATE) - 기존 레코드 수정
+      let updateStatus;
+      if (selectedStatus.value === null) {
+        // 전체 상태일 때는 현재 상태 유지
+        updateStatus = rowData.review_status;
+      } else {
+        // 특정 상태가 선택되었을 때는 해당 상태로 설정
+        updateStatus = selectedStatus.value;
+      }
+      
       saveData = {
         ...saveData,
+        review_status: updateStatus,
         review_action: '수정',
       };
       const { error: updateError } = await supabase.from('performance_records').update(saveData).eq('id', rowData.id);
