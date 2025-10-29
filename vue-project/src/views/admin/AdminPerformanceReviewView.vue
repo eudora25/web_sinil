@@ -768,6 +768,13 @@ watch(prescriptionOffset, async () => {
 
 watch(selectedStatus, async (newStatus, oldStatus) => {
     console.log('상태 필터 변경:', { oldStatus, newStatus });
+    
+    // 상태 필터 변경 시 자동으로 편집 모드 해제
+    if (activeEditingRowId.value !== null) {
+      activeEditingRowId.value = null;
+      console.log('상태 필터 변경으로 인한 편집 모드 자동 해제');
+    }
+    
     // 상태가 변경되면 자동으로 데이터 로드
     if (selectedSettlementMonth.value) {
         await loadPerformanceData();
@@ -1892,12 +1899,18 @@ async function confirmStatusChange() {
       alert(`${selectedRows.value.length}개 항목의 상태를 '${selectedNewStatus.value}'로 성공적으로 변경했습니다.`);
       await loadPerformanceData(); // 데이터 새로고침
       
+      // 상태 변경 완료 후 편집 모드 해제 유지
+      activeEditingRowId.value = null;
+      console.log('상태 변경 완료 - isAnyEditing을 false로 유지');
+      
       // 모달 닫기
       showStatusChangeModal.value = false;
       selectedNewStatus.value = '';
     } catch (error) {
       console.error('상태 변경 오류:', error);
       alert(error.message);
+      // 오류 발생 시에도 편집 모드 해제
+      activeEditingRowId.value = null;
     } finally {
       loading.value = false;
     }
