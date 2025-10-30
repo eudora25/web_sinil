@@ -11,7 +11,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API 라우트
-app.use('/api', require('./scripts/api/create-user'));
+app.use('/api', require('./scripts/utilities/api/create-user'));
 
 // 기본 라우트
 app.get('/', (req, res) => {

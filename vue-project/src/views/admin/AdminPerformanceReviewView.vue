@@ -566,7 +566,7 @@ const statusOptions = ref([
   { value: '검수중', label: '검수중' },
   { value: '대기', label: '대기' },
 ]);
-const selectedStatus = ref(null); // 기본값을 전체(null)로 설정
+const selectedStatus = ref('검수중'); // 기본값을 검수중으로 설정
 
 const monthlyPerformanceLinks = ref([]);
 const monthlyCompanies = ref([]);
