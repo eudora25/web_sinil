@@ -218,7 +218,7 @@
             <input
               v-model="commissionRate"
               type="number"
-              step="1"
+              step="0.01"
               min="0"
               max="100"
               placeholder="수수료율을 입력하세요"
@@ -742,8 +742,8 @@ function openCommissionModal(companyData) {
 
 function openCommissionEditModal(companyData) {
   selectedCompany.value = companyData;
-  const rate = Math.round((companyData.section_commission_rate || 0) * 100);
-  commissionRate.value = rate === 0 ? '' : rate.toString();
+  const rate = (companyData.section_commission_rate || 0) * 100;
+  commissionRate.value = rate === 0 ? '' : Number(rate).toFixed(2);
   showCommissionModal.value = true;
 }
 
@@ -766,9 +766,11 @@ async function saveCommission() {
   }
   
   try {
-    const rate = parseInt(commissionRate.value);
-    if (isNaN(rate) || rate < 0 || rate > 100 || !Number.isInteger(parseFloat(commissionRate.value))) {
-      alert('구간 수수료율은 0~100 사이의 정수여야 합니다.');
+    const rate = parseFloat(commissionRate.value);
+    // 0~100, 소수점 둘째 자리까지 허용
+    const twoDecimalPattern = /^\d{1,3}(\.\d{1,2})?$/;
+    if (isNaN(rate) || rate < 0 || rate > 100 || !twoDecimalPattern.test(String(commissionRate.value))) {
+      alert('구간 수수료율은 0~100 사이의 숫자이며 소수점 둘째 자리까지 입력 가능합니다.');
       return;
     }
     
@@ -778,7 +780,7 @@ async function saveCommission() {
       .upsert({
         settlement_month: selectedMonth.value,
         company_id: selectedCompany.value.company_id,
-        section_commission_rate: rate / 100, // 퍼센트를 소수점으로 변환
+        section_commission_rate: rate / 100, // 퍼센트를 소수점으로 변환 (예: 1.25% -> 0.0125)
         share_enabled: selectedCompany.value.is_shared || false,
         notice_individual: selectedCompany.value.notice_individual || null
       }, {
