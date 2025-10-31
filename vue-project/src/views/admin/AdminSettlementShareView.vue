@@ -501,17 +501,11 @@ async function loadSettlementData() {
         // 관리자 상세 뷰 및 일반 사용자 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율
         const appliedAbsorptionRate = absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined ? absorptionRates[record.id] : 1.0;
         
-        let commissionRateValue;
-        if (record.commission_rate && record.commission_rate > 1) {
-          // 수수료율이 1보다 크면 퍼센트(%) 단위로 간주
-          commissionRateValue = (record.commission_rate || 0) / 100;
-        } else {
-          // 수수료율이 1 이하면 소수점 단위로 간주
-          commissionRateValue = (record.commission_rate || 0);
-        }
+        // commission_rate는 데이터베이스에 항상 소수점 형식으로 저장됨 (예: 0.48 = 48%)
+        const commissionRate = record.commission_rate || 0;
         
         // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
-        const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRateValue);
+        const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
         
         summary.payment_amount += finalPaymentAmount;
       }

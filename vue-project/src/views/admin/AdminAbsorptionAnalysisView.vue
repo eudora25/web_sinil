@@ -1159,21 +1159,35 @@ async function loadAbsorptionAnalysisResults() {
       }
     }
 
-    // 반영 흡수율 데이터를 별도로 조회합니다.
-    const recordIds = allData.map(record => record.id);
+    // 반영 흡수율 데이터를 별도로 조회합니다. (배치 처리로 400 오류 방지)
+    const recordIds = allData.map(record => record.id).filter(id => id != null);
     let absorptionRates = {};
     
     if (recordIds.length > 0) {
-      const { data: absorptionData, error: absorptionError } = await supabase
-        .from('applied_absorption_rates')
-        .select('performance_record_id, applied_absorption_rate')
-        .in('performance_record_id', recordIds);
+      // Supabase의 .in() 메서드는 URL 길이 제한이 있으므로 배치 처리
+      const batchSize = 500; // 한 번에 최대 500개씩 조회
+      let from = 0;
       
-      if (!absorptionError && absorptionData) {
-        absorptionRates = absorptionData.reduce((acc, item) => {
-          acc[item.performance_record_id] = item.applied_absorption_rate;
-          return acc;
-        }, {});
+      while (from < recordIds.length) {
+        const batchIds = recordIds.slice(from, from + batchSize);
+        
+        const { data: absorptionData, error: absorptionError } = await supabase
+          .from('applied_absorption_rates')
+          .select('performance_record_id, applied_absorption_rate')
+          .in('performance_record_id', batchIds);
+        
+        if (absorptionError) {
+          console.error('반영 흡수율 데이터 조회 오류:', absorptionError);
+          break; // 오류 발생 시 반복 중단
+        }
+        
+        if (absorptionData) {
+          absorptionData.forEach(item => {
+            absorptionRates[item.performance_record_id] = item.applied_absorption_rate;
+          });
+        }
+        
+        from += batchSize;
       }
     }
 
