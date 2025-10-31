@@ -12,6 +12,7 @@ RUN npm install
 # 소스 코드 복사
 COPY api/ ./api/
 COPY admin-scripts/ ./admin-scripts/
+COPY scripts/ ./scripts/
 COPY public/ ./public/
 COPY server.js ./
 
