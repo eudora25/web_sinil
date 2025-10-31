@@ -498,18 +498,20 @@ async function loadSettlementData() {
         }
         
         // 지급액: 정상 건의 수수료 합계 (반영 흡수율 적용)
-        let paymentAmount;
+        // 관리자 상세 뷰 및 일반 사용자 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율
+        const appliedAbsorptionRate = absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined ? absorptionRates[record.id] : 1.0;
+        
+        let commissionRateValue;
         if (record.commission_rate && record.commission_rate > 1) {
           // 수수료율이 1보다 크면 퍼센트(%) 단위로 간주
-          paymentAmount = Math.round(prescriptionAmount * (record.commission_rate || 0) / 100);
+          commissionRateValue = (record.commission_rate || 0) / 100;
         } else {
           // 수수료율이 1 이하면 소수점 단위로 간주
-          paymentAmount = Math.round(prescriptionAmount * (record.commission_rate || 0));
+          commissionRateValue = (record.commission_rate || 0);
         }
         
-        // 반영 흡수율 적용하여 최종 지급액 계산 (정수 반올림)
-        const appliedAbsorptionRate = absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined ? absorptionRates[record.id] : 1.0;
-        const finalPaymentAmount = Math.round(paymentAmount * appliedAbsorptionRate);
+        // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
+        const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRateValue);
         
         summary.payment_amount += finalPaymentAmount;
       }
