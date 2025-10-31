@@ -665,7 +665,7 @@ async function downloadExcel() {
     const sectionCommissionAmount = settlementSummary.value.section_commission_amount || 0;
     const totalAmount = basePaymentAmount + sectionCommissionAmount; // 구간수수료 포함한 총 지급액
     const supplyPrice = Math.round(totalAmount / 1.1);
-    const vatPrice = totalAmount - supplyPrice;
+    const vatPrice = Math.round(totalAmount - supplyPrice); // 관리자 상세 뷰와 동일하게 Math.round 적용
     
     // B5: 요약 정보 테이블 헤더 (2행 3열 구조)
     // 1행: 지급 처방액 | 구간 수수료율 | 구간 수수료
