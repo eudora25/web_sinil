@@ -1207,7 +1207,8 @@ async function loadAbsorptionAnalysisResults() {
             let appliedAbsorptionRate = 100; // 기본값
             if (absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined) {
               const savedAppliedRate = Number(absorptionRates[row.id]);
-              if (!isNaN(savedAppliedRate) && savedAppliedRate > 0) {
+              // 0도 유효한 값이므로 >= 0으로 체크
+              if (!isNaN(savedAppliedRate) && savedAppliedRate >= 0) {
                 // 데이터베이스에 소수점으로 저장되어 있으면 퍼센트로 변환
                 appliedAbsorptionRate = savedAppliedRate > 1 ? savedAppliedRate : savedAppliedRate * 100;
               }
