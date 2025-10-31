@@ -471,11 +471,11 @@ async function fetchAllDataForMonth() {
     const finalQty = row.review_action === '삭제' ? 0 : qty;
     const prescriptionAmount = Math.round(finalQty * price);
     const commissionRate = row.commission_rate || 0;
-    const basePaymentAmount = Math.round(prescriptionAmount * commissionRate);
     
     // 반영 흡수율 적용하여 최종 지급액 계산 (정수 반올림)
+    // 관리자 상세 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율
     const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1.0;
-    const finalPaymentAmount = Math.round(basePaymentAmount * appliedAbsorptionRate);
+    const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
     
     return {
       ...row,
