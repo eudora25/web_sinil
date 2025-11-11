@@ -685,7 +685,7 @@ const prescriptionOptions = computed(() => {
   if (!selectedSettlementMonth.value) return [{ value: null, month: '전체' }];
   return [
     { value: null, month: '- 전체 -' },
-    ...[1, 2, 3].map(offset => ({
+    ...[1, 2, 3, 4, 5, 6].map(offset => ({
       value: offset,
       month: getPrescriptionMonth(selectedSettlementMonth.value, offset)
     }))
@@ -694,8 +694,8 @@ const prescriptionOptions = computed(() => {
 
 const prescriptionMonthOptionsForEdit = computed(() => {
     if (!selectedSettlementMonth.value) return [];
-    // 처방월 옵션을 3개월로 제한
-    return [1, 2, 3].map(offset => getPrescriptionMonth(selectedSettlementMonth.value, offset));
+    // 처방월 옵션을 6개월로 제한
+    return [1, 2, 3, 4, 5, 6].map(offset => getPrescriptionMonth(selectedSettlementMonth.value, offset));
 });
 
 const companyOptions = computed(() => {

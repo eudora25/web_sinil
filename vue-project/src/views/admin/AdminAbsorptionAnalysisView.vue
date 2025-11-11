@@ -1589,7 +1589,7 @@ function getPrescriptionMonth(settlementMonth, offset) {
 function updatePrescriptionOptions() {
   prescriptionOptions.value = [
     { value: 0, month: '- 전체 -' },
-    ...[1, 2, 3].map(offset => ({
+    ...[1, 2, 3, 4, 5, 6].map(offset => ({
       value: offset,
       month: getPrescriptionMonth(selectedSettlementMonth.value, offset)
     }))

@@ -320,7 +320,7 @@ function updatePrescriptionOptions() {
   // "- 전체 -" 옵션을 첫 번째로 추가
   prescriptionOptions.value = [
     { value: 0, month: '- 전체 -' },
-    ...([1, 2, 3].map(offset => ({
+    ...([1, 2, 3, 4, 5, 6].map(offset => ({
       value: offset,
       month: getPrescriptionMonth(selectedMonthInfo.value.settlement_month, offset)
     })))
