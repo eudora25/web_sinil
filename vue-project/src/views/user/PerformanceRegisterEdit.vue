@@ -552,7 +552,7 @@ function updatePrescriptionOptions() {
     prescriptionOptions.value = [];
     return;
   }
-  prescriptionOptions.value = [1, 2, 3].map(offset => ({
+  prescriptionOptions.value = [1, 2, 3, 4, 5, 6].map(offset => ({
     value: offset,
     month: getPrescriptionMonth(selectedSettlementMonth.value, offset)
   }));
@@ -1519,7 +1519,7 @@ async function loadExistingData() {
         const prescDate = new Date(prescMonth + '-01');
         const monthDiff = (settlementDate.getFullYear() - prescDate.getFullYear()) * 12 + 
           (settlementDate.getMonth() - prescDate.getMonth());
-        if (monthDiff >= 1 && monthDiff <= 3) {
+        if (monthDiff >= 1 && monthDiff <= 6) {
           prescriptionOffset.value = monthDiff;
         }
       }
