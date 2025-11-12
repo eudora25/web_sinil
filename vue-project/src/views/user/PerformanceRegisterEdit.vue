@@ -903,13 +903,15 @@ function handleCommissionRateFocus(rowIdx) {
     return;
   }
   
-  // 포커스 시 백분율 기호 제거하고 숫자만 표시 (42.0% -> 42)
+  // 포커스 시 백분율 기호 제거하고 숫자만 표시 (42.5% -> 42.5, 소수점 유지)
   const row = inputRows.value[rowIdx];
   if (row.commission_rate) {
-    const rate = Number(row.commission_rate.toString().replace(/,/g, '').replace(/%/g, ''));
+    // 백분율 기호와 콤마만 제거하고 숫자와 소수점은 그대로 유지
+    const rateStr = row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '');
+    const rate = Number(rateStr);
     if (!isNaN(rate)) {
-      // 백분율 형태에서 숫자만 추출하여 표시
-      row.commission_rate = rate.toFixed(0);
+      // 입력된 값의 원본 문자열을 그대로 유지 (소수점 포함)
+      row.commission_rate = rateStr;
     }
   }
   
@@ -1107,18 +1109,29 @@ function calculatePaymentAmount(rowIdx) {
   }
 }
 
-// 수수료율 포맷팅 함수 (백분율로 표시)
+// 수수료율 포맷팅 함수 (백분율로 표시, 소수점 유지)
 function formatCommissionRate(rowIdx) {
   const row = inputRows.value[rowIdx];
   if (row.commission_rate) {
-    const rate = Number(row.commission_rate.toString().replace(/,/g, '').replace(/%/g, ''));
+    const rateStr = row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '');
+    const rate = Number(rateStr);
     if (!isNaN(rate)) {
-      // 입력값을 소수점으로 변환 (42 -> 0.42)
-      const decimalRate = (rate / 100).toFixed(3);
-      row.commission_rate = decimalRate;
+      // 입력된 값의 소수점 자릿수 확인
+      const decimalPlaces = rateStr.includes('.') ? rateStr.split('.')[1].length : 0;
       
-      // 표시용으로 백분율로 변환 (0.42 -> 42.0%)
-      const displayRate = (Number(decimalRate) * 100).toFixed(1);
+      // 입력된 소수점 자릿수를 그대로 유지하면서 백분율로 표시
+      // 예: 42.5 -> 42.5%, 42.55 -> 42.55%, 42 -> 42%
+      let displayRate;
+      if (decimalPlaces > 0) {
+        // 소수점이 있는 경우 입력된 자릿수 그대로 유지
+        displayRate = rate.toFixed(decimalPlaces);
+        // 불필요한 뒤의 0 제거 (예: 42.50 -> 42.5)
+        displayRate = parseFloat(displayRate).toString();
+      } else {
+        // 정수인 경우 그대로 표시
+        displayRate = rate.toString();
+      }
+      
       row.commission_rate = displayRate + '%';
     }
   }
