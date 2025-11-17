@@ -358,16 +358,31 @@ const fetchClients = async () => {
     const { data: clientsData, error } = await supabase
       .from('clients')
       .select(
-        `*, pharmacies:client_pharmacy_assignments(created_at, pharmacy:pharmacies(id, name, business_registration_number)),companies:client_company_assignments(created_at,company:companies(id,company_name,business_registration_number,company_group))`,
+        `*, pharmacies:client_pharmacy_assignments!fk_client_pharmacy_assignments_client_id(created_at, pharmacy:pharmacies(id, name, business_registration_number)),companies:client_company_assignments!fk_client_company_assignments_client_id(created_at,company:companies!fk_client_company_assignments_company_id(id,company_name,business_registration_number,company_group))`,
       )
       .eq('status', 'active')
-    if (!error && clientsData) {
+    
+    if (error) {
+      console.error('병의원 목록 조회 오류:', error);
+      console.error('오류 상세:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
+      alert('병의원 목록을 불러오는 중 오류가 발생했습니다: ' + error.message);
+      clients.value = [];
+      filteredClients.value = [];
+      return;
+    }
+    
+    if (clientsData) {
       clients.value = clientsData.map((client) => {
-        const pharmaciesArr = client.pharmacies.map((p) => ({
+        const pharmaciesArr = (client.pharmacies || []).map((p) => ({
           ...p.pharmacy,
           assignment_created_at: p.created_at
         }))
-        const companiesArr = client.companies.map((c) => ({
+        const companiesArr = (client.companies || []).map((c) => ({
           ...c.company,
           assignment_created_at: c.created_at
         }))
@@ -378,7 +393,17 @@ const fetchClients = async () => {
         }
       })
       filteredClients.value = clients.value;
+      console.log('병의원 목록 로드 완료:', clients.value.length, '건');
+    } else {
+      console.warn('병의원 데이터가 없습니다.');
+      clients.value = [];
+      filteredClients.value = [];
     }
+  } catch (err) {
+    console.error('병의원 목록 조회 예외:', err);
+    alert('병의원 목록을 불러오는 중 예외가 발생했습니다: ' + err.message);
+    clients.value = [];
+    filteredClients.value = [];
   } finally {
     loading.value = false;
   }
@@ -786,6 +811,14 @@ const downloadExcel = async () => {
   }
   const excelData = []
   filteredClients.value.forEach((client) => {
+    // 업체명과 구분을 쉼표로 구분하여 문자열로 만들기
+    const companyNames = client.companies && client.companies.length > 0 
+      ? client.companies.map(c => c.company_name || '').filter(n => n).join(', ')
+      : ''
+    const companyGroups = client.companies && client.companies.length > 0
+      ? client.companies.map(c => c.company_group || '').filter(g => g).join(', ')
+      : ''
+    
     if (client.pharmacies && client.pharmacies.length > 0) {
       client.pharmacies.forEach((pharmacy) => {
         excelData.push({
@@ -794,6 +827,8 @@ const downloadExcel = async () => {
           사업자등록번호: client.business_registration_number,
           원장명: client.owner_name,
           주소: client.address,
+          구분: companyGroups || '',
+          업체명: companyNames || '',
           '약국명': pharmacy.name || '',
           '약국 사업자번호': pharmacy.business_registration_number || '',
           지정일시: pharmacy.assignment_created_at ? new Date(pharmacy.assignment_created_at).toISOString().slice(0, 16).replace('T', ' ') : '',
@@ -806,6 +841,8 @@ const downloadExcel = async () => {
         사업자등록번호: client.business_registration_number,
         원장명: client.owner_name,
         주소: client.address,
+        구분: companyGroups || '',
+        업체명: companyNames || '',
         '약국명': '',
         '약국 사업자번호': '',
         지정일시: '',
@@ -838,13 +875,13 @@ const downloadExcel = async () => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
 
-      // 가운데 정렬할 컬럼 지정 (병의원코드, 원장명, 약국 사업자번호, 지정일시)
-      if ([1, 3,4, 7, 8].includes(colNumber)) {
+      // 가운데 정렬할 컬럼 지정 (병의원코드, 원장명, 구분, 약국 사업자번호, 지정일시)
+      if ([1, 4, 6, 9, 10].includes(colNumber)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
 
       // 사업자등록번호 컬럼은 텍스트 형식으로 설정
-      if (colNumber === 4) {
+      if (colNumber === 3) {
         cell.numFmt = '@'
       }
     })
@@ -869,6 +906,8 @@ const downloadExcel = async () => {
     { width: 16 }, // 사업자등록번호
     { width: 12 }, // 원장명
     { width: 64 }, // 주소
+    { width: 10 }, // 구분
+    { width: 24 }, // 업체명
     { width: 32 }, // 약국명
     { width: 16 }, // 약국 사업자번호
     { width: 18 }, // 지정일시

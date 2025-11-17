@@ -1347,7 +1347,7 @@ async function loadPerformanceData() {
     // --- 데이터 조회 로직 ---
     let query = supabase.from('performance_records').select(`
       *,
-      companies ( company_name ),
+      companies!fk_performance_records_company_id(company_name),
       clients ( name ),
       products ( product_name, insurance_code, price )
     `);
