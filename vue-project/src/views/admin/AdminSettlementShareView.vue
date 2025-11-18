@@ -429,22 +429,35 @@ async function loadSettlementData() {
       from += batchSize;
     }
 
-    // 2. 반영 흡수율 데이터를 별도로 조회합니다.
+    // 2. 반영 흡수율 데이터를 별도로 조회합니다. (배치 처리로 URL 길이 제한 해결)
     const recordIds = allRecords.map(record => record.id);
     let absorptionRates = {};
     
     if (recordIds.length > 0) {
-      const { data: absorptionData, error: absorptionError } = await supabase
-        .from('applied_absorption_rates')
-        .select('performance_record_id, applied_absorption_rate')
-        .in('performance_record_id', recordIds);
+      // URL 길이 제한을 피하기 위해 배치로 나눠서 조회 (한 번에 최대 100개씩)
+      const batchSize = 100;
+      let from = 0;
       
-      if (!absorptionError && absorptionData) {
-        absorptionRates = absorptionData.reduce((acc, item) => {
-          acc[item.performance_record_id] = item.applied_absorption_rate;
-          return acc;
-        }, {});
+      while (from < recordIds.length) {
+        const batchIds = recordIds.slice(from, from + batchSize);
+        
+        const { data: absorptionData, error: absorptionError } = await supabase
+          .from('applied_absorption_rates')
+          .select('performance_record_id, applied_absorption_rate')
+          .in('performance_record_id', batchIds);
+        
+        if (absorptionError) {
+          console.error('반영 흡수율 조회 오류:', absorptionError);
+          // 오류가 발생해도 계속 진행 (기본값 사용)
+        } else if (absorptionData) {
+          absorptionData.forEach(item => {
+            absorptionRates[item.performance_record_id] = item.applied_absorption_rate;
+          });
+        }
+        
+        from += batchSize;
       }
+      
     }
 
     // 3. 회사별로 데이터를 집계합니다.
@@ -499,7 +512,16 @@ async function loadSettlementData() {
         
         // 지급액: 정상 건의 수수료 합계 (반영 흡수율 적용)
         // 관리자 상세 뷰 및 일반 사용자 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율
-        const appliedAbsorptionRate = absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined ? absorptionRates[record.id] : 1.0;
+        // 상세 페이지와 완전히 동일한 로직: 반영 흡수율을 그대로 사용 (데이터베이스에 저장된 형식 그대로)
+        // 0도 유효한 값이므로 키 존재 여부를 먼저 확인하고, 값이 null/undefined인 경우만 기본값 사용
+        let appliedAbsorptionRate = 1.0; // 기본값 (100%)
+        if (record.id in absorptionRates) {
+          // 키가 존재하면 해당 값을 사용 (0도 포함)
+          const rateValue = absorptionRates[record.id];
+          if (rateValue !== null && rateValue !== undefined) {
+            appliedAbsorptionRate = rateValue;
+          }
+        }
         
         // commission_rate는 데이터베이스에 항상 소수점 형식으로 저장됨 (예: 0.48 = 48%)
         const commissionRate = record.commission_rate || 0;
@@ -553,11 +575,6 @@ async function loadSettlementData() {
       return a.company_name.localeCompare(b.company_name, 'ko');
     });
     
-    // 디버깅용 로그: 최종 결과 확인
-    // console.log('최종 정산내역서 요약:', companySummary.value);
-    companySummary.value.forEach(company => {
-      // console.log(`${company.company_name}: 병의원수=${company.client_count.size}, 처방건수=${company.total_records}, 총처방액=${company.total_prescription_amount} (삭제건 처방수량=0), 지급처방액=${company.payment_prescription_amount} (삭제건 제외), 총지급액=${company.total_payment_amount} (삭제건 제외)`);
-    });
 
   } catch (err) {
       console.error('정산 공유 데이터 로드 오류:', err);
