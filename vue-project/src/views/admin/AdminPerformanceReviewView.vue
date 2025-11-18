@@ -1347,7 +1347,7 @@ async function loadPerformanceData() {
     // --- 데이터 조회 로직 ---
     let query = supabase.from('performance_records').select(`
       *,
-      companies!fk_performance_records_company_id(company_name),
+      companies(company_name),
       clients ( name ),
       products ( product_name, insurance_code, price )
     `);
@@ -1486,7 +1486,21 @@ async function loadPerformanceData() {
 
   } catch (err) {
     console.error('데이터 처리 중 오류 발생:', err);
-    alert(`데이터를 처리하는 중 오류가 발생했습니다: ${err.message}`);
+    console.error('오류 상세:', {
+      message: err.message,
+      name: err.name,
+      stack: err.stack,
+      cause: err.cause
+    });
+    
+    let errorMessage = '데이터를 처리하는 중 오류가 발생했습니다.';
+    if (err.message && err.message.includes('Failed to fetch')) {
+      errorMessage = '서버 연결에 실패했습니다. 네트워크 연결을 확인하거나 잠시 후 다시 시도해주세요.';
+    } else if (err.message) {
+      errorMessage = `데이터 처리 오류: ${err.message}`;
+    }
+    
+    alert(errorMessage);
     rows.value = [];
   } finally {
     loading.value = false;

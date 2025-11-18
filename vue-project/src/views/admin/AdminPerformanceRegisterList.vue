@@ -407,7 +407,7 @@ async function fetchCompanies() {
       .from('performance_records')
       .select(`
         company_id,
-        companies!fk_performance_records_company_id!inner(*)
+        companies!inner(*)
       `)
       .eq('settlement_month', selectedSettlementMonth.value);
     
@@ -579,7 +579,7 @@ async function fetchPerformanceRecords() {
         *,
         products!inner(product_name, insurance_code, price),
         clients!inner(name, business_registration_number, owner_name, address),
-        companies!fk_performance_records_company_id!inner(company_name, business_registration_number, representative_name)
+        companies!inner(company_name, business_registration_number, representative_name)
       `)
       .eq('settlement_month', selectedSettlementMonth.value);
     

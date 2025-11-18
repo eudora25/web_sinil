@@ -406,7 +406,7 @@ async function loadSettlementData() {
         prescription_qty,
         commission_rate,
         review_action,
-        company:companies!fk_performance_records_company_id(*),
+        company:companies(*),
         product:products(price)
       `)
         .eq('settlement_month', selectedMonth.value)

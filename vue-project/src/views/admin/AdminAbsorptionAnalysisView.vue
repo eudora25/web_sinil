@@ -1033,7 +1033,7 @@ async function loadAbsorptionAnalysisResults() {
         .from('performance_records_absorption')
         .select(`
           *,
-          company:companies!fk_performance_records_absorption_company_id(company_name, company_group),
+          company:companies!performance_records_absorption_company_id_fkey(company_name, company_group),
           client:clients(name),
           product:products(product_name, insurance_code, price)
         `)
@@ -1085,7 +1085,7 @@ async function loadAbsorptionAnalysisResults() {
         .from('performance_records_absorption')
         .select(`
           *,
-          company:companies!fk_performance_records_absorption_company_id(company_name, company_group),
+          company:companies!performance_records_absorption_company_id_fkey(company_name, company_group),
           client:clients(name),
           product:products(product_name, insurance_code, price)
         `)

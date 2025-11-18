@@ -358,7 +358,7 @@ const fetchClients = async () => {
     const { data: clientsData, error } = await supabase
       .from('clients')
       .select(
-        `*, pharmacies:client_pharmacy_assignments!fk_client_pharmacy_assignments_client_id(created_at, pharmacy:pharmacies(id, name, business_registration_number)),companies:client_company_assignments!fk_client_company_assignments_client_id(created_at,company:companies!fk_client_company_assignments_company_id(id,company_name,business_registration_number,company_group))`,
+        `*, pharmacies:client_pharmacy_assignments(created_at, pharmacy:pharmacies(id, name, business_registration_number)),companies:client_company_assignments(created_at,company:companies(id,company_name,business_registration_number,company_group))`,
       )
       .eq('status', 'active')
     
