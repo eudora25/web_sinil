@@ -287,6 +287,7 @@
 import { ref, computed, onMounted, watch, nextTick, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+// 주석: updatePromotionProductHospitalPerformance는 트리거가 자동 처리하므로 불필요
 import Button from 'primevue/button';
 
 const route = useRoute();
@@ -1305,7 +1306,20 @@ async function savePerformanceData() {
       };
     });
     const { error } = await supabase.from('performance_records').insert(dataToInsert);
-    if (error) throw new Error(`실적 추가 중 오류: ${error.message}`);
+    if (error) {
+      console.error('실적 INSERT 오류 상세:', {
+        error,
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        dataCount: dataToInsert.length
+      });
+      throw new Error(`실적 추가 중 오류: ${error.message || '알 수 없는 오류가 발생했습니다.'}`);
+    }
+    
+    // 주석: 트리거가 자동으로 promotion_product_hospital_performance를 업데이트하므로
+    // 프론트엔드에서 수동 호출 불필요
   }
 
   // 2. UPDATE
@@ -1348,7 +1362,20 @@ async function savePerformanceData() {
     });
     const results = await Promise.all(updatePromises);
     const firstError = results.find(res => res.error);
-    if (firstError) throw new Error(`실적 수정 중 오류: ${firstError.error.message}`);
+    if (firstError) {
+      console.error('실적 UPDATE 오류 상세:', {
+        error: firstError.error,
+        message: firstError.error.message,
+        code: firstError.error.code,
+        details: firstError.error.details,
+        hint: firstError.error.hint,
+        updateCount: rowsToUpdate.length
+      });
+      throw new Error(`실적 수정 중 오류: ${firstError.error.message || '알 수 없는 오류가 발생했습니다.'}`);
+    }
+    
+    // 주석: 트리거가 자동으로 promotion_product_hospital_performance를 업데이트하므로
+    // 프론트엔드에서 수동 호출 불필요
   }
 
   // 3. DELETE
@@ -1358,7 +1385,17 @@ async function savePerformanceData() {
     );
     const results = await Promise.all(deletePromises);
     const firstError = results.find(res => res.error);
-    if (firstError) throw new Error(`실적 삭제 중 오류: ${firstError.error.message}`);
+    if (firstError) {
+      console.error('실적 DELETE 오류 상세:', {
+        error: firstError.error,
+        message: firstError.error.message,
+        code: firstError.error.code,
+        details: firstError.error.details,
+        hint: firstError.error.hint,
+        deleteCount: rowsToDelete.length
+      });
+      throw new Error(`실적 삭제 중 오류: ${firstError.error.message || '알 수 없는 오류가 발생했습니다.'}`);
+    }
   }
 
   return currentValidRows.length;
@@ -1413,8 +1450,40 @@ async function onSave() {
       router.push('/performance/register');
     }
   } catch (err) {
-    console.error('저장 처리 오류:', err);
-    alert(err.message || '실적 저장 시 오류가 발생했습니다.');
+    // 상세 에러 로깅
+    console.error('실적 저장 처리 오류:', err);
+    console.error('에러 상세:', {
+      message: err.message,
+      code: err.code,
+      details: err.details,
+      hint: err.hint,
+      stack: err.stack
+    });
+    
+    // 사용자 친화적인 에러 메시지 생성
+    let errorMessage = '실적 저장 시 오류가 발생했습니다.';
+    
+    if (err.message) {
+      if (err.message.includes('정산월') || err.message.includes('병원')) {
+        errorMessage = err.message;
+      } else if (err.message.includes('로그인')) {
+        errorMessage = '로그인 정보를 확인할 수 없습니다. 다시 로그인해주세요.';
+      } else if (err.message.includes('회사 정보')) {
+        errorMessage = '회사 정보를 찾을 수 없습니다. 관리자에게 문의해주세요.';
+      } else if (err.message.includes('duplicate') || err.message.includes('중복')) {
+        errorMessage = '중복된 데이터가 있습니다. 다시 확인해주세요.';
+      } else if (err.message.includes('foreign key') || err.message.includes('참조')) {
+        errorMessage = '연관된 데이터가 없습니다. 제품, 업체, 병원 정보를 확인해주세요.';
+      } else if (err.message.includes('null') || err.message.includes('필수')) {
+        errorMessage = '필수 항목이 누락되었습니다. 모든 항목을 입력해주세요.';
+      } else if (err.message.includes('network') || err.message.includes('fetch')) {
+        errorMessage = '네트워크 연결에 실패했습니다. 인터넷 연결을 확인해주세요.';
+      } else {
+        errorMessage = `저장 실패: ${err.message}`;
+      }
+    }
+    
+    alert(errorMessage);
   }
 
   // 저장 후에는 originalRows를 inputRows에서 입력된 행만 복사해서 동기화
