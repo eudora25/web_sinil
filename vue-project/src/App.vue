@@ -84,7 +84,10 @@ const adminMenuTree = [
     { label: '승인 업체', path: '/admin/companies/approved' },
     { label: '미승인 업체', path: '/admin/companies/pending' }
   ] },
-  { label: '제품 관리', children: [ { label: '제품 목록', path: '/admin/products' } ] },
+  { label: '제품 관리', children: [ 
+    { label: '제품 목록', path: '/admin/products' },
+    { label: '프로모션 제품', path: '/admin/products/promotion' }
+  ] },
   { label: '병의원 관리', children: [ 
     { label: '병의원 목록', path: '/admin/clients' },
     { label: '병의원 등록', path: '/admin/clients/create' },
@@ -97,11 +100,17 @@ const adminMenuTree = [
     { label: '정산월 관리', path: '/admin/settlement-months' },
     { label: '실적 등록', path: '/admin/performance/register' },
     { label: '업체별 등록 현황', path: '/admin/performance/companies' },
-    { label: '전체 등록 현황', path: '/admin/performance/whole' }
+    { label: '전체 등록 현황', path: '/admin/performance/whole' },
+    { label: '실적 상세 현황', path: '/admin/performance/detail' }
   ] },
   { label: '정산 관리', children: [ 
     { label: '흡수율 분석', path: '/admin/absorption-analysis' }, 
-    { label: '정산내역서 공유', path: '/admin/settlement-statements' } 
+    { label: '정산내역서 공유', path: '/admin/settlement-statements' }
+  ] },
+  { label: '실적 통계', children: [
+    { label: '업체별 통계', path: '/admin/statistics/company' },
+    { label: '병원별 통계', path: '/admin/statistics/hospital' },
+    { label: '제품별 통계', path: '/admin/statistics/product' }
   ] }
 ];
 const userMenuTree = [

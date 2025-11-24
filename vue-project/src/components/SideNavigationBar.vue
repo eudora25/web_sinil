@@ -10,8 +10,23 @@
           <span>{{ menu.label }}</span>
         </div>
         <ul v-if="openMenu === idx" class="side-nav-sub-list">
-          <li v-for="item in menu.children" :key="item.label" :class="['side-nav-sub-item', { active: isActive(item) }]" @click="go(item)">
-            <span class="side-nav-sub-label" :class="{ 'active-bg': isActive(item) }">{{ item.label }}</span>
+          <li v-for="item in menu.children" :key="item.label" :class="['side-nav-sub-item', { active: isActive(item) }]">
+            <!-- 중첩 메뉴가 있는 경우 -->
+            <template v-if="item.children && item.children.length > 0">
+              <div class="side-nav-sub-label-nested" @click.stop="toggleNestedMenu(item.label)">
+                <span>{{ item.label }}</span>
+                <i :class="['pi', nestedOpenMenus[item.label] ? 'pi-chevron-down' : 'pi-chevron-right']" style="font-size: 0.8rem; margin-left: auto;"></i>
+              </div>
+              <ul v-if="nestedOpenMenus[item.label]" class="side-nav-nested-list">
+                <li v-for="nestedItem in item.children" :key="nestedItem.label" :class="['side-nav-nested-item', { active: isActive(nestedItem) }]" @click="go(nestedItem)">
+                  <span class="side-nav-nested-label" :class="{ 'active-bg': isActive(nestedItem) }">{{ nestedItem.label }}</span>
+                </li>
+              </ul>
+            </template>
+            <!-- 일반 메뉴 항목 -->
+            <template v-else>
+              <span class="side-nav-sub-label" :class="{ 'active-bg': isActive(item) }" @click="go(item)">{{ item.label }}</span>
+            </template>
           </li>
         </ul>
       </li>
@@ -50,6 +65,7 @@ const emit = defineEmits(['logout']);
 const router = useRouter();
 const route = useRoute();
 const openMenu = ref(0); // 첫 번째 대메뉴 기본 오픈
+const nestedOpenMenus = ref({}); // 중첩 메뉴 열림 상태
 
 // 현재 페이지에 따라 해당 메뉴 섹션을 자동으로 열기
 const getCurrentMenuIndex = () => {
@@ -79,7 +95,8 @@ const adminMenuTree = [
   ]},
   { label: '제품 관리', icon: 'pi pi-box', children: [
     { label: '제품 목록', path: '/admin/products' },
-    { label: '표준코드 목록', path: '/admin/products-standard-code' }
+    { label: '표준코드 목록', path: '/admin/products-standard-code' },
+    { label: '프로모션 제품', path: '/admin/products/promotion' }
   ]},
 
   { label: '병의원 관리', icon: 'pi pi-building', children: [
@@ -99,12 +116,18 @@ const adminMenuTree = [
     { label: '정산월 관리', path: '/admin/settlement-months' },
     { label: '실적 등록', path: '/admin/performance/register' },
     { label: '업체별 등록 현황', path: '/admin/performance/companies' },
-    { label: '전체 등록 현황', path: '/admin/performance/whole' }
+    { label: '전체 등록 현황', path: '/admin/performance/whole' },
+    { label: '실적 상세 현황', path: '/admin/performance/detail' }
   ]},
   { label: '정산 관리', icon: 'pi pi-file', children: [
     { label: '실적 검수', path: '/admin/performance/review' },
     { label: '흡수율 분석', path: '/admin/absorption-analysis' },
     { label: '정산내역서 공유', path: '/admin/settlement-share' }
+  ]},
+  { label: '실적 통계', icon: 'pi pi-chart-line', children: [
+    { label: '업체별 통계', path: '/admin/statistics/company' },
+    { label: '병원별 통계', path: '/admin/statistics/hospital' },
+    { label: '제품별 통계', path: '/admin/statistics/product' }
   ]}
 ];
 const userMenuTree = [
@@ -134,6 +157,9 @@ function go(item) {
   if (item.path) router.push(item.path);
 }
 function isActive(item) {
+  // path가 없으면 (중첩 메뉴의 부모 등) false
+  if (!item.path) return false;
+  
   // 정확한 경로 매칭 (가장 우선순위)
   if (route.path === item.path) {
     return true;
@@ -212,6 +238,17 @@ function isActive(item) {
     return true;
   }
   
+  // 통계 메뉴들
+  if (itemPath === '/admin/statistics/company' && currentPath === '/admin/statistics/company') {
+    return true;
+  }
+  if (itemPath === '/admin/statistics/hospital' && currentPath === '/admin/statistics/hospital') {
+    return true;
+  }
+  if (itemPath === '/admin/statistics/product' && currentPath === '/admin/statistics/product') {
+    return true;
+  }
+  
   // 사용자 메뉴들
   if (itemPath === '/notices' && currentPath === '/notices') {
     return true;
@@ -239,6 +276,10 @@ function isActive(item) {
 }
 function toggleMenu(idx) {
   openMenu.value = openMenu.value === idx ? null : idx;
+}
+
+function toggleNestedMenu(label) {
+  nestedOpenMenus.value[label] = !nestedOpenMenus.value[label];
 }
 
 const breadcrumbSubMenu = computed(() => {
@@ -333,6 +374,20 @@ onMounted(async () => {
   // 현재 페이지에 따라 해당 메뉴 섹션 자동 열기
   openMenu.value = getCurrentMenuIndex();
   
+  // 중첩 메뉴도 자동으로 열기
+  for (const menu of menuTree.value) {
+    for (const child of menu.children) {
+      if (child.children && child.children.length > 0) {
+        for (const nestedChild of child.children) {
+          if (isActive(nestedChild)) {
+            nestedOpenMenus.value[child.label] = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+  
   // ...기존 데이터 불러오기 코드...
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -352,6 +407,20 @@ onMounted(async () => {
 // 라우트 변경 시 메뉴 자동 업데이트
 watch(() => route.path, (newPath) => {
   openMenu.value = getCurrentMenuIndex();
+  
+  // 중첩 메뉴도 자동으로 열기
+  for (const menu of menuTree.value) {
+    for (const child of menu.children) {
+      if (child.children && child.children.length > 0) {
+        for (const nestedChild of child.children) {
+          if (isActive(nestedChild)) {
+            nestedOpenMenus.value[child.label] = true;
+            break;
+          }
+        }
+      }
+    }
+  }
 });
 </script>
 
@@ -378,5 +447,49 @@ watch(() => route.path, (newPath) => {
 .side-nav-manual-icon {
   font-size: 1.2rem;
   margin-right: 1.1rem;
+}
+
+/* 중첩 메뉴 스타일 */
+.side-nav-sub-label-nested {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  transition: background-color 0.15s;
+}
+
+.side-nav-sub-label-nested:hover {
+  background-color: var(--background-hover);
+}
+
+.side-nav-nested-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background-color: var(--background-secondary);
+}
+
+.side-nav-nested-item {
+  padding: 0;
+}
+
+.side-nav-nested-label {
+  display: block;
+  padding: 0.6rem 1rem 0.6rem 2.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  transition: background-color 0.15s;
+}
+
+.side-nav-nested-label:hover {
+  background-color: var(--background-hover);
+}
+
+.side-nav-nested-label.active-bg {
+  background-color: var(--primary-color);
+  color: white;
 }
 </style> 

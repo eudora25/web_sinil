@@ -1,0 +1,190 @@
+DECLARE
+    result_record RECORD;
+BEGIN
+    SET statement_timeout = '10min'; -- 10분으로 설정 (필요시 조정)
+    -- 1단계: 기존 흡수율 데이터 초기화
+    UPDATE
+		performance_records_absorption
+    SET
+        wholesale_revenue = 0,
+        direct_revenue = 0,
+        total_revenue = 0,
+        absorption_rate = 0
+    WHERE
+        settlement_month = p_settlement_month;
+
+    -- 2단계: 흡수율 계산 및 업데이트
+    FOR result_record IN
+        WITH
+            -- 0. 특정 정산월 실적 내역에 포함되는 처방월 목록 조회
+            based_prescription_month AS (
+                SELECT
+                    DISTINCT rs.prescription_month	-- 실적 처방월
+                FROM
+                    performance_records rs
+                WHERE
+                    rs.settlement_month = p_settlement_month
+            )
+            -- 1. 실적 내역의 문전약국별 분배 매출액 산출을 위해, 외부에서 제공된 매출 데이터를 집계한다.
+            --  - 집계 대상은 전체 외부 매출 데이터 중 특정 정산월 기준 전체 실적 내역에 포함되는 처방월과 매출월이 같은 매출 데이터로 한다.
+            --  - 집계 대상의 외부 매출 데이터를 통합하여 매출월별, 약국별, 제품별 매출액의 합계 매출액을 산출한다.
+            , based_external_sales AS (
+                SELECT
+                    sales.sales_date,												                        -- 매출월
+                    sales.pharmacy_biz_reg_no,										                        -- 약국사업자등록번호
+                    psc.insurance_code,												                        -- 제품보험코드
+                    ROUND(SUM(COALESCE(sales.direct_amount, 0))::NUMERIC, 2) AS total_directsale_amount,	-- 총매출액(직거래)
+                    ROUND(SUM(COALESCE(sales.wholesale_amount, 0))::NUMERIC, 2) AS total_wholesale_amount,	-- 총매출액(도매)
+                    ROUND(SUM(COALESCE(sales.direct_amount, 0) +
+                        COALESCE(sales.wholesale_amount, 0))::NUMERIC, 2) AS total_sale_amount              -- 총매출액(직거래+도매)
+                FROM (
+                    SELECT
+                        TO_CHAR(ws.sales_date, 'YYYY-MM') AS sales_date,			-- 매출월
+                        ws.business_registration_number AS pharmacy_biz_reg_no,		-- 약국사업자등록번호
+                        ws.standard_code,											-- 표준코드
+                        0::NUMERIC AS direct_amount,								-- 총매출액(직거래)
+                        COALESCE(ws.sales_amount, 0)::NUMERIC AS wholesale_amount	-- 총매출액(도매)
+                    FROM
+                        wholesale_sales ws
+                    WHERE
+                        TO_CHAR(ws.sales_date, 'YYYY-MM') IN (
+                            SELECT prescription_month FROM based_prescription_month
+                        )
+                    UNION ALL
+                    SELECT
+                        TO_CHAR(ds.sales_date, 'YYYY-MM') AS sales_date,			-- 매출월
+                        ds.business_registration_number AS pharmacy_biz_reg_no,		-- 약국사업자등록번호
+                        ds.standard_code,								-- 표준코드
+                        COALESCE(ds.sales_amount, 0)::NUMERIC AS direct_amount,     -- 총매출액(직거래)
+                        0::NUMERIC AS wholesale_amount					            -- 총매출액(도매)
+                    FROM
+                        direct_sales ds
+                    WHERE
+                        TO_CHAR(ds.sales_date, 'YYYY-MM') IN (
+                            SELECT prescription_month FROM based_prescription_month
+                        )
+                ) AS sales
+                INNER JOIN
+                     products_standard_code psc ON psc.standard_code = sales.standard_code
+                -- WHERE
+                    -- 다이뉴시드정 480mg	653805560
+                    -- psc.insurance_code = '653805560'
+                GROUP BY
+                    sales.sales_date,
+                    sales.pharmacy_biz_reg_no,
+                    psc.insurance_code
+            )
+            -- 3. 처방 실적 내역의 문전약국별 분배 매출 비율 산정을 위해, CSO에서 제공된 처방 실적 데이터를 집계한다.
+            --  - 집계 대상은 전체 처방 실적 데이터 중 특정 정산월 기준 전체 처방 실적 내역에 포함되는 처방월과 같은 처방 실적 데이터로 한다.
+            --  - 집계 대상의 처방 실적 데이터를 통합하여 처방월별, 약국별, 제품별 처방액 합계를 산출한다.
+            , based_pharmacy_prescription AS (
+                SELECT
+                    pr.prescription_month, 	-- 처방월
+                    cpa.pharmacy_id,		-- 약국(약국ID)
+                    pr.product_id,			-- 제품(제품ID)
+                    p.insurance_code,       -- 보험코드
+                    SUM(COALESCE(pr.prescription_qty, 0)) AS total_prescription_qty,								-- 총 처방수량
+                    ROUND(SUM(COALESCE(pr.prescription_qty * p.price, 0))::NUMERIC, 2) AS total_prescription_amount	-- 총 처방액
+                FROM
+                    performance_records_absorption pr
+                INNER JOIN
+                    products p ON p.id = pr.product_id
+                INNER JOIN
+                    client_pharmacy_assignments cpa ON cpa.client_id = pr.client_id
+                WHERE
+                    pr.prescription_month IN (
+                        SELECT prescription_month FROM based_prescription_month
+                    )
+                    -- 다이뉴시드정 480mg	653805560
+                    -- AND p.insurance_code = '653805560'
+                GROUP BY
+                    pr.prescription_month, 	-- 처방월
+                    cpa.pharmacy_id,		-- 약국(약국ID)
+                    pr.product_id, 			-- 제품(제품ID)
+                    p.insurance_code        -- 보험코드
+            )
+            -- 4. 처방 실적 내역의 문전약국별 분배 매출을 산정하고 실적 내역의 분배 매출 합계를 집계한다.
+            SELECT
+                pr.id,  -- 실적내역ID
+                ROUND(SUM(
+                    -- 분배 매출 : ( 실적 내역 처방액 / 약국별 제품별 처방액 합계 ) * 외부 매출액
+                    CASE
+                        WHEN COALESCE(bpp.total_prescription_amount, 0) = 0
+                            THEN 0
+                            ELSE
+                                (COALESCE(pr.prescription_qty * p.price, 0)::NUMERIC(18, 6)
+                                    / NULLIF(bpp.total_prescription_amount, 0)::NUMERIC(18, 6)
+                                ) * COALESCE(bes.total_directsale_amount, 0)::NUMERIC
+                        END
+                )::NUMERIC, 2) AS total_distributed_directsale_amount,    -- 직거래 분배 매출 합계
+                ROUND(SUM(
+                    -- 분배 매출 : ( 실적 내역 처방액 / 약국별 제품별 처방액 합계 ) * 외부 매출액
+                    CASE
+                        WHEN COALESCE(bpp.total_prescription_amount, 0) = 0
+                            THEN 0
+                            ELSE
+                                (COALESCE(pr.prescription_qty * p.price, 0)::NUMERIC(18, 6)
+                                    / NULLIF(bpp.total_prescription_amount, 0)::NUMERIC(18, 6)
+                                ) * COALESCE(bes.total_wholesale_amount, 0)::NUMERIC
+                        END
+                )::NUMERIC, 2) AS total_distributed_wholesale_amount,    -- 도매 분배 매출 합계
+                ROUND(SUM(
+                    -- 분배 매출 : ( 실적 내역 처방액 / 약국별 제품별 처방액 합계 ) * 외부 매출액
+                    CASE
+                        WHEN COALESCE(bpp.total_prescription_amount, 0) = 0
+                            THEN 0
+                            ELSE
+                                (COALESCE(pr.prescription_qty * p.price, 0)::NUMERIC(18, 6)
+                                    / NULLIF(bpp.total_prescription_amount, 0)::NUMERIC(18, 6)
+                                ) * COALESCE(bes.total_sale_amount, 0)::NUMERIC
+                        END
+                  )::NUMERIC, 2) AS total_distributed_sales_amount    -- 분배 매출 합계
+            FROM
+                -- 처방 실적 내역
+                performance_records_absorption pr
+            LEFT JOIN
+                -- 거래처(병의원) 문전약국
+                client_pharmacy_assignments cpa ON cpa.client_id = pr.client_id
+            LEFT JOIN
+                -- 약국
+                pharmacies pmc ON pmc.id = cpa.pharmacy_id
+            LEFT JOIN
+                products p ON p.id = pr.product_id
+            LEFT JOIN
+                -- 처방 실적 내역의 문전약국별 분배 비율 산정을 위한 처방 실적 데이터
+                based_pharmacy_prescription bpp ON bpp.pharmacy_id = cpa.pharmacy_id
+                    AND bpp.product_id = pr.product_id
+                    AND bpp.prescription_month = pr.prescription_month
+            LEFT JOIN
+                -- 처방 실적의 문전약국별 분배 배출 산정을 위한 외부 매출 데이터
+                based_external_sales bes ON bes.sales_date = pr.prescription_month
+                    AND bes.pharmacy_biz_reg_no = pmc.business_registration_number
+                    AND bes.insurance_code = bpp.insurance_code
+            WHERE
+                pr.settlement_month = p_settlement_month
+                -- 다이뉴시드정 480mg	653805560
+                -- AND p.insurance_code = '653805560'
+            GROUP BY
+                pr.id
+        LOOP
+            -- 실적 내역 레코드의 흡수율정보 업데이트
+            UPDATE
+                performance_records_absorption pra
+            SET
+                wholesale_revenue = COALESCE(result_record.total_distributed_wholesale_amount, 0),      -- 도매 분배 매출 합계
+                direct_revenue = COALESCE(result_record.total_distributed_directsale_amount, 0),        -- 직거래 분배 매출 합계
+                total_revenue = COALESCE(result_record.total_distributed_sales_amount, 0),              -- 분배 매출 합계
+                absorption_rate = CASE
+                    WHEN COALESCE(prescription_qty * p.price, 0) > 0 THEN
+                        ROUND(COALESCE(result_record.total_distributed_sales_amount, 0) / COALESCE(prescription_qty * p.price, 0), 4)
+                    ELSE 0
+                END,                                                                                    -- 흡수율
+                analysis_time = NOW()
+            FROM
+                products p
+            WHERE
+                pra.id = result_record.id
+                AND pra.product_id = p.id;
+        END LOOP;
+    RAISE NOTICE '흡수율 분석 완료 (소수점 형태): %월', p_settlement_month;
+END;

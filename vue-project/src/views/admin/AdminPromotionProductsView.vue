@@ -55,9 +55,9 @@
             {{ slotProps.index + currentPageFirstIndex + 1 }}
           </template>
         </Column>
-        <Column field="insurance_code" header="보험코드" :headerStyle="{ width: '15%' }" :sortable="true">
+        <Column field="insurance_code" header="보험코드" :headerStyle="{ width: '15%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
-            <span>{{ slotProps.data.insurance_code }}</span>
+            <div style="text-align: center;">{{ slotProps.data.insurance_code }}</div>
           </template>
         </Column>
         <Column field="product_name" header="제품명" :headerStyle="{ width: '25%' }" :sortable="true">
@@ -80,14 +80,19 @@
             {{ formatCommissionRate(slotProps.data.commission_rate) }}
           </template>
         </Column>
-        <Column field="final_commission_rate" header="최종수수료율" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+        <Column field="final_commission_rate" header="최종수수료율" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
           <template #body="slotProps">
             {{ formatCommissionRate(slotProps.data.final_commission_rate) }}
           </template>
         </Column>
-        <Column header="생성일시" :headerStyle="{ width: '20%' }" :sortable="true">
+        <Column field="promotion_start_date" header="프로모션 시작일" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
-            {{ formatDate(slotProps.data.created_at) }}
+            {{ formatDateOnly(slotProps.data.promotion_start_date) }}
+          </template>
+        </Column>
+        <Column field="promotion_end_date" header="프로모션 종료일" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+          <template #body="slotProps">
+            {{ formatDateOnly(slotProps.data.promotion_end_date) }}
           </template>
         </Column>
       </DataTable>
@@ -142,6 +147,22 @@
             style="width: 100%;"
           />
         </div>
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-weight: 500;">프로모션 시작일</label>
+          <input
+            type="date"
+            v-model="formData.promotion_start_date"
+            style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;"
+          />
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-weight: 500;">프로모션 종료일</label>
+          <input
+            type="date"
+            v-model="formData.promotion_end_date"
+            style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;"
+          />
+        </div>
       </div>
       <template #footer>
         <Button label="취소" icon="pi pi-times" @click="closeModal" class="p-button-text" />
@@ -172,12 +193,14 @@ const currentPageFirstIndex = ref(0);
 const selectedBaseMonth = ref('');
 const availableBaseMonths = ref([]);
 
-const formData = ref({
-  insurance_code: '',
-  product_name: '',
-  commission_rate_percent: null,
-  final_commission_rate_percent: null
-});
+    const formData = ref({
+      insurance_code: '',
+      product_name: '',
+      commission_rate_percent: null,
+      final_commission_rate_percent: null,
+      promotion_start_date: null,
+      promotion_end_date: null
+    });
 
 // 기준년월 목록 조회 (products 테이블에서)
 async function fetchBaseMonths() {
@@ -312,7 +335,9 @@ function openAddModal() {
     insurance_code: '',
     product_name: '',
     commission_rate_percent: null,
-    final_commission_rate_percent: null
+    final_commission_rate_percent: null,
+    promotion_start_date: null,
+    promotion_end_date: null
   };
   showModal.value = true;
 }
@@ -324,7 +349,9 @@ function closeModal() {
     insurance_code: '',
     product_name: '',
     commission_rate_percent: null,
-    final_commission_rate_percent: null
+    final_commission_rate_percent: null,
+    promotion_start_date: null,
+    promotion_end_date: null
   };
 }
 
@@ -345,6 +372,8 @@ async function saveProduct() {
       product_name: formData.value.product_name,
       commission_rate: formData.value.commission_rate_percent ? (formData.value.commission_rate_percent / 100) : 0,
       final_commission_rate: formData.value.final_commission_rate_percent ? (formData.value.final_commission_rate_percent / 100) : 0,
+      promotion_start_date: formData.value.promotion_start_date || null,
+      promotion_end_date: formData.value.promotion_end_date || null,
       updated_by: user.id
     };
 
@@ -374,7 +403,7 @@ function formatCommissionRate(rate) {
   return (rate * 100).toFixed(2) + '%';
 }
 
-// 날짜 포맷팅
+// 날짜 포맷팅 (시간 포함)
 function formatDate(dateString) {
   if (!dateString) return '-';
   const date = new Date(dateString);
@@ -384,6 +413,17 @@ function formatDate(dateString) {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit'
+  });
+}
+
+// 날짜만 포맷팅 (YYYY-MM-DD)
+function formatDateOnly(dateString) {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
   });
 }
 

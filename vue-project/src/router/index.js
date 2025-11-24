@@ -133,6 +133,18 @@ const router = createRouter({
       meta: { menu: '제품 관리', submenu: '업체 할당', requiresAuth: true, isAdmin: true }
       },
     {
+      path: '/admin/products/promotion',
+      name: 'AdminPromotionProducts',
+      component: () => import('../views/admin/AdminPromotionProductsView.vue'),
+      meta: { menu: '제품 관리', submenu: '프로모션 제품', requiresAuth: true, isAdmin: true }
+    },
+    {
+      path: '/admin/products/promotion/:id',
+      name: 'AdminPromotionProductHospitalPerformance',
+      component: () => import('../views/admin/AdminPromotionProductHospitalPerformanceView.vue'),
+      meta: { menu: '제품 관리', submenu: '프로모션 제품 병원 실적', requiresAuth: true, isAdmin: true }
+    },
+    {
       path: '/admin/products-standard-code',
       name: 'AdminProductsStandardCode',
       component: () => import('@/views/admin/AdminProductsStandardCodeView.vue'),
@@ -272,6 +284,12 @@ const router = createRouter({
       meta: { menu: '실적 관리', submenu: '전체 등록 현황', requiresAuth: true, isAdmin: true },
     },
     {
+      path: '/admin/performance/detail',
+      name: 'AdminPerformanceDetail',
+      component: () => import('@/views/admin/AdminPerformanceDetailView.vue'),
+      meta: { menu: '실적 관리', submenu: '실적 상세 현황', requiresAuth: true, isAdmin: true },
+    },
+    {
       path: '/admin/performance-list',
       name: 'AdminPerformanceRegisterList',
       component: () => import('../views/admin/AdminPerformanceRegisterList.vue'),
@@ -283,6 +301,24 @@ const router = createRouter({
       name: 'AdminPerformanceReview',
       component: () => import('@/views/admin/AdminPerformanceReviewView.vue'),
       meta: { menu: '정산 관리', submenu: '실적 검수', requiresAuth: true, isAdmin: true },
+    },
+    {
+      path: '/admin/statistics/company',
+      name: 'AdminPerformanceStatisticsCompany',
+      component: () => import('@/views/admin/AdminPerformanceStatisticsCompanyView.vue'),
+      meta: { menu: '정산 관리', submenu: '업체별 통계', requiresAuth: true, isAdmin: true },
+    },
+    {
+      path: '/admin/statistics/hospital',
+      name: 'AdminPerformanceStatisticsHospital',
+      component: () => import('@/views/admin/AdminPerformanceStatisticsHospitalView.vue'),
+      meta: { menu: '정산 관리', submenu: '병원별 통계', requiresAuth: true, isAdmin: true },
+    },
+    {
+      path: '/admin/statistics/product',
+      name: 'AdminPerformanceStatisticsProduct',
+      component: () => import('@/views/admin/AdminPerformanceStatisticsProductView.vue'),
+      meta: { menu: '정산 관리', submenu: '제품별 통계', requiresAuth: true, isAdmin: true },
     },
     {
       path: '/admin/absorption-analysis',
