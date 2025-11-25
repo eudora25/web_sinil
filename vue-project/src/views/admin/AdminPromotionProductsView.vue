@@ -181,27 +181,65 @@
       header="통계 확인 진행 중" 
       :modal="true"
       :closable="false"
-      :style="{ width: '500px' }"
+      :style="{ width: '550px' }"
     >
-      <div style="display: flex; flex-direction: column; gap: 16px; padding: 8px;">
+      <div style="display: flex; flex-direction: column; gap: 20px; padding: 8px;">
+        <!-- 진행 상황 섹션 -->
         <div>
-          <div style="margin-bottom: 8px; font-weight: 500;">진행 상황</div>
-          <ProgressBar 
-            :value="statisticsProgress" 
-            :showValue="false"
-            style="height: 20px;"
-          />
-          <div style="text-align: center; margin-top: 8px; color: #6c757d; font-size: 0.9em;">
-            {{ statisticsProgress }}% ({{ statisticsCurrentIndex }} / {{ statisticsTotalCount }})
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="font-weight: 600; font-size: 1.1em; color: #333;">진행 상황</div>
+            <div style="font-weight: 600; font-size: 1.2em; color: #007bff;">
+              {{ statisticsProgress }}%
+            </div>
+          </div>
+          
+          <!-- 그래픽 프로그레스 바 -->
+          <div class="progress-container">
+            <div class="progress-bar-wrapper">
+              <div 
+                class="progress-bar-fill" 
+                :style="{ width: statisticsProgress + '%' }"
+              >
+                <div class="progress-bar-shine"></div>
+              </div>
+            </div>
+            <div class="progress-steps">
+              <div 
+                v-for="step in 10" 
+                :key="step"
+                class="progress-step"
+                :class="{ 'active': (step * 10) <= statisticsProgress }"
+              ></div>
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin-top: 12px; color: #6c757d; font-size: 0.95em; font-weight: 500;">
+            {{ statisticsCurrentIndex }} / {{ statisticsTotalCount }} 제품 처리 중
           </div>
         </div>
-        <div v-if="statisticsCurrentProduct" style="padding: 12px; background-color: #f8f9fa; border-radius: 4px;">
-          <div style="font-weight: 500; margin-bottom: 4px;">현재 처리 중인 제품</div>
-          <div style="color: #495057;">{{ statisticsCurrentProduct }}</div>
+
+        <!-- 현재 처리 중인 제품 -->
+        <div v-if="statisticsCurrentProduct" class="info-card product-card">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <i class="pi pi-box" style="color: #007bff; font-size: 1.2em;"></i>
+            <div style="font-weight: 600; color: #333;">현재 처리 중인 제품</div>
+          </div>
+          <div style="color: #495057; font-size: 1.05em; padding-left: 28px;">{{ statisticsCurrentProduct }}</div>
         </div>
-        <div v-if="statisticsStatus" style="padding: 12px; background-color: #e7f3ff; border-radius: 4px;">
-          <div style="font-weight: 500; margin-bottom: 4px;">상태</div>
-          <div style="color: #495057;">{{ statisticsStatus }}</div>
+
+        <!-- 상태 정보 -->
+        <div v-if="statisticsStatus" class="info-card status-card">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <i class="pi pi-info-circle" style="color: #17a2b8; font-size: 1.2em;"></i>
+            <div style="font-weight: 600; color: #333;">상태</div>
+          </div>
+          <div style="color: #495057; padding-left: 28px;">{{ statisticsStatus }}</div>
+        </div>
+
+        <!-- 진행 애니메이션 -->
+        <div v-if="!statisticsCompleted" class="loading-indicator">
+          <div class="spinner"></div>
+          <span style="margin-left: 12px; color: #6c757d;">처리 중...</span>
         </div>
       </div>
       <template #footer>
@@ -209,7 +247,8 @@
           v-if="statisticsCompleted" 
           label="확인" 
           icon="pi pi-check" 
-          @click="closeStatisticsModal" 
+          @click="closeStatisticsModal"
+          class="p-button-success"
         />
       </template>
     </Dialog>
@@ -1226,6 +1265,148 @@ onMounted(async () => {
 .select_month:focus {
   outline: none;
   border-color: #007bff;
+}
+
+/* 통계 확인 모달 그래픽 요소 */
+.progress-container {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.progress-bar-wrapper {
+  width: 100%;
+  height: 28px;
+  background: linear-gradient(135deg, #e9ecef 0%, #f8f9fa 100%);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #007bff 0%, #0056b3 50%, #004085 100%);
+  border-radius: 14px;
+  position: relative;
+  transition: width 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.4);
+  overflow: hidden;
+}
+
+.progress-bar-fill::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  animation: shimmer 2s infinite;
+}
+
+.progress-bar-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  animation: shine 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes shine {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.progress-steps {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  justify-content: space-between;
+}
+
+.progress-step {
+  flex: 1;
+  height: 4px;
+  background: #e9ecef;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.progress-step.active {
+  background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+  box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+  transform: scaleY(1.5);
+}
+
+.info-card {
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid;
+  transition: all 0.3s ease;
+}
+
+.info-card:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.product-card {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-left-color: #007bff;
+}
+
+.status-card {
+  background: linear-gradient(135deg, #e7f3ff 0%, #d1ecf1 100%);
+  border-left-color: #17a2b8;
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #e9ecef;
+  border-top-color: #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 </style>
