@@ -674,7 +674,7 @@ async function checkStatistics() {
         // 2. 기존 promotion_product_hospital_performance 데이터 조회
         const { data: existingData, error: existingError } = await supabase
           .from('promotion_product_hospital_performance')
-          .select('hospital_id')
+          .select('hospital_id, first_performance_month, first_performance_cso_id')
           .eq('promotion_product_id', promotionProduct.id);
 
         if (existingError) {
@@ -684,6 +684,13 @@ async function checkStatistics() {
         }
 
         const existingHospitalIds = new Set((existingData || []).map(d => d.hospital_id));
+        const existingDataMap = new Map(); // hospital_id -> { first_performance_month, first_performance_cso_id }
+        (existingData || []).forEach(d => {
+          existingDataMap.set(d.hospital_id, {
+            first_performance_month: d.first_performance_month,
+            first_performance_cso_id: d.first_performance_cso_id
+          });
+        });
 
         statisticsStatus.value = `${baseMonth} 이전 데이터 조회 중... (${i + 1}/${promotionProducts.value.length})`;
 
@@ -780,12 +787,40 @@ async function checkStatistics() {
         const hospitalDataMap = new Map();
 
         // 먼저 기준일 이전 데이터 처리
+        // 기존 데이터 중 기준일 이전인데 CSO ID가 null이 아닌 경우 먼저 수정
+        for (const existingItem of existingData) {
+          if (existingItem.first_performance_month && existingItem.first_performance_month < baseMonth) {
+            if (existingItem.first_performance_cso_id !== null) {
+              const { error: updateError } = await supabase
+                .from('promotion_product_hospital_performance')
+                .update({ 
+                  first_performance_cso_id: null,
+                  updated_by: user.id
+                })
+                .eq('promotion_product_id', promotionProduct.id)
+                .eq('hospital_id', existingItem.hospital_id);
+              
+              if (updateError) {
+                console.error(`기존 데이터 수정 오류 (제품 ${promotionProduct.product_name}, 병원 ${existingItem.hospital_id}):`, updateError);
+                totalErrors++;
+              } else {
+                totalUpdated++;
+                // existingDataMap도 업데이트
+                existingDataMap.set(existingItem.hospital_id, {
+                  ...existingDataMap.get(existingItem.hospital_id),
+                  first_performance_cso_id: null
+                });
+              }
+            }
+          }
+        }
+
         for (const record of beforeBaseMonthRecords) {
           if (!record.client_id) continue;
 
           const hospitalId = record.client_id;
           
-          // 기존 데이터가 있으면 스킵
+          // 기존 데이터가 있으면 스킵 (이미 위에서 수정했음)
           if (existingHospitalIds.has(hospitalId)) {
             continue;
           }
@@ -816,8 +851,29 @@ async function checkStatistics() {
 
           const hospitalId = record.client_id;
           
-          // 기존 데이터가 있으면 스킵
+          // 기존 데이터가 있는 경우, 기준일 이후인데 first_performance_cso_id가 null이면 CSO ID로 수정
           if (existingHospitalIds.has(hospitalId)) {
+            const existing = existingDataMap.get(hospitalId);
+            if (existing && existing.first_performance_month && existing.first_performance_month >= baseMonth) {
+              // 기준일 이후 데이터인데 first_performance_cso_id가 null이면 CSO ID로 수정
+              if (existing.first_performance_cso_id === null) {
+                const { error: updateError } = await supabase
+                  .from('promotion_product_hospital_performance')
+                  .update({ 
+                    first_performance_cso_id: record.company_id,
+                    updated_by: user.id
+                  })
+                  .eq('promotion_product_id', promotionProduct.id)
+                  .eq('hospital_id', hospitalId);
+                
+                if (updateError) {
+                  console.error(`기존 데이터 수정 오류 (제품 ${promotionProduct.product_name}, 병원 ${hospitalId}):`, updateError);
+                  totalErrors++;
+                } else {
+                  totalUpdated++;
+                }
+              }
+            }
             continue;
           }
 
