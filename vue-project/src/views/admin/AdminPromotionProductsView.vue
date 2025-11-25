@@ -29,10 +29,12 @@
           전체 {{ promotionProducts.length }} 건
         </div>
         <div class="action-buttons-group">
-          <button class="btn-check" @click="checkStatistics" :disabled="checkingStatistics">
+          <button class="btn-check" @click="resetStatistics" :disabled="checkingStatistics || resettingStatistics" style="background-color: #dc3545; margin-right: 8px;">
+            {{ resettingStatistics ? '초기화 중...' : '데이터 초기화' }}
+          </button>
+          <button class="btn-check" @click="checkStatistics" :disabled="checkingStatistics || resettingStatistics">
             {{ checkingStatistics ? '확인 중...' : '통계 확인' }}
           </button>
-          <button class="btn-save" @click="openAddModal">제품 추가</button>
         </div>
       </div>
 
@@ -68,6 +70,9 @@
             >
               {{ slotProps.data.product_name }}
             </router-link>
+            <span v-if="slotProps.data.hospital_count !== undefined" style="margin-left: 8px; color: #6c757d; font-size: 0.9em;">
+              ({{ slotProps.data.hospital_count }}개)
+            </span>
           </template>
         </Column>
         <Column v-if="selectedBaseMonth" field="commission_rate_b" header="수수료율 B" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
@@ -169,6 +174,45 @@
         <Button label="저장" icon="pi pi-check" @click="saveProduct" :loading="saving" />
       </template>
     </Dialog>
+
+    <!-- 통계 확인 진행 모달 -->
+    <Dialog 
+      v-model:visible="showStatisticsModal" 
+      header="통계 확인 진행 중" 
+      :modal="true"
+      :closable="false"
+      :style="{ width: '500px' }"
+    >
+      <div style="display: flex; flex-direction: column; gap: 16px; padding: 8px;">
+        <div>
+          <div style="margin-bottom: 8px; font-weight: 500;">진행 상황</div>
+          <ProgressBar 
+            :value="statisticsProgress" 
+            :showValue="false"
+            style="height: 20px;"
+          />
+          <div style="text-align: center; margin-top: 8px; color: #6c757d; font-size: 0.9em;">
+            {{ statisticsProgress }}% ({{ statisticsCurrentIndex }} / {{ statisticsTotalCount }})
+          </div>
+        </div>
+        <div v-if="statisticsCurrentProduct" style="padding: 12px; background-color: #f8f9fa; border-radius: 4px;">
+          <div style="font-weight: 500; margin-bottom: 4px;">현재 처리 중인 제품</div>
+          <div style="color: #495057;">{{ statisticsCurrentProduct }}</div>
+        </div>
+        <div v-if="statisticsStatus" style="padding: 12px; background-color: #e7f3ff; border-radius: 4px;">
+          <div style="font-weight: 500; margin-bottom: 4px;">상태</div>
+          <div style="color: #495057;">{{ statisticsStatus }}</div>
+        </div>
+      </div>
+      <template #footer>
+        <Button 
+          v-if="statisticsCompleted" 
+          label="확인" 
+          icon="pi pi-check" 
+          @click="closeStatisticsModal" 
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -180,14 +224,25 @@ import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
 import InputNumber from 'primevue/inputnumber';
 import Button from 'primevue/button';
+import ProgressBar from 'primevue/progressbar';
 import { supabase } from '@/supabase';
 
 const loading = ref(false);
 const saving = ref(false);
 const checkingStatistics = ref(false);
+const resettingStatistics = ref(false);
 const promotionProducts = ref([]);
 const showModal = ref(false);
 const currentPageFirstIndex = ref(0);
+
+// 통계 확인 진행 상태
+const showStatisticsModal = ref(false);
+const statisticsProgress = ref(0);
+const statisticsCurrentIndex = ref(0);
+const statisticsTotalCount = ref(0);
+const statisticsCurrentProduct = ref('');
+const statisticsStatus = ref('');
+const statisticsCompleted = ref(false);
 
 // 기준년월 관련
 const selectedBaseMonth = ref('');
@@ -234,10 +289,11 @@ async function fetchBaseMonths() {
 // 기준년월 변경 시 제품의 commission_rate_b 조회
 async function fetchProductCommissionRateB() {
   if (!selectedBaseMonth.value) {
-    // 기준년월이 선택되지 않으면 commission_rate_b 제거
+    // 기준년월이 선택되지 않으면 commission_rate_b 제거 (hospital_count 유지)
     promotionProducts.value = promotionProducts.value.map(p => ({
       ...p,
-      commission_rate_b: null
+      commission_rate_b: null,
+      hospital_count: p.hospital_count !== undefined ? p.hospital_count : 0
     }));
     return;
   }
@@ -276,12 +332,13 @@ async function fetchProductCommissionRateB() {
 
     console.log('수수료율 B 매핑:', commissionRateMap);
 
-    // promotionProducts에 commission_rate_b 추가
+    // promotionProducts에 commission_rate_b 추가 (hospital_count 유지)
     promotionProducts.value = promotionProducts.value.map(p => {
       const key = String(p.insurance_code);
       return {
         ...p,
-        commission_rate_b: commissionRateMap[key] || null
+        commission_rate_b: commissionRateMap[key] || null,
+        hospital_count: p.hospital_count !== undefined ? p.hospital_count : 0
       };
     });
 
@@ -289,6 +346,45 @@ async function fetchProductCommissionRateB() {
   } catch (error) {
     console.error('수수료율 B 조회 오류:', error);
     alert('수수료율 B 조회 중 오류가 발생했습니다: ' + (error.message || error));
+  }
+}
+
+// 병원 실적 개수 조회
+async function fetchHospitalCounts() {
+  if (promotionProducts.value.length === 0) return;
+
+  try {
+    const productIds = promotionProducts.value.map(p => p.id);
+    
+    // 각 제품별로 병원 실적 개수 조회
+    const { data, error } = await supabase
+      .from('promotion_product_hospital_performance')
+      .select('promotion_product_id')
+      .in('promotion_product_id', productIds);
+
+    if (error) throw error;
+
+    // 제품별 개수 계산
+    const countMap = {};
+    if (data) {
+      data.forEach(item => {
+        const productId = item.promotion_product_id;
+        countMap[productId] = (countMap[productId] || 0) + 1;
+      });
+    }
+
+    // promotionProducts에 hospital_count 추가
+    promotionProducts.value = promotionProducts.value.map(p => ({
+      ...p,
+      hospital_count: countMap[p.id] || 0
+    }));
+  } catch (error) {
+    console.error('병원 실적 개수 조회 오류:', error);
+    // 오류가 발생해도 기본값 0으로 설정
+    promotionProducts.value = promotionProducts.value.map(p => ({
+      ...p,
+      hospital_count: 0
+    }));
   }
 }
 
@@ -303,6 +399,9 @@ async function fetchPromotionProducts() {
 
     if (error) throw error;
     promotionProducts.value = data || [];
+    
+    // 병원 실적 개수 조회
+    await fetchHospitalCounts();
     
     // 기준년월이 선택되어 있으면 commission_rate_b 조회
     if (selectedBaseMonth.value) {
@@ -321,10 +420,11 @@ async function onBaseMonthChange() {
   if (selectedBaseMonth.value) {
     await fetchProductCommissionRateB();
   } else {
-    // 기준년월이 선택 해제되면 commission_rate_b 제거
+    // 기준년월이 선택 해제되면 commission_rate_b 제거 (hospital_count 유지)
     promotionProducts.value = promotionProducts.value.map(p => ({
       ...p,
-      commission_rate_b: null
+      commission_rate_b: null,
+      hospital_count: p.hospital_count !== undefined ? p.hospital_count : 0
     }));
   }
 }
@@ -427,6 +527,76 @@ function formatDateOnly(dateString) {
   });
 }
 
+// 통계 확인 모달 닫기
+function closeStatisticsModal() {
+  showStatisticsModal.value = false;
+  statisticsProgress.value = 0;
+  statisticsCurrentIndex.value = 0;
+  statisticsTotalCount.value = 0;
+  statisticsCurrentProduct.value = '';
+  statisticsStatus.value = '';
+  statisticsCompleted.value = false;
+}
+
+// promotion_product_hospital_performance 테이블 초기화
+async function resetStatistics() {
+  if (!confirm('promotion_product_hospital_performance 테이블의 모든 데이터를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+    return;
+  }
+
+  resettingStatistics.value = true;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('로그인 정보가 유효하지 않습니다.');
+
+    // 모든 레코드를 배치로 삭제
+    let deletedCount = 0;
+    const batchSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      // 먼저 일부 레코드를 조회
+      const { data: records, error: fetchError } = await supabase
+        .from('promotion_product_hospital_performance')
+        .select('id')
+        .limit(batchSize);
+
+      if (fetchError) throw fetchError;
+
+      if (!records || records.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      // 조회된 레코드 삭제
+      const idsToDelete = records.map(r => r.id);
+      const { error: deleteError } = await supabase
+        .from('promotion_product_hospital_performance')
+        .delete()
+        .in('id', idsToDelete);
+
+      if (deleteError) throw deleteError;
+
+      deletedCount += idsToDelete.length;
+
+      // 배치 크기보다 적게 조회되면 더 이상 데이터가 없음
+      if (records.length < batchSize) {
+        hasMore = false;
+      }
+    }
+
+    alert(`데이터 초기화가 완료되었습니다. (삭제된 레코드: ${deletedCount}개)`);
+    
+    // 병원 실적 개수도 초기화
+    await fetchHospitalCounts();
+  } catch (error) {
+    console.error('데이터 초기화 오류:', error);
+    alert('데이터 초기화 중 오류가 발생했습니다: ' + (error.message || error));
+  } finally {
+    resettingStatistics.value = false;
+  }
+}
+
 // 통계 확인 및 promotion_product_hospital_performance 테이블 업데이트
 async function checkStatistics() {
   if (!confirm('제품별 병원 실적을 확인하고 통계를 업데이트하시겠습니까?')) {
@@ -434,18 +604,50 @@ async function checkStatistics() {
   }
 
   checkingStatistics.value = true;
+  showStatisticsModal.value = true;
+  statisticsCompleted.value = false;
+  statisticsProgress.value = 0;
+  statisticsCurrentIndex.value = 0;
+  statisticsTotalCount.value = promotionProducts.value.length;
+  statisticsCurrentProduct.value = '';
+  statisticsStatus.value = '초기화 중...';
+
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('로그인 정보가 유효하지 않습니다.');
 
     let totalProcessed = 0;
     let totalUpdated = 0;
+    let totalSkipped = 0;
     let totalErrors = 0;
 
     // 각 프로모션 제품에 대해 처리
-    for (const promotionProduct of promotionProducts.value) {
+    for (let i = 0; i < promotionProducts.value.length; i++) {
+      const promotionProduct = promotionProducts.value[i];
+      statisticsCurrentIndex.value = i + 1;
+      statisticsProgress.value = Math.round(((i + 1) / promotionProducts.value.length) * 100);
+      statisticsCurrentProduct.value = promotionProduct.product_name;
+      statisticsStatus.value = `제품 처리 중... (${i + 1}/${promotionProducts.value.length})`;
       try {
         const insuranceCode = String(promotionProduct.insurance_code);
+        
+        // 각 제품의 promotion_start_date를 기준일로 사용
+        let baseMonth = null;
+        if (promotionProduct.promotion_start_date) {
+          const startDate = new Date(promotionProduct.promotion_start_date);
+          const year = startDate.getFullYear();
+          const month = String(startDate.getMonth() + 1).padStart(2, '0');
+          baseMonth = `${year}-${month}`;
+        }
+        
+        // promotion_start_date가 없으면 해당 제품 스킵
+        if (!baseMonth) {
+          console.log(`제품 ${promotionProduct.product_name}의 프로모션 시작일이 없어 스킵합니다.`);
+          totalSkipped++;
+          continue;
+        }
+        
+        statisticsStatus.value = `제품 정보 조회 중... (기준일: ${baseMonth}) (${i + 1}/${promotionProducts.value.length})`;
         
         // 1. products 테이블에서 해당 보험코드의 제품 ID 찾기
         const { data: products, error: productsError } = await supabase
@@ -467,9 +669,26 @@ async function checkStatistics() {
 
         const productIds = products.map(p => p.id);
 
-        // 2. performance_records에서 해당 제품의 실적이 있는 병원들 찾기
-        // 배치 처리로 전체 데이터 가져오기
-        let allPerformanceRecords = [];
+        statisticsStatus.value = `기존 데이터 확인 중... (${i + 1}/${promotionProducts.value.length})`;
+
+        // 2. 기존 promotion_product_hospital_performance 데이터 조회
+        const { data: existingData, error: existingError } = await supabase
+          .from('promotion_product_hospital_performance')
+          .select('hospital_id')
+          .eq('promotion_product_id', promotionProduct.id);
+
+        if (existingError) {
+          console.error(`기존 데이터 조회 오류 (제품 ${promotionProduct.product_name}):`, existingError);
+          totalErrors++;
+          continue;
+        }
+
+        const existingHospitalIds = new Set((existingData || []).map(d => d.hospital_id));
+
+        statisticsStatus.value = `${baseMonth} 이전 데이터 조회 중... (${i + 1}/${promotionProducts.value.length})`;
+
+        // 3. 기준일 이전 데이터 조회
+        let beforeBaseMonthRecords = [];
         let from = 0;
         const batchSize = 1000;
 
@@ -488,12 +707,13 @@ async function checkStatistics() {
             .in('product_id', productIds)
             .eq('companies.company_group', 'NEWCSO')
             .neq('review_action', '삭제')
+            .lt('prescription_month', baseMonth)
             .order('prescription_month', { ascending: true })
             .order('created_at', { ascending: true })
             .range(from, from + batchSize - 1);
 
           if (recordsError) {
-            console.error(`실적 조회 오류 (제품 ${promotionProduct.product_name}):`, recordsError);
+            console.error(`${baseMonth} 이전 실적 조회 오류 (제품 ${promotionProduct.product_name}):`, recordsError);
             break;
           }
 
@@ -501,7 +721,7 @@ async function checkStatistics() {
             break;
           }
 
-          allPerformanceRecords = allPerformanceRecords.concat(records);
+          beforeBaseMonthRecords = beforeBaseMonthRecords.concat(records);
 
           if (records.length < batchSize) {
             break;
@@ -510,46 +730,128 @@ async function checkStatistics() {
           from += batchSize;
         }
 
-        // 3. 병원별로 그룹화하고 최초 실적 CSO, 실적 월, 총 금액 계산
-        const hospitalPerformanceMap = new Map();
+        statisticsStatus.value = `${baseMonth} 이후 데이터 조회 중... (${i + 1}/${promotionProducts.value.length})`;
 
-        for (const record of allPerformanceRecords) {
+        // 4. 기준일 이후 데이터 조회
+        let afterBaseMonthRecords = [];
+        from = 0;
+
+        while (true) {
+          const { data: records, error: recordsError } = await supabase
+            .from('performance_records')
+            .select(`
+              client_id,
+              company_id,
+              prescription_qty,
+              prescription_month,
+              created_at,
+              products!inner(price),
+              companies!inner(company_group)
+            `)
+            .in('product_id', productIds)
+            .eq('companies.company_group', 'NEWCSO')
+            .neq('review_action', '삭제')
+            .gte('prescription_month', baseMonth)
+            .order('prescription_month', { ascending: true })
+            .order('created_at', { ascending: true })
+            .range(from, from + batchSize - 1);
+
+          if (recordsError) {
+            console.error(`${baseMonth} 이후 실적 조회 오류 (제품 ${promotionProduct.product_name}):`, recordsError);
+            break;
+          }
+
+          if (!records || records.length === 0) {
+            break;
+          }
+
+          afterBaseMonthRecords = afterBaseMonthRecords.concat(records);
+
+          if (records.length < batchSize) {
+            break;
+          }
+
+          from += batchSize;
+        }
+
+        statisticsStatus.value = `데이터 처리 중... (${i + 1}/${promotionProducts.value.length})`;
+
+        // 5. 병원별로 데이터 정리
+        const hospitalDataMap = new Map();
+
+        // 먼저 기준일 이전 데이터 처리
+        for (const record of beforeBaseMonthRecords) {
           if (!record.client_id) continue;
 
           const hospitalId = record.client_id;
-          // prescription_amount는 계산: prescription_qty * products.price
-          const productPrice = Number(record.products?.price) || 0;
-          const prescriptionQty = Number(record.prescription_qty) || 0;
-          const prescriptionAmount = prescriptionQty * productPrice;
           
-          if (!hospitalPerformanceMap.has(hospitalId)) {
-            hospitalPerformanceMap.set(hospitalId, {
+          // 기존 데이터가 있으면 스킵
+          if (existingHospitalIds.has(hospitalId)) {
+            continue;
+          }
+
+          if (!hospitalDataMap.has(hospitalId)) {
+            const productPrice = Number(record.products?.price) || 0;
+            const prescriptionQty = Number(record.prescription_qty) || 0;
+            const prescriptionAmount = prescriptionQty * productPrice;
+
+            hospitalDataMap.set(hospitalId, {
               hospital_id: hospitalId,
-              has_performance: true,
-              first_performance_cso_id: record.company_id,
+              first_performance_cso_id: null, // 기준일 이전 데이터는 null
               first_performance_month: record.prescription_month || null,
-              first_prescription_qty: record.prescription_qty || 0,
               total_performance_amount: prescriptionAmount
             });
           } else {
-            const existing = hospitalPerformanceMap.get(hospitalId);
-            // 총 금액 누적
+            const existing = hospitalDataMap.get(hospitalId);
+            const productPrice = Number(record.products?.price) || 0;
+            const prescriptionQty = Number(record.prescription_qty) || 0;
+            const prescriptionAmount = prescriptionQty * productPrice;
             existing.total_performance_amount = (existing.total_performance_amount || 0) + prescriptionAmount;
-            
-            // 최초 실적 CSO와 월 찾기 (처방수량이 0보다 큰 첫 번째 CSO)
-            if (existing.first_prescription_qty === 0 && record.prescription_qty > 0) {
-              existing.first_performance_cso_id = record.company_id;
-              existing.first_performance_month = record.prescription_month || null;
-              existing.first_prescription_qty = record.prescription_qty;
-            } else if (!existing.first_performance_month && record.prescription_month) {
-              // 처방수량이 0이어도 최초 실적 월은 기록
-              existing.first_performance_month = record.prescription_month;
-            }
           }
         }
 
-        // 4. promotion_product_hospital_performance 테이블에 데이터 삽입/업데이트
-        const performanceData = Array.from(hospitalPerformanceMap.values()).map(item => ({
+        // 그 다음 기준일 이후 데이터 처리 (덮어쓰지 않음)
+        for (const record of afterBaseMonthRecords) {
+          if (!record.client_id) continue;
+
+          const hospitalId = record.client_id;
+          
+          // 기존 데이터가 있으면 스킵
+          if (existingHospitalIds.has(hospitalId)) {
+            continue;
+          }
+
+          // 이미 기준일 이전 데이터로 입력된 경우, 기준일 이후 데이터가 있으면 CSO ID만 업데이트 (덮어쓰지 않음)
+          if (hospitalDataMap.has(hospitalId)) {
+            const existing = hospitalDataMap.get(hospitalId);
+            // null인 경우에만 CSO ID 업데이트
+            if (existing.first_performance_cso_id === null) {
+              existing.first_performance_cso_id = record.company_id;
+            }
+            // 총 금액은 누적
+            const productPrice = Number(record.products?.price) || 0;
+            const prescriptionQty = Number(record.prescription_qty) || 0;
+            const prescriptionAmount = prescriptionQty * productPrice;
+            existing.total_performance_amount = (existing.total_performance_amount || 0) + prescriptionAmount;
+          } else {
+            // 기준일 이전 데이터가 없는 경우에만 새로 추가
+            const productPrice = Number(record.products?.price) || 0;
+            const prescriptionQty = Number(record.prescription_qty) || 0;
+            const prescriptionAmount = prescriptionQty * productPrice;
+
+            hospitalDataMap.set(hospitalId, {
+              hospital_id: hospitalId,
+              first_performance_cso_id: record.company_id,
+              first_performance_month: record.prescription_month || null,
+              total_performance_amount: prescriptionAmount
+            });
+          }
+        }
+
+        statisticsStatus.value = `데이터 저장 중... (${i + 1}/${promotionProducts.value.length})`;
+
+        // 6. promotion_product_hospital_performance 테이블에 데이터 삽입
+        const performanceData = Array.from(hospitalDataMap.values()).map(item => ({
           promotion_product_id: promotionProduct.id,
           hospital_id: item.hospital_id,
           has_performance: true,
@@ -561,20 +863,17 @@ async function checkStatistics() {
         }));
 
         if (performanceData.length > 0) {
-          // 배치로 삽입 (UPSERT 사용)
-          const batchSize = 100;
-          for (let i = 0; i < performanceData.length; i += batchSize) {
-            const batch = performanceData.slice(i, i + batchSize);
+          // 배치로 삽입
+          const insertBatchSize = 100;
+          for (let j = 0; j < performanceData.length; j += insertBatchSize) {
+            const batch = performanceData.slice(j, j + insertBatchSize);
             
-            const { error: upsertError } = await supabase
+            const { error: insertError } = await supabase
               .from('promotion_product_hospital_performance')
-              .upsert(batch, {
-                onConflict: 'promotion_product_id,hospital_id',
-                ignoreDuplicates: false
-              });
+              .insert(batch);
 
-            if (upsertError) {
-              console.error(`데이터 삽입 오류 (제품 ${promotionProduct.product_name}, 배치 ${Math.floor(i / batchSize) + 1}):`, upsertError);
+            if (insertError) {
+              console.error(`데이터 삽입 오류 (제품 ${promotionProduct.product_name}, 배치 ${Math.floor(j / insertBatchSize) + 1}):`, insertError);
               totalErrors++;
             } else {
               totalUpdated += batch.length;
@@ -582,17 +881,28 @@ async function checkStatistics() {
           }
         }
 
+        totalSkipped += existingHospitalIds.size;
         totalProcessed++;
-        console.log(`제품 ${promotionProduct.product_name}: ${performanceData.length}개 병원 실적 처리 완료`);
+        console.log(`제품 ${promotionProduct.product_name}: 신규 ${performanceData.length}개, 기존 ${existingHospitalIds.size}개 스킵`);
       } catch (error) {
         console.error(`제품 ${promotionProduct.product_name} 처리 오류:`, error);
         totalErrors++;
       }
     }
 
-    alert(`통계 확인 완료!\n처리된 제품: ${totalProcessed}개\n업데이트된 병원 실적: ${totalUpdated}개\n오류: ${totalErrors}개`);
+    statisticsProgress.value = 100;
+    statisticsStatus.value = `완료! 처리된 제품: ${totalProcessed}개, 신규 입력: ${totalUpdated}개, 기존 데이터 스킵: ${totalSkipped}개, 오류: ${totalErrors}개`;
+    statisticsCurrentProduct.value = '';
+    statisticsCompleted.value = true;
+    
+    // 통계 확인 후 병원 실적 개수 다시 조회
+    statisticsStatus.value = '병원 실적 개수 갱신 중...';
+    await fetchHospitalCounts();
+    statisticsStatus.value = `완료! 처리된 제품: ${totalProcessed}개, 신규 입력: ${totalUpdated}개, 기존 데이터 스킵: ${totalSkipped}개, 오류: ${totalErrors}개`;
   } catch (error) {
     console.error('통계 확인 오류:', error);
+    statisticsStatus.value = `오류 발생: ${error.message || error}`;
+    statisticsCompleted.value = true;
     alert('통계 확인 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     checkingStatistics.value = false;

@@ -1506,6 +1506,72 @@ const calculateAbsorptionRates = async () => {
       return;
     }
 
+    // 프로모션 제품 정보 조회 (성능 최적화를 위해 한 번에 조회)
+    const productIds = [...new Set(allSourceData.map(r => r.product_id).filter(id => id))];
+    const { data: productsData, error: productsError } = await supabase
+      .from('products')
+      .select('id, insurance_code')
+      .in('id', productIds);
+    
+    if (productsError) {
+      console.warn('제품 정보 조회 오류 (프로모션 수수료 확인 생략):', productsError);
+    }
+    
+    const productInsuranceCodeMap = new Map();
+    if (productsData) {
+      productsData.forEach(p => {
+        if (p.insurance_code) {
+          productInsuranceCodeMap.set(p.id, String(p.insurance_code));
+        }
+      });
+    }
+
+    // 프로모션 제품 목록 조회
+    const insuranceCodes = Array.from(productInsuranceCodeMap.values());
+    let promotionProductsMap = new Map();
+    if (insuranceCodes.length > 0) {
+      const { data: promotionProducts, error: promotionError } = await supabase
+        .from('promotion_product_list')
+        .select('insurance_code, final_commission_rate, promotion_start_date, promotion_end_date')
+        .in('insurance_code', insuranceCodes);
+      
+      if (!promotionError && promotionProducts) {
+        promotionProducts.forEach(pp => {
+          const key = String(pp.insurance_code);
+          if (!promotionProductsMap.has(key)) {
+            promotionProductsMap.set(key, []);
+          }
+          promotionProductsMap.get(key).push(pp);
+        });
+      }
+    }
+
+    // 병원별 프로모션 실적 정보 조회
+    const hospitalIds = [...new Set(allSourceData.map(r => r.client_id).filter(id => id))];
+    const companyIds = [...new Set(allSourceData.map(r => r.company_id).filter(id => id))];
+    let hospitalPerformanceMap = new Map();
+    
+    if (hospitalIds.length > 0 && companyIds.length > 0) {
+      const { data: hospitalPerf, error: hospitalPerfError } = await supabase
+        .from('promotion_product_hospital_performance')
+        .select(`
+          hospital_id,
+          first_performance_cso_id,
+          promotion_product_list!inner(insurance_code, final_commission_rate, promotion_start_date, promotion_end_date)
+        `)
+        .in('hospital_id', hospitalIds)
+        .in('first_performance_cso_id', companyIds)
+        .eq('has_performance', true);
+      
+      if (!hospitalPerfError && hospitalPerf) {
+        hospitalPerf.forEach(hp => {
+          const insuranceCode = String(hp.promotion_product_list?.insurance_code || '');
+          const key = `${hp.hospital_id}_${insuranceCode}_${hp.first_performance_cso_id}`;
+          hospitalPerformanceMap.set(key, hp.promotion_product_list);
+        });
+      }
+    }
+
     // performance_records_absorption에 데이터 복사 (배치 처리 최적화)
     const insertBatchSize = 500; // 배치 크기를 줄여서 메모리 사용량 감소
     let insertedCount = 0;
@@ -1521,6 +1587,50 @@ const calculateAbsorptionRates = async () => {
           const isActuallyModified = record.review_action === '수정' || 
             (record.updated_at && new Date(record.updated_at) > new Date(record.created_at));
           
+          // 프로모션 수수료 확인
+          let commissionRate = record.commission_rate ? 
+            (typeof record.commission_rate === 'string' ? 
+              Math.max(0, Math.min(1, parseFloat(record.commission_rate.replace('%', '')) / 100)) : 
+              Math.max(0, Math.min(1, parseFloat(record.commission_rate)))) : 0;
+          
+          // 프로모션 수수료 적용 확인
+          const insuranceCode = productInsuranceCodeMap.get(record.product_id);
+          if (insuranceCode) {
+            const hospitalId = record.client_id;
+            const companyId = record.company_id;
+            const key = `${hospitalId}_${insuranceCode}_${companyId}`;
+            const promotionInfo = hospitalPerformanceMap.get(key);
+            
+            if (promotionInfo) {
+              // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
+              let isWithinPromotionPeriod = true;
+              
+              const settlementDate = new Date(record.settlement_month + '-01'); // 정산월의 첫 날
+              const lastDayOfSettlementMonth = new Date(settlementDate.getFullYear(), settlementDate.getMonth() + 1, 0); // 정산월의 마지막 날
+              
+              if (promotionInfo.promotion_start_date) {
+                const startDate = new Date(promotionInfo.promotion_start_date);
+                // 정산월의 첫 날이 시작일 이후 또는 같아야 함
+                if (settlementDate < startDate) {
+                  isWithinPromotionPeriod = false;
+                }
+              }
+              
+              if (promotionInfo.promotion_end_date) {
+                const endDate = new Date(promotionInfo.promotion_end_date);
+                // 정산월의 마지막 날이 종료일 이전 또는 같아야 함
+                if (lastDayOfSettlementMonth > endDate) {
+                  isWithinPromotionPeriod = false;
+                }
+              }
+              
+              // 프로모션 기간 내에 있는 경우에만 final_commission_rate 사용
+              if (isWithinPromotionPeriod && promotionInfo.final_commission_rate !== null && promotionInfo.final_commission_rate !== undefined) {
+                commissionRate = Number(promotionInfo.final_commission_rate);
+              }
+            }
+          }
+          
           return {
             id: record.id, // 원본 performance_records의 id 사용
             settlement_month: record.settlement_month,
@@ -1530,10 +1640,7 @@ const calculateAbsorptionRates = async () => {
             prescription_month: record.prescription_month,
             prescription_qty: record.prescription_qty,
             prescription_type: record.prescription_type,
-            commission_rate: record.commission_rate ? 
-              (typeof record.commission_rate === 'string' ? 
-                Math.max(0, Math.min(1, parseFloat(record.commission_rate.replace('%', '')) / 100)) : 
-                Math.max(0, Math.min(1, parseFloat(record.commission_rate)))) : 0,
+            commission_rate: commissionRate,
             remarks: record.remarks,
             registered_by: record.registered_by,
             review_action: record.review_action, // review_action 필드 추가
