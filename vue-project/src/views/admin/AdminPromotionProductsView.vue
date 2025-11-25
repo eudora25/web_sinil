@@ -792,7 +792,7 @@ async function checkStatistics() {
         // 2. 기존 promotion_product_hospital_performance 데이터 조회
         const { data: existingData, error: existingError } = await supabase
           .from('promotion_product_hospital_performance')
-          .select('hospital_id, first_performance_month, first_performance_cso_id, before_promotion_amount, after_promotion_amount')
+          .select('hospital_id, first_performance_month, first_performance_cso_id, total_performance_amount, before_promotion_amount, after_promotion_amount')
           .eq('promotion_product_id', promotionProduct.id);
 
         if (existingError) {
@@ -802,11 +802,12 @@ async function checkStatistics() {
         }
 
         const existingHospitalIds = new Set((existingData || []).map(d => d.hospital_id));
-        const existingDataMap = new Map(); // hospital_id -> { first_performance_month, first_performance_cso_id, before_promotion_amount, after_promotion_amount }
+        const existingDataMap = new Map(); // hospital_id -> { first_performance_month, first_performance_cso_id, total_performance_amount, before_promotion_amount, after_promotion_amount }
         (existingData || []).forEach(d => {
           existingDataMap.set(d.hospital_id, {
             first_performance_month: d.first_performance_month,
             first_performance_cso_id: d.first_performance_cso_id,
+            total_performance_amount: d.total_performance_amount || 0,
             before_promotion_amount: d.before_promotion_amount || 0,
             after_promotion_amount: d.after_promotion_amount || 0
           });
@@ -1139,6 +1140,68 @@ async function checkStatistics() {
             totalErrors++;
           } else {
             totalUpdated++;
+          }
+        }
+        
+        // 기존 데이터 중 새로운 실적 데이터가 없지만 before/after가 0인 경우 재계산
+        for (const hospitalId of existingHospitalIds) {
+          if (!existingBeforeAmountMap.has(hospitalId) && !existingAfterAmountMap.has(hospitalId)) {
+            const existing = existingDataMap.get(hospitalId);
+            const existingBefore = existing?.before_promotion_amount || 0;
+            const existingAfter = existing?.after_promotion_amount || 0;
+            const existingTotal = existing?.total_performance_amount || 0;
+            
+            // 기존 before/after가 모두 0이지만 total이 있는 경우, 실제 실적 데이터를 기반으로 재계산
+            if ((existingBefore === 0 && existingAfter === 0) && existingTotal > 0) {
+              // 실제 실적 데이터를 기반으로 재계산
+              let recalculatedBefore = 0;
+              let recalculatedAfter = 0;
+              
+              // 기준일 이전 데이터 계산
+              for (const record of beforeBaseMonthRecords) {
+                if (record.client_id === hospitalId && record.review_action !== '삭제') {
+                  const productPrice = Number(record.products?.price) || 0;
+                  const prescriptionQty = Number(record.prescription_qty) || 0;
+                  recalculatedBefore += productPrice * prescriptionQty;
+                }
+              }
+              
+              // 기준일 이후 데이터 계산
+              for (const record of afterBaseMonthRecords) {
+                if (record.client_id === hospitalId && record.review_action !== '삭제') {
+                  const productPrice = Number(record.products?.price) || 0;
+                  const prescriptionQty = Number(record.prescription_qty) || 0;
+                  recalculatedAfter += productPrice * prescriptionQty;
+                }
+              }
+              
+              // 재계산된 금액으로 업데이트 (기존 total은 무시하고 실제 계산된 값 사용)
+              const updateData = {
+                before_promotion_amount: recalculatedBefore,
+                after_promotion_amount: recalculatedAfter,
+                total_performance_amount: recalculatedBefore + recalculatedAfter,
+                updated_by: user.id
+              };
+              
+              const { error: updateError } = await supabase
+                .from('promotion_product_hospital_performance')
+                .update(updateData)
+                .eq('promotion_product_id', promotionProduct.id)
+                .eq('hospital_id', hospitalId);
+              
+              if (updateError) {
+                console.error(`기존 데이터 재계산 오류 (제품 ${promotionProduct.product_name}, 병원 ${hospitalId}):`, updateError);
+                totalErrors++;
+              } else {
+                totalUpdated++;
+                console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 병원 ${hospitalId} 재계산 완료:`, {
+                  before: recalculatedBefore,
+                  after: recalculatedAfter,
+                  total: recalculatedBefore + recalculatedAfter,
+                  기존_total: existingTotal
+                });
+              }
+            }
           }
         }
         
