@@ -13,19 +13,32 @@
             <option v-for="month in availableMonths" :key="month.settlement_month" :value="month.settlement_month">{{ month.settlement_month }}</option>
           </select>
         </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label>구분</label>
+          <select v-model="selectedCompanyGroup" class="select_month">
+            <option value="">전체</option>
+            <option
+              v-for="group in availableCompanyGroups"
+              :key="group"
+              :value="group"
+            >
+              {{ group }}
+            </option>
+          </select>
+        </div>
       </div>
     </div>
     <!-- 데이터 카드 -->
     <div class="data-card" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
               <div class="data-card-header" style="flex-shrink: 0;">
-          <div class="total-count-display">전체 {{ companySummary.length }} 건</div>
+          <div class="total-count-display">전체 {{ filteredCompanySummary.length }} 건</div>
           <div class="action-buttons-group">
             <button class="btn-save" @click="saveShareStatus" :disabled="Object.keys(shareChanges).length === 0">저장</button>
           </div>
         </div>
       <div style="flex-grow: 1; overflow: auto;">
       <DataTable 
-        :value="companySummary" 
+        :value="filteredCompanySummary" 
         :loading="false"
         scrollable 
         scrollHeight="calc(100vh - 220px)"
@@ -280,10 +293,20 @@ function formatBusinessNumber(number) {
 // 필터
 const selectedMonth = ref('');
 const availableMonths = ref([]);
+const selectedCompanyGroup = ref('');
+const availableCompanyGroups = ref([]);
 
 // 데이터
 const companySummary = ref([]);
 const shareChanges = ref({}); // 공유 상태 변경 사항 추적
+
+// 필터링된 데이터
+const filteredCompanySummary = computed(() => {
+  if (!selectedCompanyGroup.value) {
+    return companySummary.value;
+  }
+  return companySummary.value.filter(company => company.company_group === selectedCompanyGroup.value);
+});
 
 // 전달사항 모달 관련
 const showNoticeModal = ref(false);
@@ -296,37 +319,37 @@ const commissionRate = ref('');
 
 // --- 계산된 속성 (합계) ---
 const totalClientCount = computed(() => {
-  const total = companySummary.value.reduce((sum, item) => sum + Number(item.client_count || 0), 0);
+  const total = filteredCompanySummary.value.reduce((sum, item) => sum + Number(item.client_count || 0), 0);
   return total.toLocaleString();
 });
 
 const totalRecordsCount = computed(() => {
-  const total = companySummary.value.reduce((sum, item) => sum + Number(item.total_records || 0), 0);
+  const total = filteredCompanySummary.value.reduce((sum, item) => sum + Number(item.total_records || 0), 0);
   return total.toLocaleString();
 });
 
 const totalPrescriptionAmount = computed(() => {
-  const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.total_prescription_amount || 0)), 0);
+  const total = filteredCompanySummary.value.reduce((sum, item) => sum + Math.round(Number(item.total_prescription_amount || 0)), 0);
   return total.toLocaleString();
 });
 
 const totalPaymentPrescriptionAmount = computed(() => {
-  const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.payment_prescription_amount || 0)), 0);
+  const total = filteredCompanySummary.value.reduce((sum, item) => sum + Math.round(Number(item.payment_prescription_amount || 0)), 0);
   return total.toLocaleString();
 });
 
 const totalSectionCommissionAmount = computed(() => {
-  const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.section_commission_amount || 0)), 0);
+  const total = filteredCompanySummary.value.reduce((sum, item) => sum + Math.round(Number(item.section_commission_amount || 0)), 0);
   return total.toLocaleString();
 });
 
 const totalPaymentAmountOnly = computed(() => {
-  const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.payment_amount || 0)), 0);
+  const total = filteredCompanySummary.value.reduce((sum, item) => sum + Math.round(Number(item.payment_amount || 0)), 0);
   return total.toLocaleString();
 });
 
 const totalPaymentAmount = computed(() => {
-  const total = companySummary.value.reduce((sum, item) => sum + Math.round(Number(item.total_payment_amount || 0)), 0);
+  const total = filteredCompanySummary.value.reduce((sum, item) => sum + Math.round(Number(item.total_payment_amount || 0)), 0);
   return total.toLocaleString();
 });
 
@@ -335,14 +358,14 @@ const totalPaymentAmount = computed(() => {
 
 // --- 헤더 체크박스 상태 관리 ---
 const isAllShared = computed(() => {
-  if (companySummary.value.length === 0) return false;
-  return companySummary.value.every(company => company.is_shared);
+  if (filteredCompanySummary.value.length === 0) return false;
+  return filteredCompanySummary.value.every(company => company.is_shared);
 });
 
 const isIndeterminate = computed(() => {
-  if (companySummary.value.length === 0) return false;
-  const sharedCount = companySummary.value.filter(company => company.is_shared).length;
-  return sharedCount > 0 && sharedCount < companySummary.value.length;
+  if (filteredCompanySummary.value.length === 0) return false;
+  const sharedCount = filteredCompanySummary.value.filter(company => company.is_shared).length;
+  return sharedCount > 0 && sharedCount < filteredCompanySummary.value.length;
 });
 
 
@@ -350,6 +373,7 @@ const isIndeterminate = computed(() => {
 
 onMounted(async () => {
   await fetchAvailableMonths();
+  await fetchCompanyGroups();
 });
 
 watch(selectedMonth, async (newMonth) => {
@@ -381,6 +405,26 @@ async function fetchAvailableMonths() {
         alert('정산월 목록을 불러오는 중 오류가 발생했습니다.');
         loading.value = false; // 에러 발생 시에도 로딩 상태 해제
     }
+}
+
+async function fetchCompanyGroups() {
+  try {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('company_group')
+      .eq('approval_status', 'approved')
+      .eq('status', 'active')
+      .eq('user_type', 'user')
+      .not('company_group', 'is', null);
+
+    if (!error && data) {
+      // 중복 제거 및 정렬
+      const uniqueGroups = [...new Set(data.map(item => item.company_group).filter(Boolean))];
+      availableCompanyGroups.value = uniqueGroups.sort();
+    }
+  } catch (err) {
+    console.error('구분 항목 조회 오류:', err);
+  }
 }
 
 async function loadSettlementData() {
@@ -707,7 +751,7 @@ function onShareChange(companyData, isChecked) {
 // 전체 공유/해제 (헤더 체크박스용)
 function toggleAllShares() {
   const newShareState = !isAllShared.value;
-  companySummary.value.forEach(company => {
+  filteredCompanySummary.value.forEach(company => {
     company.is_shared = newShareState;
     onShareChange(company, newShareState);
   });

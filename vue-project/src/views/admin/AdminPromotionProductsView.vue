@@ -708,6 +708,7 @@ async function checkStatistics() {
               prescription_qty,
               prescription_month,
               created_at,
+              review_action,
               products!inner(price),
               companies!inner(company_group)
             `)
@@ -752,6 +753,7 @@ async function checkStatistics() {
               prescription_qty,
               prescription_month,
               created_at,
+              review_action,
               products!inner(price),
               companies!inner(company_group)
             `)
@@ -817,6 +819,8 @@ async function checkStatistics() {
 
         for (const record of beforeBaseMonthRecords) {
           if (!record.client_id) continue;
+          // 삭제 상태인 데이터는 제외
+          if (record.review_action === '삭제') continue;
 
           const hospitalId = record.client_id;
           
@@ -848,6 +852,8 @@ async function checkStatistics() {
         // 그 다음 기준일 이후 데이터 처리 (덮어쓰지 않음)
         for (const record of afterBaseMonthRecords) {
           if (!record.client_id) continue;
+          // 삭제 상태인 데이터는 제외
+          if (record.review_action === '삭제') continue;
 
           const hospitalId = record.client_id;
           
@@ -877,12 +883,16 @@ async function checkStatistics() {
             continue;
           }
 
-          // 이미 기준일 이전 데이터로 입력된 경우, 기준일 이후 데이터가 있으면 CSO ID만 업데이트 (덮어쓰지 않음)
+          // 이미 기준일 이전 데이터로 입력된 경우, 기준일 이후 데이터가 와도 CSO ID는 업데이트하지 않음 (기준일 이전 데이터는 CSO가 null이어야 함)
           if (hospitalDataMap.has(hospitalId)) {
             const existing = hospitalDataMap.get(hospitalId);
-            // null인 경우에만 CSO ID 업데이트
-            if (existing.first_performance_cso_id === null) {
-              existing.first_performance_cso_id = record.company_id;
+            // 기준일 이전 데이터인 경우 (first_performance_month < baseMonth) CSO ID는 null로 유지
+            // 기준일 이후 데이터인 경우에만 CSO ID 업데이트
+            if (existing.first_performance_month && existing.first_performance_month >= baseMonth) {
+              // 기준일 이후 데이터인데 first_performance_cso_id가 null이면 CSO ID 업데이트
+              if (existing.first_performance_cso_id === null) {
+                existing.first_performance_cso_id = record.company_id;
+              }
             }
             // 총 금액은 누적
             const productPrice = Number(record.products?.price) || 0;
