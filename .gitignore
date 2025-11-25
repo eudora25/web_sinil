@@ -136,6 +136,9 @@ db_cluster-*.backup
 *.sql
 .vercel
 
+# Database connection files (contains sensitive information)
+.db_connection.sh
+
 # Test files
 test_*.py
 check_*.py
