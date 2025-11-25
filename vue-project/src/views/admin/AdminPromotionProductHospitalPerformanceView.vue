@@ -47,7 +47,17 @@
             {{ slotProps.data.first_performance_month || '-' }}
           </template>
         </Column>
-        <Column field="total_performance_amount" header="총 실적 금액" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+        <Column field="before_promotion_amount" header="프로모션 전 실적 금액" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+          <template #body="slotProps">
+            {{ formatNumber(slotProps.data.before_promotion_amount) }}
+          </template>
+        </Column>
+        <Column field="after_promotion_amount" header="프로모션 후 실적 금액" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+          <template #body="slotProps">
+            {{ formatNumber(slotProps.data.after_promotion_amount) }}
+          </template>
+        </Column>
+        <Column field="total_performance_amount" header="총 실적 금액" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right', fontWeight: 'bold' }">
           <template #body="slotProps">
             {{ formatNumber(slotProps.data.total_performance_amount) }}
           </template>
@@ -62,21 +72,29 @@
             {{ formatDate(slotProps.data.created_at) }}
           </template>
         </Column>
-        <Column header="수정일시" :headerStyle="{ width: '13%' }" :sortable="true">
-          <template #body="slotProps">
-            {{ formatDate(slotProps.data.updated_at) }}
-          </template>
-        </Column>
+
+        <ColumnGroup type="footer">
+          <Row>
+            <Column footer="합계" :colspan="4" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+            <Column :footer="formatNumber(totalBeforeAmount)" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+            <Column :footer="formatNumber(totalAfterAmount)" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+            <Column :footer="formatNumber(totalAmount)" footerClass="footer-cell" footerStyle="text-align:right !important; font-weight: bold; color: #007bff;" />
+            <Column footer="" footerClass="footer-cell" />
+            <Column footer="" footerClass="footer-cell" />
+          </Row>
+        </ColumnGroup>
       </DataTable>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
+import ColumnGroup from 'primevue/columngroup';
+import Row from 'primevue/row';
 import { supabase } from '@/supabase';
 
 const route = useRoute();
@@ -86,6 +104,19 @@ const loading = ref(false);
 const hospitalPerformanceList = ref([]);
 const productName = ref('');
 const currentPageFirstIndex = ref(0);
+
+// 합계 계산
+const totalBeforeAmount = computed(() => {
+  return hospitalPerformanceList.value.reduce((sum, item) => sum + (Number(item.before_promotion_amount) || 0), 0);
+});
+
+const totalAfterAmount = computed(() => {
+  return hospitalPerformanceList.value.reduce((sum, item) => sum + (Number(item.after_promotion_amount) || 0), 0);
+});
+
+const totalAmount = computed(() => {
+  return hospitalPerformanceList.value.reduce((sum, item) => sum + (Number(item.total_performance_amount) || 0), 0);
+});
 
 // 병원 실적 데이터 조회
 async function fetchHospitalPerformance() {
@@ -115,6 +146,8 @@ async function fetchHospitalPerformance() {
         first_performance_cso_id,
         first_performance_month,
         total_performance_amount,
+        before_promotion_amount,
+        after_promotion_amount,
         created_at,
         updated_at,
         clients:hospital_id (
@@ -140,6 +173,8 @@ async function fetchHospitalPerformance() {
       first_performance_cso_id: item.first_performance_cso_id,
       first_performance_month: item.first_performance_month || null,
       total_performance_amount: item.total_performance_amount || 0,
+      before_promotion_amount: item.before_promotion_amount || 0,
+      after_promotion_amount: item.after_promotion_amount || 0,
       cso_name: item.companies?.company_name || null,
       created_at: item.created_at,
       updated_at: item.updated_at
@@ -237,6 +272,12 @@ onMounted(() => {
 .total-count-display {
   font-weight: 500;
   color: #333;
+}
+
+:deep(.footer-cell) {
+  font-weight: bold;
+  background-color: #f8f9fa;
+  border-top: 2px solid #dee2e6;
 }
 </style>
 
