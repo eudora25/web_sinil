@@ -55,15 +55,15 @@
         </Column>
         <Column field="hospital_count" header="적용 병의원" :headerStyle="{ width: '12%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
-            {{ slotProps.data.hospital_count !== undefined ? slotProps.data.hospital_count : 0 }}개
+            <div style="text-align: center;">{{ slotProps.data.hospital_count !== undefined ? slotProps.data.hospital_count : 0 }}</div>
           </template>
         </Column>
-        <Column v-if="selectedBaseMonth" field="commission_rate_b" header="기존 수수료율" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+        <Column field="commission_rate_b" header="기존 수수료율" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
           <template #body="slotProps">
             {{ formatCommissionRate(slotProps.data.commission_rate_b) }}
           </template>
         </Column>
-        <Column field="final_commission_rate" header="최종수수료율" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+        <Column field="final_commission_rate" header="최종 수수료율" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
           <template #body="slotProps">
             {{ formatCommissionRate(slotProps.data.final_commission_rate) }}
           </template>
@@ -527,9 +527,15 @@ async function fetchPromotionProducts() {
     // 병원 실적 개수 조회
     await fetchHospitalCounts();
     
-    // 기준년월이 선택되어 있으면 commission_rate_b 조회
+    // 기존 수수료율 조회 (기준년월이 있으면 조회, 없으면 null)
     if (selectedBaseMonth.value) {
       await fetchProductCommissionRateB();
+    } else {
+      // 기준년월이 없으면 commission_rate_b를 null로 설정
+      promotionProducts.value = promotionProducts.value.map(p => ({
+        ...p,
+        commission_rate_b: null
+      }));
     }
     
     // 마지막 업데이트 시간 조회
