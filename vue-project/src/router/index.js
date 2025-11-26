@@ -136,13 +136,13 @@ const router = createRouter({
       path: '/admin/products/promotion',
       name: 'AdminPromotionProducts',
       component: () => import('../views/admin/AdminPromotionProductsView.vue'),
-      meta: { menu: '제품 관리', submenu: '프로모션 제품', requiresAuth: true, isAdmin: true }
+      meta: { menu: '정산 관리', submenu: '프로모션 관리', requiresAuth: true, isAdmin: true }
     },
     {
       path: '/admin/products/promotion/:id',
       name: 'AdminPromotionProductHospitalPerformance',
       component: () => import('../views/admin/AdminPromotionProductHospitalPerformanceView.vue'),
-      meta: { menu: '제품 관리', submenu: '프로모션 제품 병원 실적', requiresAuth: true, isAdmin: true }
+      meta: { menu: '정산 관리', submenu: '프로모션 관리 병원 실적', requiresAuth: true, isAdmin: true }
     },
     {
       path: '/admin/products-standard-code',

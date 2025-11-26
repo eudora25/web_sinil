@@ -62,7 +62,7 @@
             {{ formatNumber(slotProps.data.total_performance_amount) }}
           </template>
         </Column>
-        <Column field="cso_name" header="최초 실적 CSO" :headerStyle="{ width: '20%' }" :sortable="true">
+        <Column field="cso_name" header="적용 업체" :headerStyle="{ width: '20%' }" :sortable="true">
           <template #body="slotProps">
             {{ slotProps.data.cso_name || '-' }}
           </template>

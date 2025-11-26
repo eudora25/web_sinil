@@ -99,6 +99,13 @@
         <!-- 병원별 통계일 때 -->
         <template v-if="statisticsType === 'hospital'">
           <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
+            <label>통계</label>
+            <select v-model="hospitalStatisticsFilter" class="select_month" @change="onHospitalStatisticsFilterChange">
+              <option value="all">전체</option>
+              <option value="product">제품별</option>
+            </select>
+          </div>
+          <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
             <label>병의원</label>
             <div class="hospital-search-container" style="position: relative;">
               <input
@@ -144,6 +151,14 @@
         <!-- 제품별 통계일 때 -->
         <template v-if="statisticsType === 'product'">
           <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
+            <label>통계</label>
+            <select v-model="productStatisticsFilter" class="select_month" @change="onProductStatisticsFilterChange">
+              <option value="all">전체</option>
+              <option value="company">업체별</option>
+              <option value="hospital">병의원별</option>
+            </select>
+          </div>
+          <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
             <label>제품</label>
             <div class="product-search-container" style="position: relative;">
               <input
@@ -186,16 +201,6 @@
           </div>
         </template>
 
-        <!-- 월별 필터 -->
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <label>처방월</label>
-          <select v-model="prescriptionOffset" class="select_month" @change="onPrescriptionMonthChange">
-            <option value="0">전체</option>
-            <option v-for="opt in prescriptionOptions" :key="opt.value" :value="opt.value">
-              {{ opt.month }}
-            </option>
-          </select>
-        </div>
       </div>
     </div>
 
@@ -236,7 +241,7 @@
           
           <!-- 업체별 통계 테이블 -->
           <template v-if="statisticsType === 'company' && drillDownLevel === 0">
-            <Column header="No" :headerStyle="{ width: '4%' }">
+            <Column header="No" :headerStyle="{ width: '4%' }" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.index + currentPageFirstIndex + 1 }}
               </template>
@@ -265,7 +270,7 @@
             </Column>
             <Column field="business_registration_number" header="사업자번호" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
-                {{ slotProps.data.business_registration_number || '-' }}
+                {{ formatBusinessNumber(slotProps.data.business_registration_number) }}
               </template>
             </Column>
             <Column field="representative_name" header="대표자" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
@@ -306,7 +311,7 @@
 
           <!-- 업체 → 병원별 드릴다운 -->
           <template v-if="statisticsType === 'company' && drillDownLevel === 1 && drillDownType === 'hospital'">
-            <Column header="No" :headerStyle="{ width: '5%' }">
+            <Column header="No" :headerStyle="{ width: '5%' }" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.index + currentPageFirstIndex + 1 }}
               </template>
@@ -339,7 +344,7 @@
 
           <!-- 업체 → 제품별 드릴다운 -->
           <template v-if="statisticsType === 'company' && drillDownLevel === 1 && drillDownType === 'product'">
-            <Column header="No" :headerStyle="{ width: '5%' }">
+            <Column header="No" :headerStyle="{ width: '5%' }" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.index + currentPageFirstIndex + 1 }}
               </template>
@@ -372,40 +377,66 @@
 
           <!-- 병원별 통계 테이블 -->
           <template v-if="statisticsType === 'hospital' && drillDownLevel === 0">
-            <Column header="No" :headerStyle="{ width: '5%' }">
+            <Column header="No" :headerStyle="{ width: '5%' }" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.index + currentPageFirstIndex + 1 }}
               </template>
             </Column>
-            <Column field="hospital_name" header="병의원명" :headerStyle="{ width: '30%' }" :sortable="true" />
-            <Column field="prescription_qty" header="처방수량" :headerStyle="{ width: '20%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="hospital_name" header="병의원명" :headerStyle="{ width: '15%' }" :sortable="true" />
+            <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                {{ formatBusinessNumber(slotProps.data.business_registration_number) }}
+              </template>
+            </Column>
+            <Column field="address" header="주소" :headerStyle="{ width: '23%' }" :sortable="true">
+              <template #body="slotProps">
+                {{ slotProps.data.address || '-' }}
+              </template>
+            </Column>
+            <Column field="company_groups" header="담당업체 구분" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                {{ slotProps.data.company_groups || '-' }}
+              </template>
+            </Column>
+            <Column field="company_names" header="담당업체" :headerStyle="{ width: '15%' }" :sortable="true">
+              <template #body="slotProps">
+                {{ slotProps.data.company_names || '-' }}
+              </template>
+            </Column>
+            <!-- 제품별 필터일 때 제품명 컬럼 추가 -->
+            <Column v-if="hospitalStatisticsFilter === 'product'" field="product_name" header="제품명" :headerStyle="{ width: '13%' }" :sortable="true">
+              <template #body="slotProps">
+                {{ slotProps.data.product_name || '-' }}
+              </template>
+            </Column>
+            <Column field="prescription_qty" header="처방수량" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.prescription_qty, true) }}
               </template>
             </Column>
-            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '25%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.prescription_amount) }}
               </template>
             </Column>
-            <Column header="제품 수" :headerStyle="{ width: '20%' }" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="absorption_rate" header="흡수율(%)" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
-                {{ slotProps.data.product_count || 0 }}
+                {{ formatAbsorptionRate(slotProps.data.absorption_rate) }}
               </template>
             </Column>
             <ColumnGroup type="footer">
               <Row>
-                <Column footer="합계" :colspan="2" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+                <Column footer="합계" :colspan="hospitalStatisticsFilter === 'all' ? 6 : 7" footerClass="footer-cell" footerStyle="text-align:center !important;" />
                 <Column :footer="totalQty" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-                <Column :footer="totalProductCount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+                <Column :footer="totalAbsorptionRate" footerClass="footer-cell" footerStyle="text-align:center !important;" />
               </Row>
             </ColumnGroup>
           </template>
 
           <!-- 병원 → 제품별 드릴다운 -->
           <template v-if="statisticsType === 'hospital' && drillDownLevel === 1">
-            <Column header="No" :headerStyle="{ width: '5%' }">
+            <Column header="No" :headerStyle="{ width: '5%' }" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.index + currentPageFirstIndex + 1 }}
               </template>
@@ -432,63 +463,109 @@
 
           <!-- 제품별 통계 테이블 -->
           <template v-if="statisticsType === 'product' && drillDownLevel === 0">
-            <Column header="No" :headerStyle="{ width: '5%' }">
+            <Column header="No" :headerStyle="{ width: '5%' }" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.index + currentPageFirstIndex + 1 }}
               </template>
             </Column>
-            <Column field="product_name" header="제품명" :headerStyle="{ width: '25%' }" :sortable="true">
+            <Column field="product_name" header="제품명" :headerStyle="{ width: productStatisticsFilter === 'all' ? '18%' : productStatisticsFilter === 'company' ? '15%' : '15%' }" :sortable="true">
               <template #body="slotProps">
                 <span 
+                  v-if="productStatisticsFilter === 'all'"
                   style="color: #1976d2; text-decoration: underline; cursor: pointer;"
                   @click="drillDownToCompany(slotProps.data)"
                 >
                   {{ slotProps.data.product_name }}
                 </span>
+                <span v-else>
+                  {{ slotProps.data.product_name }}
+                </span>
               </template>
             </Column>
-            <Column field="prescription_qty" header="처방수량" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="insurance_code" header="보험코드" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                {{ slotProps.data.insurance_code || '-' }}
+              </template>
+            </Column>
+            <!-- 전체 필터일 때 약가 표시 -->
+            <Column v-if="productStatisticsFilter === 'all'" field="price" header="약가" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+              <template #body="slotProps">
+                {{ formatNumber(slotProps.data.price) }}
+              </template>
+            </Column>
+            <!-- 업체별 필터일 때 구분, 업체명, 사업자등록번호, 대표자 표시 -->
+            <Column v-if="productStatisticsFilter === 'company'" field="company_group" header="구분" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                {{ slotProps.data.company_group || '-' }}
+              </template>
+            </Column>
+            <Column v-if="productStatisticsFilter === 'company'" field="company_name" header="업체명" :headerStyle="{ width: '13%' }" :sortable="true">
+              <template #body="slotProps">
+                {{ slotProps.data.company_name || '-' }}
+              </template>
+            </Column>
+            <Column v-if="productStatisticsFilter === 'company'" field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                {{ formatBusinessNumber(slotProps.data.business_registration_number) }}
+              </template>
+            </Column>
+            <Column v-if="productStatisticsFilter === 'company'" field="representative_name" header="대표자" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                {{ slotProps.data.representative_name || '-' }}
+              </template>
+            </Column>
+            <!-- 병의원별 필터일 때 병의원명, 사업자등록번호, 주소 표시 -->
+            <Column v-if="productStatisticsFilter === 'hospital'" field="hospital_name" header="병의원명" :headerStyle="{ width: '13%' }" :sortable="true">
+              <template #body="slotProps">
+                {{ slotProps.data.hospital_name || '-' }}
+              </template>
+            </Column>
+            <Column v-if="productStatisticsFilter === 'hospital'" field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                {{ formatBusinessNumber(slotProps.data.business_registration_number) }}
+              </template>
+            </Column>
+            <Column v-if="productStatisticsFilter === 'hospital'" field="address" header="주소" :headerStyle="{ width: '18%' }" :sortable="true">
+              <template #body="slotProps">
+                {{ slotProps.data.address || '-' }}
+              </template>
+            </Column>
+            <Column field="prescription_qty" header="처방수량" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.prescription_qty, true) }}
               </template>
             </Column>
-            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '20%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.prescription_amount) }}
               </template>
             </Column>
-            <Column header="업체 수" :headerStyle="{ width: '10%' }" :bodyStyle="{ textAlign: 'right' }">
+            <!-- 전체 필터일 때 흡수율 표시 -->
+            <Column v-if="productStatisticsFilter === 'all'" field="absorption_rate" header="흡수율(%)" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
-                {{ slotProps.data.company_count || 0 }}
+                {{ formatAbsorptionRate(slotProps.data.absorption_rate) }}
               </template>
             </Column>
-            <Column header="병원 수" :headerStyle="{ width: '10%' }" :bodyStyle="{ textAlign: 'right' }">
+            <!-- 업체별, 병의원별 필터일 때 지급액 표시 -->
+            <Column v-if="productStatisticsFilter === 'company' || productStatisticsFilter === 'hospital'" field="payment_amount" header="지급액" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
-                {{ slotProps.data.hospital_count || 0 }}
-              </template>
-            </Column>
-            <Column header="상세보기" :headerStyle="{ width: '15%' }" :bodyStyle="{ textAlign: 'center' }">
-              <template #body="slotProps">
-                <button class="btn-view-sm" @click="drillDownToHospitalFromProduct(slotProps.data)">
-                  병원별 보기
-                </button>
+                {{ formatNumber(slotProps.data.payment_amount) }}
               </template>
             </Column>
             <ColumnGroup type="footer">
               <Row>
-                <Column footer="합계" :colspan="2" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+                <Column footer="합계" :colspan="productStatisticsFilter === 'all' ? 4 : productStatisticsFilter === 'company' ? 7 : 6" footerClass="footer-cell" footerStyle="text-align:center !important;" />
                 <Column :footer="totalQty" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-                <Column :footer="totalCompanyCount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-                <Column :footer="totalHospitalCount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-                <Column :colspan="1" footerClass="footer-cell" />
+                <Column v-if="productStatisticsFilter === 'all'" :footer="totalAbsorptionRate" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+                <Column v-if="productStatisticsFilter === 'company' || productStatisticsFilter === 'hospital'" :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
               </Row>
             </ColumnGroup>
           </template>
 
           <!-- 제품 → 업체별 드릴다운 -->
           <template v-if="statisticsType === 'product' && drillDownLevel === 1 && drillDownType === 'company'">
-            <Column header="No" :headerStyle="{ width: '5%' }">
+            <Column header="No" :headerStyle="{ width: '5%' }" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.index + currentPageFirstIndex + 1 }}
               </template>
@@ -515,7 +592,7 @@
 
           <!-- 제품 → 병원별 드릴다운 -->
           <template v-if="statisticsType === 'product' && drillDownLevel === 1 && drillDownType === 'hospital'">
-            <Column header="No" :headerStyle="{ width: '5%' }">
+            <Column header="No" :headerStyle="{ width: '5%' }" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.index + currentPageFirstIndex + 1 }}
               </template>
@@ -591,6 +668,12 @@ const selectedCompanyGroup = ref('');
 
 // 업체별 통계 필터 (전체, 병의원별, 제품별)
 const companyStatisticsFilter = ref('all'); // 'all', 'hospital', 'product'
+
+// 병의원별 통계 필터 (전체, 제품별)
+const hospitalStatisticsFilter = ref('all'); // 'all', 'product'
+
+// 제품별 통계 필터 (전체, 업체별, 병의원별)
+const productStatisticsFilter = ref('all'); // 'all', 'company', 'hospital'
 
 // 통계 계산 상태
 const calculatingStatistics = ref(false);
@@ -705,6 +788,19 @@ function formatAbsorptionRate(value) {
   if (isNaN(num)) return '-';
   // 소수점을 백분율로 변환 (예: 0.95 -> 95.0%)
   return `${(num * 100).toFixed(1)}%`;
+}
+
+function formatBusinessNumber(businessNumber) {
+  if (!businessNumber) return '-';
+  
+  // 숫자만 추출
+  const numbers = businessNumber.replace(/[^0-9]/g, '');
+  
+  // 10자리가 아니면 원본 반환
+  if (numbers.length !== 10) return businessNumber;
+  
+  // 형식 변환: ###-##-#####
+  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
 }
 
 function getPrescriptionMonth(settlementMonth, offset) {
@@ -844,16 +940,24 @@ async function fetchStatistics() {
       }
     }
     
-    // 처방월 필터
-    if (prescriptionOffset.value !== 0 && prescriptionMonth.value) {
-      query = query.eq('prescription_month', prescriptionMonth.value);
-    } else {
-      query = query.is('prescription_month', null);
-    }
     
     // 업체 필터
     if (selectedCompanyId.value) {
       query = query.eq('company_id', selectedCompanyId.value);
+    }
+    
+    // 병의원별 통계일 때 추가 필터
+    if (statisticsType.value === 'hospital') {
+      if (hospitalStatisticsFilter.value) {
+        query = query.eq('hospital_statistics_filter', hospitalStatisticsFilter.value);
+      }
+    }
+    
+    // 제품별 통계일 때 추가 필터
+    if (statisticsType.value === 'product') {
+      if (productStatisticsFilter.value) {
+        query = query.eq('product_statistics_filter', productStatisticsFilter.value);
+      }
     }
     
     // 병의원 필터
@@ -888,16 +992,12 @@ async function fetchStatistics() {
       .select(`
         *,
         companies!inner(id, company_name, company_group, business_registration_number, representative_name),
-        products!inner(id, product_name, price),
-        clients!inner(id, name)
+        products!inner(id, product_name, price, insurance_code),
+        clients!inner(id, name, business_registration_number, address)
       `)
       .eq('settlement_month', selectedSettlementMonth.value)
       .neq('review_action', '삭제'); // 삭제된 레코드 제외
 
-    // 처방월 필터링
-    if (prescriptionOffset.value !== 0 && prescriptionMonth.value) {
-      performanceQuery = performanceQuery.eq('prescription_month', prescriptionMonth.value);
-    }
 
     // 업체 필터링
     if (selectedCompanyId.value) {
@@ -1094,15 +1194,178 @@ async function fetchStatistics() {
     } else if (statisticsType.value === 'hospital') {
       if (drillDownLevel.value === 0) {
         // 병원별 통계
-        statisticsData.value = aggregateByHospital(allData);
+        console.log('병원별 통계 집계 시작, 통계 필터:', hospitalStatisticsFilter.value);
+        try {
+          // 병원별 통계는 흡수율 계산 필요
+          let absorptionRates = {};
+          if (allData.length > 0) {
+            try {
+              const recordIds = allData.map(record => record.id);
+              if (recordIds.length > 0) {
+                console.log('흡수율 조회 시작, 총 레코드 ID 개수:', recordIds.length);
+                const batchSize = 500;
+                const batches = [];
+                
+                for (let i = 0; i < recordIds.length; i += batchSize) {
+                  const batch = recordIds.slice(i, i + batchSize);
+                  batches.push(batch);
+                }
+                
+                console.log(`총 ${batches.length}개 배치로 병렬 처리 시작`);
+                
+                const concurrencyLimit = 10;
+                let successCount = 0;
+                let errorCount = 0;
+                
+                for (let i = 0; i < batches.length; i += concurrencyLimit) {
+                  const concurrentBatches = batches.slice(i, i + concurrencyLimit);
+                  
+                  const promises = concurrentBatches.map(async (batch) => {
+                    try {
+                      const { data: absorptionData, error: absorptionError } = await supabase
+                        .from('applied_absorption_rates')
+                        .select('performance_record_id, applied_absorption_rate')
+                        .in('performance_record_id', batch);
+                      
+                      if (absorptionError) {
+                        console.warn(`배치 ${i + 1} 흡수율 조회 오류:`, absorptionError);
+                        return { error: true, data: null };
+                      } else if (absorptionData && absorptionData.length > 0) {
+                        return { error: false, data: absorptionData };
+                      }
+                      return { error: false, data: [] };
+                    } catch (batchErr) {
+                      console.warn(`배치 ${i + 1} 처리 중 예외:`, batchErr);
+                      return { error: true, data: null };
+                    }
+                  });
+                  
+                  const results = await Promise.all(promises);
+                  
+                  results.forEach(result => {
+                    if (result.error) {
+                      errorCount++;
+                    } else if (result.data && result.data.length > 0) {
+                      result.data.forEach(item => {
+                        absorptionRates[item.performance_record_id] = item.applied_absorption_rate;
+                      });
+                      successCount += result.data.length;
+                    }
+                  });
+                  
+                  if (!isMounted.value) {
+                    loading.value = false;
+                    return;
+                  }
+                }
+                
+                console.log(`흡수율 조회 완료: 성공 ${successCount}개, 실패 배치 ${errorCount}개, 총 조회된 흡수율: ${Object.keys(absorptionRates).length}개`);
+              }
+            } catch (err) {
+              console.warn('반영 흡수율 조회 예외:', err);
+            }
+          }
+          
+          if (hospitalStatisticsFilter.value === 'product') {
+            // 병원 + 제품별 통계 (흡수율 계산 필요)
+            statisticsData.value = aggregateByHospitalAndProduct(allData, absorptionRates);
+          } else {
+            // 전체 (병원별만)
+            statisticsData.value = aggregateByHospital(allData, absorptionRates);
+          }
+          console.log('집계 완료, 결과 개수:', statisticsData.value.length);
+        } catch (err) {
+          console.error('집계 함수 실행 중 오류:', err);
+          console.error('에러 스택:', err.stack);
+          alert('데이터 집계 중 오류가 발생했습니다: ' + (err.message || err));
+          statisticsData.value = [];
+        }
       } else {
         // 병원 → 제품별
         statisticsData.value = aggregateByProductForHospital(allData, drillDownData.value?.hospital_id);
       }
     } else if (statisticsType.value === 'product') {
       if (drillDownLevel.value === 0) {
-        // 제품별 통계
-        statisticsData.value = aggregateByProduct(allData);
+        // 제품별 통계 - 흡수율 조회 필요
+        let absorptionRates = {};
+        if (allData.length > 0) {
+          try {
+            const recordIds = allData.map(record => record.id);
+            if (recordIds.length > 0) {
+              console.log('흡수율 조회 시작, 총 레코드 ID 개수:', recordIds.length);
+              const batchSize = 500;
+              const batches = [];
+              
+              for (let i = 0; i < recordIds.length; i += batchSize) {
+                const batch = recordIds.slice(i, i + batchSize);
+                batches.push(batch);
+              }
+              
+              const concurrencyLimit = 5;
+              for (let i = 0; i < batches.length; i += concurrencyLimit) {
+                const concurrentBatches = batches.slice(i, i + concurrencyLimit);
+                
+                const promises = concurrentBatches.map(async (batch) => {
+                  try {
+                    const { data: absorptionData, error: absorptionError } = await supabase
+                      .from('applied_absorption_rates')
+                      .select('performance_record_id, applied_absorption_rate')
+                      .in('performance_record_id', batch);
+                    
+                    if (absorptionError) {
+                      console.error('흡수율 조회 오류:', absorptionError);
+                      return { data: [], error: absorptionError };
+                    }
+                    
+                    return { data: absorptionData || [], error: null };
+                  } catch (err) {
+                    console.error('흡수율 조회 예외:', err);
+                    return { data: [], error: err };
+                  }
+                });
+                
+                const results = await Promise.all(promises);
+                
+                results.forEach(result => {
+                  if (result.data && result.data.length > 0) {
+                    result.data.forEach(item => {
+                      absorptionRates[item.performance_record_id] = item.applied_absorption_rate;
+                    });
+                  }
+                });
+                
+                if (!isMounted.value) {
+                  loading.value = false;
+                  return;
+                }
+              }
+              
+              console.log(`흡수율 조회 완료, 총 조회된 흡수율: ${Object.keys(absorptionRates).length}개`);
+            }
+          } catch (err) {
+            console.warn('반영 흡수율 조회 예외:', err);
+          }
+        }
+        
+        console.log('제품별 통계 집계 시작, 통계 필터:', productStatisticsFilter.value);
+        try {
+          if (productStatisticsFilter.value === 'company') {
+            // 제품 + 업체별 통계
+            statisticsData.value = aggregateByProductAndCompany(allData, absorptionRates);
+          } else if (productStatisticsFilter.value === 'hospital') {
+            // 제품 + 병의원별 통계
+            statisticsData.value = aggregateByProductAndHospital(allData, absorptionRates);
+          } else {
+            // 전체 (제품별만)
+            statisticsData.value = aggregateByProduct(allData, absorptionRates);
+          }
+          console.log('집계 완료, 결과 개수:', statisticsData.value.length);
+        } catch (err) {
+          console.error('집계 함수 실행 중 오류:', err);
+          console.error('에러 스택:', err.stack);
+          alert('데이터 집계 중 오류가 발생했습니다: ' + (err.message || err));
+          statisticsData.value = [];
+        }
       } else if (drillDownType.value === 'company') {
         // 제품 → 업체별
         statisticsData.value = aggregateByCompanyForProduct(allData, drillDownData.value?.product_id);
@@ -1223,7 +1486,7 @@ function aggregateByCompany(data, absorptionRates = {}) {
   });
 }
 
-function aggregateByHospital(data) {
+function aggregateByHospital(data, absorptionRates = {}) {
   const map = new Map();
   
   data.forEach(record => {
@@ -1232,17 +1495,42 @@ function aggregateByHospital(data) {
     
     const hospitalId = record.client_id;
     const hospitalName = record.clients?.name || '';
+    const businessRegistrationNumber = record.clients?.business_registration_number || '';
+    const address = record.clients?.address || '';
+    const companyId = record.company_id;
+    const companyName = record.companies?.company_name || '';
     const qty = Number(record.prescription_qty) || 0;
     const price = Number(record.products?.price) || 0;
     const amount = qty * price;
     const productId = record.product_id;
+    const commissionRate = Number(record.commission_rate) || 0;
+    
+    // 반영 흡수율 가져오기 (기본값 1.0)
+    let appliedAbsorptionRate = 1.0;
+    if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
+      const rateValue = Number(absorptionRates[record.id]);
+      if (!isNaN(rateValue)) {
+        appliedAbsorptionRate = rateValue;
+      }
+    }
+    
+    // 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
+    // commission_rate는 소수점 형태 (예: 0.36 = 36%)
+    const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
 
     if (!map.has(hospitalId)) {
       map.set(hospitalId, {
         hospital_id: hospitalId,
         hospital_name: hospitalName,
+        business_registration_number: businessRegistrationNumber,
+        address: address,
         prescription_qty: 0,
         prescription_amount: 0,
+        payment_amount: 0,
+        total_absorption_rate: 0,
+        total_prescription_amount: 0,
+        companies: new Set(), // 담당업체 목록
+        companyGroups: new Set(), // 담당업체 구분 목록
         products: new Set()
       });
     }
@@ -1250,22 +1538,49 @@ function aggregateByHospital(data) {
     const item = map.get(hospitalId);
     item.prescription_qty += qty;
     item.prescription_amount += amount;
+    item.payment_amount += paymentAmount;
+    // 흡수율 계산을 위한 누적값
+    item.total_absorption_rate += amount * appliedAbsorptionRate;
+    item.total_prescription_amount += amount;
+    if (companyId && companyName) {
+      item.companies.add(companyName);
+    }
+    const companyGroup = record.companies?.company_group || '';
+    if (companyGroup) {
+      item.companyGroups.add(companyGroup);
+    }
     if (productId) item.products.add(productId);
   });
 
   return Array.from(map.values()).map(item => {
+    // 흡수율 계산: 지급액 / 처방액 (실제 지급액 기준으로 계산)
+    const absorptionRate = item.prescription_amount > 0 
+      ? item.payment_amount / item.prescription_amount 
+      : 0;
+    
+    // 담당업체 목록을 콤마로 구분
+    const companyNames = Array.from(item.companies).sort().join(', ');
+    // 담당업체 구분 목록을 콤마로 구분
+    const companyGroups = Array.from(item.companyGroups).sort().join(', ');
+    
     const result = {
       hospital_id: item.hospital_id,
       hospital_name: item.hospital_name,
+      business_registration_number: item.business_registration_number,
+      address: item.address,
+      company_names: companyNames,
+      company_groups: companyGroups,
       prescription_qty: item.prescription_qty,
       prescription_amount: item.prescription_amount,
+      payment_amount: item.payment_amount,
+      absorption_rate: absorptionRate,
       product_count: item.products.size
     };
     return result;
   });
 }
 
-function aggregateByProduct(data) {
+function aggregateByProduct(data, absorptionRates = {}) {
   const map = new Map();
   
   data.forEach(record => {
@@ -1274,18 +1589,37 @@ function aggregateByProduct(data) {
     
     const productId = record.product_id;
     const productName = record.products?.product_name || '';
-    const qty = Number(record.prescription_qty) || 0;
+    const insuranceCode = record.products?.insurance_code || '';
     const price = Number(record.products?.price) || 0;
+    const qty = Number(record.prescription_qty) || 0;
     const amount = qty * price;
     const companyId = record.company_id;
     const hospitalId = record.client_id;
+    const commissionRate = Number(record.commission_rate) || 0;
+    
+    // 반영 흡수율 가져오기 (기본값 1.0)
+    let appliedAbsorptionRate = 1.0;
+    if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
+      const rateValue = Number(absorptionRates[record.id]);
+      if (!isNaN(rateValue)) {
+        appliedAbsorptionRate = rateValue;
+      }
+    }
+    
+    // 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
+    const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
 
     if (!map.has(productId)) {
       map.set(productId, {
         product_id: productId,
         product_name: productName,
+        insurance_code: insuranceCode,
+        price: price,
         prescription_qty: 0,
         prescription_amount: 0,
+        payment_amount: 0,
+        total_absorption_rate: 0,
+        total_prescription_amount: 0,
         companies: new Set(),
         hospitals: new Set()
       });
@@ -1294,16 +1628,29 @@ function aggregateByProduct(data) {
     const item = map.get(productId);
     item.prescription_qty += qty;
     item.prescription_amount += amount;
+    item.payment_amount += paymentAmount;
+    // 흡수율 계산을 위한 누적값
+    item.total_absorption_rate += amount * appliedAbsorptionRate;
+    item.total_prescription_amount += amount;
     if (companyId) item.companies.add(companyId);
     if (hospitalId) item.hospitals.add(hospitalId);
   });
 
   return Array.from(map.values()).map(item => {
+    // 평균 흡수율 계산: (처방액 × 흡수율의 합) / 처방액 합
+    const absorptionRate = item.total_prescription_amount > 0 
+      ? item.total_absorption_rate / item.total_prescription_amount 
+      : 0;
+    
     const result = {
       product_id: item.product_id,
       product_name: item.product_name,
+      insurance_code: item.insurance_code,
+      price: item.price,
       prescription_qty: item.prescription_qty,
       prescription_amount: item.prescription_amount,
+      payment_amount: item.payment_amount,
+      absorption_rate: absorptionRate,
       company_count: item.companies.size,
       hospital_count: item.hospitals.size
     };
@@ -1544,6 +1891,314 @@ function aggregateByHospitalForProduct(data, productId) {
   return aggregateByHospital(filtered);
 }
 
+// 제품 + 업체별 집계
+function aggregateByProductAndCompany(data, absorptionRates = {}) {
+  const map = new Map();
+  
+  if (!data || data.length === 0) {
+    console.warn('aggregateByProductAndCompany: 데이터가 없습니다.');
+    return [];
+  }
+  
+  console.log('aggregateByProductAndCompany 시작, 입력 데이터 개수:', data.length);
+  let processedCount = 0;
+  let skippedCount = 0;
+  
+  data.forEach((record, index) => {
+    try {
+      // 삭제 처리된 건은 제외
+      if (record.review_action === '삭제') return;
+      
+      const productId = record.product_id;
+      const companyId = record.company_id;
+      if (!productId || !companyId) {
+        return;
+      }
+      
+      // 키: productId_companyId
+      const key = `${productId}_${companyId}`;
+      
+      const productName = record.products?.product_name || '';
+      const insuranceCode = record.products?.insurance_code || '';
+      const companyName = record.companies?.company_name || '';
+      const companyGroup = record.companies?.company_group || '';
+      const businessRegistrationNumber = record.companies?.business_registration_number || '';
+      const representativeName = record.companies?.representative_name || '';
+      const qty = Number(record.prescription_qty) || 0;
+      const price = Number(record.products?.price) || 0;
+      const amount = qty * price;
+      const commissionRate = Number(record.commission_rate) || 0;
+      
+      // 반영 흡수율 가져오기 (기본값 1.0)
+      let appliedAbsorptionRate = 1.0;
+      if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
+        const rateValue = Number(absorptionRates[record.id]);
+        if (!isNaN(rateValue)) {
+          appliedAbsorptionRate = rateValue;
+        }
+      }
+      
+      // 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
+      const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
+
+      if (!map.has(key)) {
+        map.set(key, {
+          product_id: productId,
+          product_name: productName,
+          insurance_code: insuranceCode,
+          company_id: companyId,
+          company_name: companyName,
+          company_group: companyGroup,
+          business_registration_number: businessRegistrationNumber,
+          representative_name: representativeName,
+          prescription_qty: 0,
+          prescription_amount: 0,
+          payment_amount: 0
+        });
+      }
+
+      const item = map.get(key);
+      item.prescription_qty += qty;
+      item.prescription_amount += amount;
+      item.payment_amount += paymentAmount;
+      processedCount++;
+    } catch (err) {
+      console.error(`레코드 ${index} 처리 중 오류:`, err, record);
+      skippedCount++;
+    }
+  });
+  
+  console.log(`aggregateByProductAndCompany 집계 완료: 처리됨 ${processedCount}개, 건너뜀 ${skippedCount}개`);
+
+  return Array.from(map.values()).map(item => {
+    return {
+      product_id: item.product_id,
+      product_name: item.product_name,
+      insurance_code: item.insurance_code,
+      company_id: item.company_id,
+      company_name: item.company_name,
+      company_group: item.company_group,
+      business_registration_number: item.business_registration_number,
+      representative_name: item.representative_name,
+      prescription_qty: item.prescription_qty,
+      prescription_amount: item.prescription_amount,
+      payment_amount: item.payment_amount
+    };
+  });
+}
+
+// 제품 + 병의원별 집계
+function aggregateByProductAndHospital(data, absorptionRates = {}) {
+  const map = new Map();
+  
+  if (!data || data.length === 0) {
+    console.warn('aggregateByProductAndHospital: 데이터가 없습니다.');
+    return [];
+  }
+  
+  console.log('aggregateByProductAndHospital 시작, 입력 데이터 개수:', data.length);
+  let processedCount = 0;
+  let skippedCount = 0;
+  
+  data.forEach((record, index) => {
+    try {
+      // 삭제 처리된 건은 제외
+      if (record.review_action === '삭제') return;
+      
+      const productId = record.product_id;
+      const hospitalId = record.client_id;
+      if (!productId || !hospitalId) {
+        return;
+      }
+      
+      // 키: productId_hospitalId
+      const key = `${productId}_${hospitalId}`;
+      
+      const productName = record.products?.product_name || '';
+      const insuranceCode = record.products?.insurance_code || '';
+      const hospitalName = record.clients?.name || '';
+      const businessRegistrationNumber = record.clients?.business_registration_number || '';
+      const address = record.clients?.address || '';
+      const qty = Number(record.prescription_qty) || 0;
+      const price = Number(record.products?.price) || 0;
+      const amount = qty * price;
+      const commissionRate = Number(record.commission_rate) || 0;
+      
+      // 반영 흡수율 가져오기 (기본값 1.0)
+      let appliedAbsorptionRate = 1.0;
+      if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
+        const rateValue = Number(absorptionRates[record.id]);
+        if (!isNaN(rateValue)) {
+          appliedAbsorptionRate = rateValue;
+        }
+      }
+      
+      // 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
+      const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
+
+      if (!map.has(key)) {
+        map.set(key, {
+          product_id: productId,
+          product_name: productName,
+          insurance_code: insuranceCode,
+          hospital_id: hospitalId,
+          hospital_name: hospitalName,
+          business_registration_number: businessRegistrationNumber,
+          address: address,
+          prescription_qty: 0,
+          prescription_amount: 0,
+          payment_amount: 0
+        });
+      }
+
+      const item = map.get(key);
+      item.prescription_qty += qty;
+      item.prescription_amount += amount;
+      item.payment_amount += paymentAmount;
+      processedCount++;
+    } catch (err) {
+      console.error(`레코드 ${index} 처리 중 오류:`, err, record);
+      skippedCount++;
+    }
+  });
+  
+  console.log(`aggregateByProductAndHospital 집계 완료: 처리됨 ${processedCount}개, 건너뜀 ${skippedCount}개`);
+
+  return Array.from(map.values()).map(item => {
+    return {
+      product_id: item.product_id,
+      product_name: item.product_name,
+      insurance_code: item.insurance_code,
+      hospital_id: item.hospital_id,
+      hospital_name: item.hospital_name,
+      business_registration_number: item.business_registration_number,
+      address: item.address,
+      prescription_qty: item.prescription_qty,
+      prescription_amount: item.prescription_amount,
+      payment_amount: item.payment_amount
+    };
+  });
+}
+
+// 병원 + 제품별 집계
+function aggregateByHospitalAndProduct(data, absorptionRates = {}) {
+  const map = new Map();
+  
+  if (!data || data.length === 0) {
+    console.warn('aggregateByHospitalAndProduct: 데이터가 없습니다.');
+    return [];
+  }
+  
+  console.log('aggregateByHospitalAndProduct 시작, 입력 데이터 개수:', data.length);
+  let processedCount = 0;
+  let skippedCount = 0;
+  
+  data.forEach((record, index) => {
+    try {
+      // 삭제 처리된 건은 제외
+      if (record.review_action === '삭제') return;
+      
+      const hospitalId = record.client_id;
+      const productId = record.product_id;
+      if (!hospitalId || !productId) {
+        return;
+      }
+      
+      // 키: hospitalId_productId
+      const key = `${hospitalId}_${productId}`;
+      
+      const hospitalName = record.clients?.name || '';
+      const businessRegistrationNumber = record.clients?.business_registration_number || '';
+      const address = record.clients?.address || '';
+      const companyId = record.company_id;
+      const companyName = record.companies?.company_name || '';
+      const productName = record.products?.product_name || '';
+      const qty = Number(record.prescription_qty) || 0;
+      const price = Number(record.products?.price) || 0;
+      const amount = qty * price;
+      const commissionRate = Number(record.commission_rate) || 0;
+      
+      // 반영 흡수율 가져오기 (기본값 1.0)
+      let appliedAbsorptionRate = 1.0;
+      if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
+        const rateValue = Number(absorptionRates[record.id]);
+        if (!isNaN(rateValue)) {
+          appliedAbsorptionRate = rateValue;
+        }
+      }
+      
+      // 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
+      const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
+
+      if (!map.has(key)) {
+        map.set(key, {
+          hospital_id: hospitalId,
+          hospital_name: hospitalName,
+          business_registration_number: businessRegistrationNumber,
+          address: address,
+          product_id: productId,
+          product_name: productName,
+          prescription_qty: 0,
+          prescription_amount: 0,
+          payment_amount: 0,
+          total_absorption_rate: 0,
+          total_prescription_amount: 0,
+          companies: new Set(), // 담당업체 목록
+          companyGroups: new Set() // 담당업체 구분 목록
+        });
+      }
+
+      const item = map.get(key);
+      item.prescription_qty += qty;
+      item.prescription_amount += amount;
+      item.payment_amount += paymentAmount;
+      // 흡수율 계산을 위한 누적값
+      item.total_absorption_rate += amount * appliedAbsorptionRate;
+      item.total_prescription_amount += amount;
+      if (companyId && companyName) {
+        item.companies.add(companyName);
+      }
+      const companyGroup = record.companies?.company_group || '';
+      if (companyGroup) {
+        item.companyGroups.add(companyGroup);
+      }
+      processedCount++;
+    } catch (err) {
+      console.error(`레코드 ${index} 처리 중 오류:`, err, record);
+      skippedCount++;
+    }
+  });
+  
+  console.log(`aggregateByHospitalAndProduct 집계 완료: 처리됨 ${processedCount}개, 건너뜀 ${skippedCount}개`);
+
+  return Array.from(map.values()).map(item => {
+    // 흡수율 계산: 지급액 / 처방액 (실제 지급액 기준으로 계산)
+    const absorptionRate = item.prescription_amount > 0 
+      ? item.payment_amount / item.prescription_amount 
+      : 0;
+    
+    // 담당업체 목록을 콤마로 구분
+    const companyNames = Array.from(item.companies).sort().join(', ');
+    // 담당업체 구분 목록을 콤마로 구분
+    const companyGroups = Array.from(item.companyGroups).sort().join(', ');
+    
+    return {
+      hospital_id: item.hospital_id,
+      hospital_name: item.hospital_name,
+      business_registration_number: item.business_registration_number,
+      address: item.address,
+      company_names: companyNames,
+      company_groups: companyGroups,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      prescription_qty: item.prescription_qty,
+      prescription_amount: item.prescription_amount,
+      payment_amount: item.payment_amount,
+      absorption_rate: absorptionRate
+    };
+  });
+}
+
 // 드릴다운 함수들
 function drillDownToHospital(data) {
   drillDownLevel.value = 1;
@@ -1777,7 +2432,6 @@ function handleProductKeydown(event) {
 
 // 이벤트 핸들러
 function onSettlementMonthChange() {
-  updatePrescriptionOptions();
   prescriptionOffset.value = 0;
   prescriptionMonth.value = '';
   resetFilters();
@@ -1797,14 +2451,6 @@ function onStatisticsTypeChange() {
   fetchStatistics();
 }
 
-function onPrescriptionMonthChange() {
-  if (prescriptionOffset.value === 0) {
-    prescriptionMonth.value = '';
-  } else {
-    prescriptionMonth.value = getPrescriptionMonth(selectedSettlementMonth.value, prescriptionOffset.value);
-  }
-  fetchStatistics();
-}
 
 function resetFilters() {
   selectedCompanyId.value = '';
@@ -1812,12 +2458,28 @@ function resetFilters() {
   selectedProductId.value = '';
   selectedCompanyGroup.value = '';
   companyStatisticsFilter.value = 'all';
+  hospitalStatisticsFilter.value = 'all';
+  productStatisticsFilter.value = 'all';
   companySearchText.value = '';
   hospitalSearchText.value = '';
   productSearchText.value = '';
 }
 
 function onCompanyStatisticsFilterChange() {
+  // 통계 필터가 변경되면 실적 데이터 다시 로드
+  if (selectedSettlementMonth.value) {
+    fetchStatistics();
+  }
+}
+
+function onHospitalStatisticsFilterChange() {
+  // 통계 필터가 변경되면 실적 데이터 다시 로드
+  if (selectedSettlementMonth.value) {
+    fetchStatistics();
+  }
+}
+
+function onProductStatisticsFilterChange() {
   // 통계 필터가 변경되면 실적 데이터 다시 로드
   if (selectedSettlementMonth.value) {
     fetchStatistics();
@@ -1857,10 +2519,13 @@ async function calculateStatistics() {
       }
     }
 
-    // 처방월 필터
-    if (prescriptionOffset.value !== 0 && prescriptionMonth.value) {
-      requestBody.prescription_month = prescriptionMonth.value;
+    // 병의원별 통계일 때 추가 파라미터
+    if (statisticsType.value === 'hospital') {
+      if (hospitalStatisticsFilter.value) {
+        requestBody.hospital_statistics_filter = hospitalStatisticsFilter.value;
+      }
     }
+
 
     console.log('통계 계산 요청:', requestBody);
     
@@ -1977,11 +2642,21 @@ async function downloadExcel() {
   } else if (statisticsType.value === 'company' && drillDownType.value === 'product') {
     headers = ['No', '제품명', '처방수량', '처방액', '병원 수'];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-    headers = ['No', '병의원명', '처방수량', '처방액', '제품 수'];
+    if (hospitalStatisticsFilter.value === 'product') {
+      headers = ['No', '병의원명', '사업자등록번호', '주소', '담당업체 구분', '담당업체', '제품명', '처방수량', '처방액', '흡수율(%)'];
+    } else {
+      headers = ['No', '병의원명', '사업자등록번호', '주소', '담당업체 구분', '담당업체', '처방수량', '처방액', '흡수율(%)'];
+    }
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
     headers = ['No', '제품명', '처방수량', '처방액'];
   } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
-    headers = ['No', '제품명', '처방수량', '처방액', '업체 수', '병원 수'];
+    if (productStatisticsFilter.value === 'company') {
+      headers = ['No', '제품명', '보험코드', '구분', '업체명', '사업자등록번호', '대표자', '처방수량', '처방액', '지급액'];
+    } else if (productStatisticsFilter.value === 'hospital') {
+      headers = ['No', '제품명', '보험코드', '병의원명', '사업자등록번호', '주소', '처방수량', '처방액', '지급액'];
+    } else {
+      headers = ['No', '제품명', '보험코드', '약가', '처방수량', '처방액', '흡수율(%)'];
+    }
   } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
     headers = ['No', '업체명', '처방수량', '처방액'];
   } else if (statisticsType.value === 'product' && drillDownType.value === 'hospital') {
@@ -2030,13 +2705,32 @@ async function downloadExcel() {
         row.hospital_count || 0
       ];
     } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-      rowData = [
-        index + 1,
-        row.hospital_name || '',
-        Number(row.prescription_qty) || 0,
-        Number(row.prescription_amount) || 0,
-        row.product_count || 0
-      ];
+      if (hospitalStatisticsFilter.value === 'product') {
+        rowData = [
+          index + 1,
+          row.hospital_name || '',
+          row.business_registration_number || '',
+          row.address || '',
+          row.company_groups || '',
+          row.company_names || '',
+          row.product_name || '',
+          Number(row.prescription_qty) || 0,
+          Number(row.prescription_amount) || 0,
+          row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
+        ];
+      } else {
+        rowData = [
+          index + 1,
+          row.hospital_name || '',
+          row.business_registration_number || '',
+          row.address || '',
+          row.company_groups || '',
+          row.company_names || '',
+          Number(row.prescription_qty) || 0,
+          Number(row.prescription_amount) || 0,
+          row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
+        ];
+      }
     } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
       rowData = [
         index + 1,
@@ -2045,14 +2739,42 @@ async function downloadExcel() {
         Number(row.prescription_amount) || 0
       ];
     } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
-      rowData = [
-        index + 1,
-        row.product_name || '',
-        Number(row.prescription_qty) || 0,
-        Number(row.prescription_amount) || 0,
-        row.company_count || 0,
-        row.hospital_count || 0
-      ];
+      if (productStatisticsFilter.value === 'company') {
+        rowData = [
+          index + 1,
+          row.product_name || '',
+          row.insurance_code || '',
+          row.company_group || '',
+          row.company_name || '',
+          row.business_registration_number || '',
+          row.representative_name || '',
+          Number(row.prescription_qty) || 0,
+          Number(row.prescription_amount) || 0,
+          Number(row.payment_amount) || 0
+        ];
+      } else if (productStatisticsFilter.value === 'hospital') {
+        rowData = [
+          index + 1,
+          row.product_name || '',
+          row.insurance_code || '',
+          row.hospital_name || '',
+          row.business_registration_number || '',
+          row.address || '',
+          Number(row.prescription_qty) || 0,
+          Number(row.prescription_amount) || 0,
+          Number(row.payment_amount) || 0
+        ];
+      } else {
+        rowData = [
+          index + 1,
+          row.product_name || '',
+          row.insurance_code || '',
+          Number(row.price) || 0,
+          Number(row.prescription_qty) || 0,
+          Number(row.prescription_amount) || 0,
+          row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
+        ];
+      }
     } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
       rowData = [
         index + 1,
@@ -2080,14 +2802,39 @@ async function downloadExcel() {
       if (statisticsType.value === 'company' && drillDownLevel.value === 0 && (colNumber === 2 || colNumber === 4 || colNumber === 5)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
-      // 숫자 컬럼 정렬 (업체별 통계일 때는 6번째부터, 그 외는 3번째부터)
-      const numStartCol = (statisticsType.value === 'company' && drillDownLevel.value === 0) ? 6 : 3;
+      // 숫자 컬럼 정렬
+      let numStartCol = 3;
+      if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
+        numStartCol = 6; // 업체별 통계: 6번째부터 (처방수량)
+      } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && hospitalStatisticsFilter.value === 'all') {
+        numStartCol = 7; // 병원별 통계(전체): 7번째부터 (처방수량)
+      } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && hospitalStatisticsFilter.value === 'product') {
+        numStartCol = 8; // 병원별 통계(제품별): 8번째부터 (처방수량)
+      }
+      
       if (colNumber >= numStartCol) {
         cell.alignment = { horizontal: 'right', vertical: 'middle' };
         if (colNumber === numStartCol) {
           cell.numFmt = '#,##0.0';
         } else {
           cell.numFmt = '#,##0';
+        }
+      }
+      
+      // 병원별 통계에서 사업자등록번호, 담당업체 구분 컬럼 정렬
+      if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
+        if (colNumber === 3) { // 사업자등록번호
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        } else if (colNumber === 5) { // 담당업체 구분
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+      }
+      
+      // 흡수율 컬럼 정렬
+      if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
+        const absorptionCol = hospitalStatisticsFilter.value === 'product' ? 10 : 9;
+        if (colNumber === absorptionCol) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
         }
       }
     });
@@ -2120,23 +2867,52 @@ async function downloadExcel() {
       totalHospitalCount.value
     ];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-    totalRowData = ['합계', '', 
-      Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-      Number(totalAmount.value.replace(/,/g, '')),
-      totalProductCount.value
-    ];
+    // 평균 흡수율 계산
+    const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
+    const totalPaymentAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.payment_amount) || 0), 0);
+    const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalPaymentAmount / totalPrescriptionAmount) : 0;
+    
+    if (hospitalStatisticsFilter.value === 'product') {
+      totalRowData = ['합계', '', '', '', '', '', 
+        Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
+        Number(totalAmount.value.replace(/,/g, '')),
+        (avgAbsorptionRate * 100).toFixed(1) + '%'
+      ];
+    } else {
+      totalRowData = ['합계', '', '', '', '', 
+        Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
+        Number(totalAmount.value.replace(/,/g, '')),
+        (avgAbsorptionRate * 100).toFixed(1) + '%'
+      ];
+    }
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
     totalRowData = ['합계', '', 
       Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
       Number(totalAmount.value.replace(/,/g, ''))
     ];
   } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
-    totalRowData = ['합계', '', 
-      Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-      Number(totalAmount.value.replace(/,/g, '')),
-      totalCompanyCount.value, 
-      totalHospitalCount.value
-    ];
+    if (productStatisticsFilter.value === 'company') {
+      totalRowData = ['합계', '', '', '', '', '', 
+        Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
+        Number(totalAmount.value.replace(/,/g, '')),
+        Number(totalPaymentAmount.value.replace(/,/g, ''))
+      ];
+    } else if (productStatisticsFilter.value === 'hospital') {
+      totalRowData = ['합계', '', '', '', '', '', 
+        Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
+        Number(totalAmount.value.replace(/,/g, '')),
+        Number(totalPaymentAmount.value.replace(/,/g, ''))
+      ];
+    } else {
+      const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
+      const totalPaymentAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.payment_amount) || 0), 0);
+      const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalPaymentAmount / totalPrescriptionAmount) : 0;
+      totalRowData = ['합계', '', '', 
+        Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
+        Number(totalAmount.value.replace(/,/g, '')),
+        (avgAbsorptionRate * 100).toFixed(1) + '%'
+      ];
+    }
   } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
     totalRowData = ['합계', '', 
       Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
@@ -2164,10 +2940,35 @@ async function downloadExcel() {
     if (statisticsType.value === 'company' && drillDownLevel.value === 0 && colNumber === 9) {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     }
-    // 숫자 컬럼 정렬 (업체별 통계일 때는 6번째부터, 그 외는 3번째부터)
-    const numStartCol = (statisticsType.value === 'company' && drillDownLevel.value === 0) ? 6 : 3;
+    // 숫자 컬럼 정렬
+    let numStartCol = 3;
+    if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
+      numStartCol = 6; // 업체별 통계: 6번째부터 (처방수량)
+    } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && hospitalStatisticsFilter.value === 'all') {
+        numStartCol = 7; // 병원별 통계(전체): 7번째부터 (처방수량)
+      } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && hospitalStatisticsFilter.value === 'product') {
+        numStartCol = 8; // 병원별 통계(제품별): 8번째부터 (처방수량)
+    }
+    
     if (colNumber >= numStartCol) {
       cell.alignment = { horizontal: 'right', vertical: 'middle' };
+    }
+    
+    // 병원별 통계에서 사업자등록번호, 담당업체 구분 컬럼 정렬
+    if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
+      if (colNumber === 3) { // 사업자등록번호
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      } else if (colNumber === 5) { // 담당업체 구분
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+    }
+    
+    // 흡수율 컬럼 정렬
+    if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
+      const absorptionCol = hospitalStatisticsFilter.value === 'product' ? 10 : 9;
+      if (colNumber === absorptionCol) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
     }
   });
 
@@ -2188,9 +2989,7 @@ async function downloadExcel() {
 
 // 워치어
 const stopWatch = watch(selectedSettlementMonth, () => {
-  if (isMounted.value) {
-    updatePrescriptionOptions();
-  }
+  // 처방월 필터 제거됨
 });
 
 // 마운트
@@ -2202,7 +3001,6 @@ onMounted(async () => {
   await fetchAllProducts();
   await fetchAvailableCompanyGroups();
   if (isMounted.value) {
-    updatePrescriptionOptions();
     if (selectedSettlementMonth.value) {
       await fetchStatistics();
     }

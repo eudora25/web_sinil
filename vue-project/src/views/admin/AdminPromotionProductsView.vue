@@ -1,26 +1,7 @@
 <template>
   <div class="admin-promotion-products-view page-container">
     <div class="page-header-title-area">
-      <div class="header-title">프로모션 제품</div>
-    </div>
-
-    <!-- 필터 영역 -->
-    <div class="filter-card">
-      <div class="filter-row">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <label style="white-space: nowrap; font-weight: 400">기준년월</label>
-          <select
-            v-model="selectedBaseMonth"
-            @change="onBaseMonthChange"
-            class="select_month"
-          >
-            <option value="">전체</option>
-            <option v-for="month in availableBaseMonths" :key="month" :value="month">
-              {{ month }}
-            </option>
-          </select>
-        </div>
-      </div>
+      <div class="header-title">정산관리 > 프로모션 관리</div>
     </div>
 
     <div class="data-card">
@@ -75,14 +56,9 @@
             </span>
           </template>
         </Column>
-        <Column v-if="selectedBaseMonth" field="commission_rate_b" header="수수료율 B" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+        <Column v-if="selectedBaseMonth" field="commission_rate_b" header="기존 수수료율" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
           <template #body="slotProps">
             {{ formatCommissionRate(slotProps.data.commission_rate_b) }}
-          </template>
-        </Column>
-        <Column field="commission_rate" header="수수료율" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
-          <template #body="slotProps">
-            {{ formatCommissionRate(slotProps.data.commission_rate) }}
           </template>
         </Column>
         <Column field="final_commission_rate" header="최종수수료율" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
@@ -90,14 +66,14 @@
             {{ formatCommissionRate(slotProps.data.final_commission_rate) }}
           </template>
         </Column>
-        <Column field="promotion_start_date" header="프로모션 시작일" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+        <Column field="promotion_start_date" header="시작 처방월" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
-            {{ formatDateOnly(slotProps.data.promotion_start_date) }}
+            {{ formatPrescriptionMonth(slotProps.data.promotion_start_date) }}
           </template>
         </Column>
-        <Column field="promotion_end_date" header="프로모션 종료일" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+        <Column field="promotion_end_date" header="종료 처방월" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
-            {{ formatDateOnly(slotProps.data.promotion_end_date) }}
+            {{ formatPrescriptionMonth(slotProps.data.promotion_end_date) }}
           </template>
         </Column>
       </DataTable>
@@ -153,7 +129,7 @@
           />
         </div>
         <div>
-          <label style="display: block; margin-bottom: 4px; font-weight: 500;">프로모션 시작일</label>
+          <label style="display: block; margin-bottom: 4px; font-weight: 500;">시작 처방월</label>
           <input
             type="date"
             v-model="formData.promotion_start_date"
@@ -161,7 +137,7 @@
           />
         </div>
         <div>
-          <label style="display: block; margin-bottom: 4px; font-weight: 500;">프로모션 종료일</label>
+          <label style="display: block; margin-bottom: 4px; font-weight: 500;">종료 처방월</label>
           <input
             type="date"
             v-model="formData.promotion_end_date"
@@ -564,6 +540,15 @@ function formatDateOnly(dateString) {
     month: '2-digit',
     day: '2-digit'
   });
+}
+
+// 처방월 형식으로 변환 (YYYY-MM)
+function formatPrescriptionMonth(dateString) {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
 }
 
 // 통계 확인 모달 닫기

@@ -95,8 +95,7 @@ const adminMenuTree = [
   ]},
   { label: '제품 관리', icon: 'pi pi-box', children: [
     { label: '제품 목록', path: '/admin/products' },
-    { label: '표준코드 목록', path: '/admin/products-standard-code' },
-    { label: '프로모션 제품', path: '/admin/products/promotion' }
+    { label: '표준코드 목록', path: '/admin/products-standard-code' }
   ]},
 
   { label: '병의원 관리', icon: 'pi pi-building', children: [
@@ -120,6 +119,7 @@ const adminMenuTree = [
     { label: '실적 상세 현황', path: '/admin/performance/detail' }
   ]},
   { label: '정산 관리', icon: 'pi pi-file', children: [
+    { label: '프로모션 관리', path: '/admin/products/promotion' },
     { label: '실적 검수', path: '/admin/performance/review' },
     { label: '흡수율 분석', path: '/admin/absorption-analysis' },
     { label: '정산내역서 공유', path: '/admin/settlement-share' }
@@ -190,6 +190,11 @@ function isActive(item) {
   
   // /admin/products/standard-code
   if (itemPath === '/admin/products-standard-code' && currentPath.startsWith('/admin/products-standard-code')) {
+    return true;
+  }
+  
+  // /admin/products/promotion
+  if (itemPath === '/admin/products/promotion' && currentPath.startsWith('/admin/products/promotion')) {
     return true;
   }
   
