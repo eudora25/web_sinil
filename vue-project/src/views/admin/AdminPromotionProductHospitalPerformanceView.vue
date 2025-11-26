@@ -34,40 +34,28 @@
             {{ slotProps.index + currentPageFirstIndex + 1 }}
           </template>
         </Column>
-        <Column field="hospital_name" header="병의원명" :headerStyle="{ width: '30%' }" :sortable="true"></Column>
-        <Column field="has_performance" header="실적 여부" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+        <Column field="hospital_name" header="병의원명" :headerStyle="{ width: '25%' }" :sortable="true"></Column>
+        <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
-            <span :style="{ color: slotProps.data.has_performance ? '#28a745' : '#dc3545', fontWeight: 'bold' }">
-              {{ slotProps.data.has_performance ? '있음' : '없음' }}
-            </span>
+            {{ slotProps.data.business_registration_number || '-' }}
           </template>
         </Column>
-        <Column field="first_performance_month" header="최초 실적 월" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+        <Column field="first_performance_month" header="최초 실적 처방월" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
             {{ slotProps.data.first_performance_month || '-' }}
           </template>
         </Column>
-        <Column field="before_promotion_amount" header="프로모션 전 실적 금액" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
-          <template #body="slotProps">
-            {{ formatNumber(slotProps.data.before_promotion_amount) }}
-          </template>
-        </Column>
-        <Column field="after_promotion_amount" header="프로모션 후 실적 금액" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
-          <template #body="slotProps">
-            {{ formatNumber(slotProps.data.after_promotion_amount) }}
-          </template>
-        </Column>
-        <Column field="total_performance_amount" header="총 실적 금액" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right', fontWeight: 'bold' }">
-          <template #body="slotProps">
-            {{ formatNumber(slotProps.data.total_performance_amount) }}
-          </template>
-        </Column>
-        <Column field="cso_name" header="적용 업체" :headerStyle="{ width: '20%' }" :sortable="true">
+        <Column field="cso_name" header="적용 업체" :headerStyle="{ width: '15%' }" :sortable="true">
           <template #body="slotProps">
             {{ slotProps.data.cso_name || '-' }}
           </template>
         </Column>
-        <Column header="생성일시" :headerStyle="{ width: '13%' }" :sortable="true">
+        <Column field="after_promotion_amount" header="프로모션 실적 금액" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+          <template #body="slotProps">
+            {{ slotProps.data.cso_name ? formatNumber(slotProps.data.after_promotion_amount) : '-' }}
+          </template>
+        </Column>
+        <Column header="생성 일시" :headerStyle="{ width: '13%' }" :sortable="true">
           <template #body="slotProps">
             {{ formatDate(slotProps.data.created_at) }}
           </template>
@@ -75,11 +63,8 @@
 
         <ColumnGroup type="footer">
           <Row>
-            <Column footer="합계" :colspan="4" footerClass="footer-cell" footerStyle="text-align:center !important;" />
-            <Column :footer="formatNumber(totalBeforeAmount)" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-            <Column :footer="formatNumber(totalAfterAmount)" footerClass="footer-cell" footerStyle="text-align:right !important;" />
-            <Column :footer="formatNumber(totalAmount)" footerClass="footer-cell" footerStyle="text-align:right !important; font-weight: bold; color: #007bff;" />
-            <Column footer="" footerClass="footer-cell" />
+            <Column footer="합계" :colspan="5" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+            <Column :footer="formatNumber(totalPromotionAmount)" footerClass="footer-cell" footerStyle="text-align:right !important; font-weight: bold; color: #007bff;" />
             <Column footer="" footerClass="footer-cell" />
           </Row>
         </ColumnGroup>
@@ -105,17 +90,15 @@ const hospitalPerformanceList = ref([]);
 const productName = ref('');
 const currentPageFirstIndex = ref(0);
 
-// 합계 계산
-const totalBeforeAmount = computed(() => {
-  return hospitalPerformanceList.value.reduce((sum, item) => sum + (Number(item.before_promotion_amount) || 0), 0);
-});
-
-const totalAfterAmount = computed(() => {
-  return hospitalPerformanceList.value.reduce((sum, item) => sum + (Number(item.after_promotion_amount) || 0), 0);
-});
-
-const totalAmount = computed(() => {
-  return hospitalPerformanceList.value.reduce((sum, item) => sum + (Number(item.total_performance_amount) || 0), 0);
+// 합계 계산 (프로모션 실적 금액 - 적용 업체가 있는 경우만)
+const totalPromotionAmount = computed(() => {
+  return hospitalPerformanceList.value.reduce((sum, item) => {
+    // 적용 업체가 있는 경우만 합계에 포함
+    if (item.cso_name) {
+      return sum + (Number(item.after_promotion_amount) || 0);
+    }
+    return sum;
+  }, 0);
 });
 
 // 병원 실적 데이터 조회
@@ -152,7 +135,8 @@ async function fetchHospitalPerformance() {
         updated_at,
         clients:hospital_id (
           id,
-          name
+          name,
+          business_registration_number
         ),
         companies:first_performance_cso_id (
           id,
@@ -169,6 +153,7 @@ async function fetchHospitalPerformance() {
       id: item.id,
       hospital_id: item.hospital_id,
       hospital_name: item.clients?.name || '-',
+      business_registration_number: item.clients?.business_registration_number || null,
       has_performance: item.has_performance || false,
       first_performance_cso_id: item.first_performance_cso_id,
       first_performance_month: item.first_performance_month || null,

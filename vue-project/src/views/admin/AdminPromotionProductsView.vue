@@ -10,11 +10,11 @@
           전체 {{ promotionProducts.length }} 건
         </div>
         <div class="action-buttons-group">
-          <button class="btn-check" @click="resetStatistics" :disabled="checkingStatistics || resettingStatistics" style="background-color: #dc3545; margin-right: 8px;">
-            {{ resettingStatistics ? '초기화 중...' : '데이터 초기화' }}
-          </button>
+          <div v-if="lastUpdateTime" class="last-update-time">
+            마지막 업데이트: {{ formatLastUpdateTime(lastUpdateTime) }}
+          </div>
           <button class="btn-check" @click="checkStatistics" :disabled="checkingStatistics || resettingStatistics">
-            {{ checkingStatistics ? '확인 중...' : '통계 확인' }}
+            {{ checkingStatistics ? '업데이트 중...' : '데이터 업데이트' }}
           </button>
         </div>
       </div>
@@ -51,9 +51,11 @@
             >
               {{ slotProps.data.product_name }}
             </router-link>
-            <span v-if="slotProps.data.hospital_count !== undefined" style="margin-left: 8px; color: #6c757d; font-size: 0.9em;">
-              ({{ slotProps.data.hospital_count }}개)
-            </span>
+          </template>
+        </Column>
+        <Column field="hospital_count" header="적용 병의원" :headerStyle="{ width: '12%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+          <template #body="slotProps">
+            {{ slotProps.data.hospital_count !== undefined ? slotProps.data.hospital_count : 0 }}개
           </template>
         </Column>
         <Column v-if="selectedBaseMonth" field="commission_rate_b" header="기존 수수료율" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
@@ -151,10 +153,10 @@
       </template>
     </Dialog>
 
-    <!-- 통계 확인 진행 모달 -->
+    <!-- 데이터 업데이트 진행 모달 -->
     <Dialog 
       v-model:visible="showStatisticsModal" 
-      header="통계 확인 진행 중" 
+      header="데이터 업데이트 진행 중" 
       :modal="true"
       :closable="false"
       :style="{ width: '550px' }"
@@ -249,6 +251,7 @@ const resettingStatistics = ref(false);
 const promotionProducts = ref([]);
 const showModal = ref(false);
 const currentPageFirstIndex = ref(0);
+const lastUpdateTime = ref(null);
 
 // 통계 확인 진행 상태
 const showStatisticsModal = ref(false);
@@ -364,18 +367,19 @@ async function fetchProductCommissionRateB() {
   }
 }
 
-// 병원 실적 개수 조회
+// 병원 실적 개수 조회 (first_performance_cso_id가 null이 아닌 것만 카운트)
 async function fetchHospitalCounts() {
   if (promotionProducts.value.length === 0) return;
 
   try {
     const productIds = promotionProducts.value.map(p => p.id);
     
-    // 각 제품별로 병원 실적 개수 조회
+    // 각 제품별로 병원 실적 개수 조회 (first_performance_cso_id가 null이 아닌 것만)
     const { data, error } = await supabase
       .from('promotion_product_hospital_performance')
       .select('promotion_product_id')
-      .in('promotion_product_id', productIds);
+      .in('promotion_product_id', productIds)
+      .not('first_performance_cso_id', 'is', null);
 
     if (error) throw error;
 
@@ -403,6 +407,111 @@ async function fetchHospitalCounts() {
   }
 }
 
+// 마지막 업데이트 시간 조회
+async function fetchLastUpdateTime() {
+  try {
+    // 먼저 promotion_statistics_log 테이블에서 조회 시도
+    const { data: logData, error: logError } = await supabase
+      .from('promotion_statistics_log')
+      .select('last_update_time')
+      .order('last_update_time', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!logError && logData && logData.last_update_time) {
+      lastUpdateTime.value = new Date(logData.last_update_time);
+      return;
+    }
+
+    // promotion_statistics_log 테이블이 없거나 데이터가 없으면
+    // promotion_product_hospital_performance 테이블의 가장 최근 updated_at 조회
+    const { data, error } = await supabase
+      .from('promotion_product_hospital_performance')
+      .select('updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116은 데이터가 없을 때의 에러이므로 무시
+      console.error('마지막 업데이트 시간 조회 오류:', error);
+      return;
+    }
+
+    if (data && data.updated_at) {
+      lastUpdateTime.value = new Date(data.updated_at);
+    }
+  } catch (error) {
+    console.error('마지막 업데이트 시간 조회 오류:', error);
+  }
+}
+
+// 마지막 업데이트 시간을 DB에 저장 (로그 테이블 사용)
+async function saveLastUpdateTime() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      lastUpdateTime.value = new Date();
+      return;
+    }
+
+    const now = new Date().toISOString();
+    
+    // promotion_statistics_log 테이블에 로그 저장
+    // 먼저 기존 로그가 있는지 확인
+    const { data: existingLogs, error: checkError } = await supabase
+      .from('promotion_statistics_log')
+      .select('id')
+      .limit(1);
+
+    if (checkError) {
+      // 테이블이 없거나 오류가 발생하면 promotion_product_hospital_performance의 updated_at을 사용
+      // (실제로는 promotion_product_hospital_performance의 updated_at은 자동으로 업데이트되므로
+      // 별도로 업데이트할 필요 없이 조회만 하면 됨)
+      console.warn('promotion_statistics_log 테이블 조회 오류:', checkError);
+      lastUpdateTime.value = new Date(now);
+      return;
+    }
+
+    if (existingLogs && existingLogs.length > 0) {
+      // 기존 로그가 있으면 UPDATE
+      const { error: updateError } = await supabase
+        .from('promotion_statistics_log')
+        .update({
+          last_update_time: now,
+          updated_by: user.id
+        })
+        .eq('id', existingLogs[0].id);
+      
+      if (updateError) {
+        console.error('마지막 업데이트 시간 저장 오류:', updateError);
+        lastUpdateTime.value = new Date(now);
+        return;
+      }
+    } else {
+      // 기존 로그가 없으면 INSERT
+      const { error: insertError } = await supabase
+        .from('promotion_statistics_log')
+        .insert({
+          last_update_time: now,
+          updated_by: user.id
+        });
+      
+      if (insertError) {
+        console.error('마지막 업데이트 시간 저장 오류:', insertError);
+        lastUpdateTime.value = new Date(now);
+        return;
+      }
+    }
+
+    lastUpdateTime.value = new Date(now);
+  } catch (error) {
+    console.error('마지막 업데이트 시간 저장 오류:', error);
+    // 실패해도 메모리에 저장
+    lastUpdateTime.value = new Date();
+  }
+}
+
 // 데이터 조회
 async function fetchPromotionProducts() {
   loading.value = true;
@@ -422,6 +531,9 @@ async function fetchPromotionProducts() {
     if (selectedBaseMonth.value) {
       await fetchProductCommissionRateB();
     }
+    
+    // 마지막 업데이트 시간 조회
+    await fetchLastUpdateTime();
   } catch (error) {
     console.error('프로모션 제품 조회 오류:', error);
     alert('프로모션 제품 조회 중 오류가 발생했습니다: ' + (error.message || error));
@@ -551,6 +663,20 @@ function formatPrescriptionMonth(dateString) {
   return `${year}-${month}`;
 }
 
+// 마지막 업데이트 시간 포맷팅
+function formatLastUpdateTime(date) {
+  if (!date) return '-';
+  const updateDate = new Date(date);
+  return updateDate.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
 // 통계 확인 모달 닫기
 function closeStatisticsModal() {
   showStatisticsModal.value = false;
@@ -621,9 +747,9 @@ async function resetStatistics() {
   }
 }
 
-// 통계 확인 및 promotion_product_hospital_performance 테이블 업데이트
+// 데이터 업데이트 및 promotion_product_hospital_performance 테이블 업데이트
 async function checkStatistics() {
-  if (!confirm('제품별 병원 실적을 확인하고 통계를 업데이트하시겠습니까?')) {
+  if (!confirm('제품별 병원 실적을 확인하고 데이터를 업데이트하시겠습니까?')) {
     return;
   }
 
@@ -1586,11 +1712,14 @@ async function checkStatistics() {
     statisticsStatus.value = '병원 실적 개수 갱신 중...';
     await fetchHospitalCounts();
     statisticsStatus.value = `완료! 처리된 제품: ${totalProcessed}개, 신규 입력: ${totalUpdated}개, 기존 데이터 스킵: ${totalSkipped}개, 오류: ${totalErrors}개`;
+    
+    // 마지막 업데이트 시간을 DB에 저장
+    await saveLastUpdateTime();
   } catch (error) {
     console.error('통계 확인 오류:', error);
     statisticsStatus.value = `오류 발생: ${error.message || error}`;
     statisticsCompleted.value = true;
-    alert('통계 확인 중 오류가 발생했습니다: ' + (error.message || error));
+    alert('데이터 업데이트 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     checkingStatistics.value = false;
   }
@@ -1642,6 +1771,14 @@ onMounted(async () => {
 .action-buttons-group {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.last-update-time {
+  color: #6c757d;
+  font-size: 0.9em;
+  margin-right: 16px;
+  font-weight: 500;
 }
 
 .btn-check {
