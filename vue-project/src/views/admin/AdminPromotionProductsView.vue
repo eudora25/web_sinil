@@ -806,10 +806,27 @@ async function checkStatistics() {
         let from = 0;
         const batchSize = 1000;
 
-        // 기준일 이전 처방월 목록
+        // 프로모션 시작일과 종료일을 Date 객체로 변환 (비교용)
+        const promotionStartDate = promotionProduct.promotion_start_date ? new Date(promotionProduct.promotion_start_date) : null;
+        const promotionEndDate = promotionProduct.promotion_end_date ? new Date(promotionProduct.promotion_end_date) : null;
+        
+        // 종료일의 처방월 추출 (YYYY-MM 형식)
+        let endMonth = null;
+        if (promotionEndDate) {
+          const year = promotionEndDate.getFullYear();
+          const month = String(promotionEndDate.getMonth() + 1).padStart(2, '0');
+          endMonth = `${year}-${month}`;
+        }
+        
+        // 기준일 이전 처방월 목록 (문자열 비교)
         const beforePrescriptionMonths = prescriptionMonths.filter(month => month < baseMonth);
+        // 기준일과 같은 처방월 목록 (날짜 비교 필요)
+        const sameMonthPrescriptionMonths = prescriptionMonths.filter(month => month === baseMonth);
+        
         console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 기준일(${baseMonth}) 이전 처방월:`, beforePrescriptionMonths);
+        console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 기준일(${baseMonth})과 같은 처방월:`, sameMonthPrescriptionMonths);
 
+        // 기준일 이전 처방월 데이터 조회
         for (const prescriptionMonth of beforePrescriptionMonths) {
           // 해당 처방월을 base_month로 하는 제품 ID만 조회
           const { data: monthProducts, error: monthProductsError } = await supabase
@@ -865,6 +882,78 @@ async function checkStatistics() {
           }
         }
 
+        // 기준일과 같은 처방월 데이터 조회 (created_at으로 날짜 비교하여 분류)
+        let sameMonthRecords = [];
+        for (const prescriptionMonth of sameMonthPrescriptionMonths) {
+          // 해당 처방월을 base_month로 하는 제품 ID만 조회
+          const { data: monthProducts, error: monthProductsError } = await supabase
+            .from('products')
+            .select('id')
+            .eq('insurance_code', insuranceCode)
+            .eq('base_month', prescriptionMonth)
+            .eq('status', 'active');
+
+          if (monthProductsError || !monthProducts || monthProducts.length === 0) {
+            continue;
+          }
+
+          const monthProductIds = monthProducts.map(p => p.id);
+          from = 0;
+
+          while (true) {
+            const { data: records, error: recordsError } = await supabase
+              .from('performance_records')
+              .select(`
+                client_id,
+                company_id,
+                prescription_qty,
+                prescription_month,
+                created_at,
+                review_action,
+                products!inner(price),
+                companies!inner(company_group)
+              `)
+              .in('product_id', monthProductIds)
+              .eq('prescription_month', prescriptionMonth)
+              .eq('companies.company_group', 'NEWCSO')
+              .or('review_action.is.null,review_action.neq.삭제')
+              .order('created_at', { ascending: true })
+              .range(from, from + batchSize - 1);
+
+            if (recordsError) {
+              console.error(`${prescriptionMonth} 실적 조회 오류 (제품 ${promotionProduct.product_name}):`, recordsError);
+              break;
+            }
+
+            if (!records || records.length === 0) {
+              break;
+            }
+
+            sameMonthRecords = sameMonthRecords.concat(records);
+
+            if (records.length < batchSize) {
+              break;
+            }
+
+            from += batchSize;
+          }
+        }
+
+        // 같은 처방월 데이터를 시작일 기준으로 분류
+        if (promotionStartDate) {
+          sameMonthRecords.forEach(record => {
+            const recordDate = new Date(record.created_at);
+            if (recordDate < promotionStartDate) {
+              beforeBaseMonthRecords.push(record);
+            } else {
+              // 이후 데이터는 나중에 추가
+            }
+          });
+        } else {
+          // 시작일이 없으면 모두 이전으로 분류
+          beforeBaseMonthRecords = beforeBaseMonthRecords.concat(sameMonthRecords);
+        }
+
         statisticsStatus.value = `${baseMonth} 이후 데이터 조회 중... (${i + 1}/${promotionProducts.value.length})`;
 
         // 4. 기준일 이후 데이터 조회
@@ -872,10 +961,24 @@ async function checkStatistics() {
         let afterBaseMonthRecords = [];
         from = 0;
 
-        // 기준일 이후 처방월 목록
-        const afterPrescriptionMonths = prescriptionMonths.filter(month => month >= baseMonth);
-        console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 기준일(${baseMonth}) 이후 처방월:`, afterPrescriptionMonths);
+        // 기준일 이후 처방월 목록 (문자열 비교)
+        // 종료일이 있으면 종료일 이하의 처방월만 포함
+        let afterPrescriptionMonths = prescriptionMonths.filter(month => month > baseMonth);
+        if (endMonth) {
+          afterPrescriptionMonths = afterPrescriptionMonths.filter(month => month <= endMonth);
+        }
+        
+        // 종료일 이후 처방월 목록 (프로모션 적용 대상 아님)
+        const afterEndMonthPrescriptionMonths = endMonth 
+          ? prescriptionMonths.filter(month => month > endMonth)
+          : [];
+        
+        console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 기준일(${baseMonth}) 이후 프로모션 기간 내 처방월:`, afterPrescriptionMonths);
+        if (endMonth) {
+          console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 종료일(${endMonth}) 이후 처방월:`, afterEndMonthPrescriptionMonths);
+        }
 
+        // 기준일 이후 처방월 데이터 조회
         for (const prescriptionMonth of afterPrescriptionMonths) {
           // 해당 처방월을 base_month로 하는 제품 ID만 조회
           const { data: monthProducts, error: monthProductsError } = await supabase
@@ -931,8 +1034,149 @@ async function checkStatistics() {
           }
         }
 
+        // 기준일과 같은 처방월 데이터 중 시작일 이후인 것들 추가 (종료일 이전인 것만)
+        if (promotionStartDate) {
+          sameMonthRecords.forEach(record => {
+            const recordDate = new Date(record.created_at);
+            if (recordDate >= promotionStartDate) {
+              // 종료일이 있고 종료일을 지났으면 프로모션 적용 대상에서 제외
+              if (promotionEndDate && recordDate > promotionEndDate) {
+                // 종료일 이후 데이터는 afterBaseMonthRecords에 포함하지 않음
+                // (나중에 별도로 처리)
+              } else {
+                afterBaseMonthRecords.push(record);
+              }
+            }
+          });
+        }
+        
+        // 종료일 이후 처방월 데이터 조회 (프로모션 적용 대상 아님, total에만 포함)
+        let afterEndMonthRecords = [];
+        for (const prescriptionMonth of afterEndMonthPrescriptionMonths) {
+          // 해당 처방월을 base_month로 하는 제품 ID만 조회
+          const { data: monthProducts, error: monthProductsError } = await supabase
+            .from('products')
+            .select('id')
+            .eq('insurance_code', insuranceCode)
+            .eq('base_month', prescriptionMonth)
+            .eq('status', 'active');
+
+          if (monthProductsError || !monthProducts || monthProducts.length === 0) {
+            continue;
+          }
+
+          const monthProductIds = monthProducts.map(p => p.id);
+          from = 0;
+
+          while (true) {
+            const { data: records, error: recordsError } = await supabase
+              .from('performance_records')
+              .select(`
+                client_id,
+                company_id,
+                prescription_qty,
+                prescription_month,
+                created_at,
+                review_action,
+                products!inner(price),
+                companies!inner(company_group)
+              `)
+              .in('product_id', monthProductIds)
+              .eq('prescription_month', prescriptionMonth)
+              .eq('companies.company_group', 'NEWCSO')
+              .or('review_action.is.null,review_action.neq.삭제')
+              .order('created_at', { ascending: true })
+              .range(from, from + batchSize - 1);
+
+            if (recordsError) {
+              console.error(`${prescriptionMonth} 실적 조회 오류 (제품 ${promotionProduct.product_name}):`, recordsError);
+              break;
+            }
+
+            if (!records || records.length === 0) {
+              break;
+            }
+
+            afterEndMonthRecords = afterEndMonthRecords.concat(records);
+
+            if (records.length < batchSize) {
+              break;
+            }
+
+            from += batchSize;
+          }
+        }
+        
+        // 종료일과 같은 처방월 데이터 중 종료일 이후인 것들 추가
+        if (promotionEndDate && endMonth) {
+          const sameEndMonthPrescriptionMonths = prescriptionMonths.filter(month => month === endMonth);
+          for (const prescriptionMonth of sameEndMonthPrescriptionMonths) {
+            // 해당 처방월을 base_month로 하는 제품 ID만 조회
+            const { data: monthProducts, error: monthProductsError } = await supabase
+              .from('products')
+              .select('id')
+              .eq('insurance_code', insuranceCode)
+              .eq('base_month', prescriptionMonth)
+              .eq('status', 'active');
+
+            if (monthProductsError || !monthProducts || monthProducts.length === 0) {
+              continue;
+            }
+
+            const monthProductIds = monthProducts.map(p => p.id);
+            from = 0;
+
+            while (true) {
+              const { data: records, error: recordsError } = await supabase
+                .from('performance_records')
+                .select(`
+                  client_id,
+                  company_id,
+                  prescription_qty,
+                  prescription_month,
+                  created_at,
+                  review_action,
+                  products!inner(price),
+                  companies!inner(company_group)
+                `)
+                .in('product_id', monthProductIds)
+                .eq('prescription_month', prescriptionMonth)
+                .eq('companies.company_group', 'NEWCSO')
+                .or('review_action.is.null,review_action.neq.삭제')
+                .order('created_at', { ascending: true })
+                .range(from, from + batchSize - 1);
+
+              if (recordsError) {
+                console.error(`${prescriptionMonth} 실적 조회 오류 (제품 ${promotionProduct.product_name}):`, recordsError);
+                break;
+              }
+
+              if (!records || records.length === 0) {
+                break;
+              }
+
+              // created_at을 종료일과 비교하여 분류
+              records.forEach(record => {
+                const recordDate = new Date(record.created_at);
+                if (recordDate > promotionEndDate) {
+                  afterEndMonthRecords.push(record);
+                }
+              });
+
+              if (records.length < batchSize) {
+                break;
+              }
+
+              from += batchSize;
+            }
+          }
+        }
+
         console.log(`[통계 확인] 제품 ${promotionProduct.product_name} (보험코드: ${insuranceCode}) - 기준일(${baseMonth}) 이전 레코드:`, beforeBaseMonthRecords.length, '건');
-        console.log(`[통계 확인] 제품 ${promotionProduct.product_name} (보험코드: ${insuranceCode}) - 기준일(${baseMonth}) 이후 레코드:`, afterBaseMonthRecords.length, '건');
+        console.log(`[통계 확인] 제품 ${promotionProduct.product_name} (보험코드: ${insuranceCode}) - 기준일(${baseMonth}) 이후 프로모션 기간 내 레코드:`, afterBaseMonthRecords.length, '건');
+        if (endMonth) {
+          console.log(`[통계 확인] 제품 ${promotionProduct.product_name} (보험코드: ${insuranceCode}) - 종료일(${endMonth}) 이후 레코드:`, afterEndMonthRecords.length, '건');
+        }
 
         statisticsStatus.value = `데이터 처리 중... (${i + 1}/${promotionProducts.value.length})`;
 
@@ -1021,7 +1265,7 @@ async function checkStatistics() {
           }
         }
 
-        // 그 다음 기준일 이후 데이터 처리 (덮어쓰지 않음)
+        // 그 다음 기준일 이후 프로모션 기간 내 데이터 처리 (덮어쓰지 않음)
         for (const record of afterBaseMonthRecords) {
           if (!record.client_id) continue;
           // 삭제 상태인 데이터는 제외
@@ -1088,6 +1332,74 @@ async function checkStatistics() {
             console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 병원 ${hospitalId} 기준일 이후 데이터 추가:`, {
               prescription_month: record.prescription_month,
               company_id: record.company_id,
+              amount: prescriptionAmount
+            });
+          }
+        }
+        
+        // 종료일 이후 데이터 처리 (프로모션 적용 대상 아님, total에만 포함)
+        for (const record of afterEndMonthRecords) {
+          if (!record.client_id) continue;
+          // 삭제 상태인 데이터는 제외
+          if (record.review_action === '삭제') continue;
+
+          const hospitalId = record.client_id;
+          
+          // 기존 데이터가 있는 경우, total만 업데이트 (프로모션 금액에는 포함하지 않음)
+          if (existingHospitalIds.has(hospitalId)) {
+            const existing = existingDataMap.get(hospitalId);
+            const productPrice = Number(record.products?.price) || 0;
+            const prescriptionQty = Number(record.prescription_qty) || 0;
+            const prescriptionAmount = prescriptionQty * productPrice;
+            
+            // total_performance_amount만 업데이트 (before/after는 업데이트하지 않음)
+            const existingTotal = existing?.total_performance_amount || 0;
+            const newTotalAmount = existingTotal + prescriptionAmount;
+            
+            const updateData = {
+              total_performance_amount: newTotalAmount,
+              updated_by: user.id
+            };
+            
+            const { error: updateError } = await supabase
+              .from('promotion_product_hospital_performance')
+              .update(updateData)
+              .eq('promotion_product_id', promotionProduct.id)
+              .eq('hospital_id', hospitalId);
+            
+            if (updateError) {
+              console.error(`종료일 이후 데이터 업데이트 오류 (제품 ${promotionProduct.product_name}, 병원 ${hospitalId}):`, updateError);
+              totalErrors++;
+            } else {
+              totalUpdated++;
+            }
+            continue;
+          }
+
+          // 신규 데이터인 경우, total에만 포함
+          if (hospitalDataMap.has(hospitalId)) {
+            const existing = hospitalDataMap.get(hospitalId);
+            const productPrice = Number(record.products?.price) || 0;
+            const prescriptionQty = Number(record.prescription_qty) || 0;
+            const prescriptionAmount = prescriptionQty * productPrice;
+            // total만 누적 (before/after는 업데이트하지 않음)
+            existing.total_performance_amount = (existing.total_performance_amount || 0) + prescriptionAmount;
+          } else {
+            // 신규 병원인 경우에도 total에만 포함
+            const productPrice = Number(record.products?.price) || 0;
+            const prescriptionQty = Number(record.prescription_qty) || 0;
+            const prescriptionAmount = prescriptionQty * productPrice;
+
+            hospitalDataMap.set(hospitalId, {
+              hospital_id: hospitalId,
+              first_performance_cso_id: null, // 종료일 이후는 프로모션 적용 대상 아님
+              first_performance_month: record.prescription_month || null,
+              total_performance_amount: prescriptionAmount,
+              before_promotion_amount: 0,
+              after_promotion_amount: 0 // 종료일 이후는 프로모션 금액에 포함하지 않음
+            });
+            console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 병원 ${hospitalId} 종료일 이후 데이터 추가:`, {
+              prescription_month: record.prescription_month,
               amount: prescriptionAmount
             });
           }
