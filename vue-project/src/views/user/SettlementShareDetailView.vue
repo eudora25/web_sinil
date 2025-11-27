@@ -477,54 +477,72 @@ async function fetchAllDataForMonth() {
     if (!productsError && productsData) {
       productsData.forEach(p => {
         if (p.insurance_code) {
-          productInsuranceCodeMap.set(p.id, String(p.insurance_code));
+          // 보험코드를 문자열로 정규화 (앞뒤 공백 제거, 숫자도 문자열로 변환)
+          const normalizedCode = String(p.insurance_code).trim();
+          productInsuranceCodeMap.set(p.id, normalizedCode);
         }
-      });
-    }
-  }
-
-  // 프로모션 제품 목록 조회
-  const insuranceCodes = Array.from(productInsuranceCodeMap.values());
-  let promotionProductsMap = new Map();
-  if (insuranceCodes.length > 0) {
-    const { data: promotionProducts, error: promotionError } = await supabase
-      .from('promotion_product_list')
-      .select('insurance_code, final_commission_rate, promotion_start_date, promotion_end_date')
-      .in('insurance_code', insuranceCodes);
-    
-    if (!promotionError && promotionProducts) {
-      promotionProducts.forEach(pp => {
-        const key = String(pp.insurance_code);
-        if (!promotionProductsMap.has(key)) {
-          promotionProductsMap.set(key, []);
-        }
-        promotionProductsMap.get(key).push(pp);
       });
     }
   }
 
   // 병원별 프로모션 실적 정보 조회
   const hospitalIds = [...new Set(data.map(r => r.client_id).filter(id => id))];
+  const insuranceCodes = Array.from(productInsuranceCodeMap.values());
   let hospitalPerformanceMap = new Map();
+  let promotionProductsMap = new Map();
   
   if (hospitalIds.length > 0 && companyId.value) {
+    // 1. promotion_product_hospital_performance에서 조회 (조인 없이, RLS 정책 수정 후 조회 가능)
+    // 관리자 페이지와 동일하게 has_performance = true 조건 추가
     const { data: hospitalPerf, error: hospitalPerfError } = await supabase
       .from('promotion_product_hospital_performance')
       .select(`
         hospital_id,
         first_performance_cso_id,
-        promotion_product_list!inner(insurance_code, final_commission_rate, promotion_start_date, promotion_end_date)
+        has_performance,
+        promotion_product_id
       `)
       .in('hospital_id', hospitalIds)
       .eq('first_performance_cso_id', companyId.value)
       .eq('has_performance', true);
     
-    if (!hospitalPerfError && hospitalPerf) {
-      hospitalPerf.forEach(hp => {
-        const insuranceCode = String(hp.promotion_product_list?.insurance_code || '');
-        const key = `${hp.hospital_id}_${insuranceCode}_${hp.first_performance_cso_id}`;
-        hospitalPerformanceMap.set(key, hp.promotion_product_list);
-      });
+    if (!hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
+      // 2. promotion_product_id 목록 추출
+      const promotionProductIds = [...new Set(hospitalPerf.map(hp => hp.promotion_product_id).filter(id => id))];
+      
+      // 3. promotion_product_list에서 상세 정보 조회 (id로 조회, RLS 제약 없음)
+      if (promotionProductIds.length > 0) {
+        const { data: promotionProducts, error: promotionError } = await supabase
+          .from('promotion_product_list')
+          .select('id, insurance_code, final_commission_rate, promotion_start_date, promotion_end_date')
+          .in('id', promotionProductIds);
+        
+        if (!promotionError && promotionProducts) {
+          // promotionProductsMap 구성
+          promotionProducts.forEach(pp => {
+            const key = String(pp.insurance_code).trim();
+            promotionProductsMap.set(key, pp);
+          });
+          
+          // hospitalPerformanceMap 구성
+          hospitalPerf.forEach(hp => {
+            const promotionProduct = promotionProducts.find(pp => pp.id === hp.promotion_product_id);
+            if (promotionProduct) {
+              const insuranceCode = String(promotionProduct.insurance_code).trim();
+              const hospitalId = hp.hospital_id;
+              const companyIdValue = hp.first_performance_cso_id;
+              const key = `${hospitalId}_${insuranceCode}_${companyIdValue}`;
+              
+              hospitalPerformanceMap.set(key, {
+                insurance_code: promotionProduct.insurance_code,
+                final_commission_rate: promotionProduct.final_commission_rate,
+                promotion_start_date: promotionProduct.promotion_start_date,
+                promotion_end_date: promotionProduct.promotion_end_date
+              });
+            }
+          });
+        }
+      }
     }
   }
   
@@ -544,7 +562,7 @@ async function fetchAllDataForMonth() {
         : parseFloat(row.commission_rate) || 0;
     }
     
-    // 프로모션 수수료 적용 확인
+    // 프로모션 수수료 적용 확인 (관리자 뷰와 동일한 로직)
     const productId = row.products?.id;
     if (productId) {
       const insuranceCode = productInsuranceCodeMap.get(productId);
@@ -578,7 +596,8 @@ async function fetchAllDataForMonth() {
           
           // 프로모션 기간 내에 있는 경우에만 final_commission_rate 사용
           if (isWithinPromotionPeriod && promotionInfo.final_commission_rate !== null && promotionInfo.final_commission_rate !== undefined) {
-            commissionRate = Number(promotionInfo.final_commission_rate);
+            const finalRate = Number(promotionInfo.final_commission_rate);
+            commissionRate = finalRate;
           }
         }
       }
