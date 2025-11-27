@@ -535,8 +535,14 @@ async function fetchAllDataForMonth() {
     const finalQty = row.review_action === '삭제' ? 0 : qty;
     const prescriptionAmount = Math.round(finalQty * price);
     
-    // 프로모션 수수료 확인
-    let commissionRate = row.commission_rate || 0;
+    // 기본 수수료율 확인 (숫자로 변환)
+    let commissionRate = 0;
+    if (row.commission_rate !== null && row.commission_rate !== undefined) {
+      // 이미 숫자면 그대로 사용, 문자열이면 변환
+      commissionRate = typeof row.commission_rate === 'number' 
+        ? row.commission_rate 
+        : parseFloat(row.commission_rate) || 0;
+    }
     
     // 프로모션 수수료 적용 확인
     const productId = row.products?.id;
