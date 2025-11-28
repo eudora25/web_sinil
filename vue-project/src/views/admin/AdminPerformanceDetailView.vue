@@ -710,6 +710,7 @@ const productHighlightedIndex = ref(-1);
 // 통계 데이터
 const statisticsData = ref([]);
 const currentPageFirstIndex = ref(0);
+const forceRealTimeCalculation = ref(false); // 통계 갱신 버튼을 눌렀을 때 실시간 계산 강제
 
 // 표시할 데이터
 const displayRows = computed(() => {
@@ -920,83 +921,666 @@ async function fetchStatistics() {
     console.log('데이터 조회 시작, 정산월:', selectedSettlementMonth.value);
     
     // 먼저 통계 테이블에서 조회 시도
-    let query = supabase
-      .from('performance_statistics')
-      .select('*')
-      .eq('settlement_month', selectedSettlementMonth.value);
+    // 새로운 구조: (company_id, client_id, product_id) 조합별로 저장되어 있음
+    // Supabase는 기본적으로 1000개까지만 반환하므로, 배치 처리로 모든 데이터 조회
+    let statisticsDataFromTable = []
+    let from = 0
+    const batchSize = 1000
+    let batchCount = 0
     
-    // 통계 타입 필터
-    if (statisticsType.value) {
-      query = query.eq('statistics_type', statisticsType.value);
-    }
-    
-    // 업체별 통계일 때 추가 필터
-    if (statisticsType.value === 'company') {
-      if (companyStatisticsFilter.value) {
-        query = query.eq('company_statistics_filter', companyStatisticsFilter.value);
+    while (true) {
+      batchCount++
+      let query = supabase
+        .from('performance_statistics')
+        .select('*')
+        .eq('settlement_month', selectedSettlementMonth.value)
+        .range(from, from + batchSize - 1)
+        .order('id', { ascending: true })
+      
+      // 필터 적용
+      if (selectedCompanyId.value) {
+        query = query.eq('company_id', selectedCompanyId.value)
       }
-      if (selectedCompanyGroup.value) {
-        query = query.eq('company_group', selectedCompanyGroup.value);
+      if (selectedHospitalId.value) {
+        query = query.eq('client_id', selectedHospitalId.value)
       }
-    }
-    
-    
-    // 업체 필터
-    if (selectedCompanyId.value) {
-      query = query.eq('company_id', selectedCompanyId.value);
-    }
-    
-    // 병의원별 통계일 때 추가 필터
-    if (statisticsType.value === 'hospital') {
-      if (hospitalStatisticsFilter.value) {
-        query = query.eq('hospital_statistics_filter', hospitalStatisticsFilter.value);
+      if (selectedProductId.value) {
+        query = query.eq('product_id', selectedProductId.value)
       }
-    }
-    
-    // 제품별 통계일 때 추가 필터
-    if (statisticsType.value === 'product') {
-      if (productStatisticsFilter.value) {
-        query = query.eq('product_statistics_filter', productStatisticsFilter.value);
+      
+      const { data: batchData, error: batchError } = await query
+      
+      if (batchError) {
+        console.error(`통계 테이블 배치 ${batchCount} 조회 오류:`, batchError)
+        break
       }
+      
+      if (!batchData || batchData.length === 0) {
+        console.log(`통계 테이블 배치 ${batchCount}: 데이터 없음, 조회 종료`)
+        break
+      }
+      
+      statisticsDataFromTable = statisticsDataFromTable.concat(batchData)
+      console.log(`통계 테이블 배치 ${batchCount}: ${batchData.length}개 조회 (누적: ${statisticsDataFromTable.length}개)`)
+      
+      if (batchData.length < batchSize) {
+        console.log(`통계 테이블 마지막 배치 (${batchData.length}개 < ${batchSize}개), 조회 종료`)
+        break
+      }
+      from += batchSize
     }
     
-    // 병의원 필터
-    if (selectedHospitalId.value) {
-      query = query.eq('hospital_id', selectedHospitalId.value);
-    }
+    const statisticsError = null // 배치 조회이므로 에러는 각 배치에서 처리
     
-    // 제품 필터
-    if (selectedProductId.value) {
-      query = query.eq('product_id', selectedProductId.value);
-    }
-    
-    const { data: statisticsDataFromTable, error: statisticsError } = await query;
-    
-    // 통계 테이블에 데이터가 있으면 사용
-    if (!statisticsError && statisticsDataFromTable && statisticsDataFromTable.length > 0) {
+    // 통계 테이블에 데이터가 있으면 사용 (업체별 통계일 때는 모든 업체 포함)
+    // ⚠️ 주의: 통계 갱신 버튼을 누르면 실시간 계산하므로, 통계 테이블은 초기 로드 시에만 사용
+    if (statisticsDataFromTable && statisticsDataFromTable.length > 0 && !forceRealTimeCalculation.value) {
       console.log('통계 테이블에서 데이터 조회 성공:', statisticsDataFromTable.length, '건');
-      statisticsData.value = statisticsDataFromTable.map(item => ({
-        ...item,
-        company_group: item.company_group_value || item.company_group
-      }));
+      
+      if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
+        // 업체별 통계: 필터에 따라 집계 방식 변경
+        if (companyStatisticsFilter.value === 'hospital') {
+          // 업체 + 병의원별 통계: (company_id, client_id) 조합별로 집계
+          const companyHospitalMap = new Map();
+          
+          statisticsDataFromTable.forEach(item => {
+            // 구분 필터 적용
+            if (selectedCompanyGroup.value && item.company_group !== selectedCompanyGroup.value) {
+              return;
+            }
+            
+            const key = `${item.company_id}_${item.client_id}`;
+            if (!companyHospitalMap.has(key)) {
+              companyHospitalMap.set(key, {
+                company_id: item.company_id,
+                company_name: item.company_name || '',
+                company_group: item.company_group || '',
+                business_registration_number: item.business_registration_number || '',
+                representative_name: item.representative_name || '',
+                hospital_id: item.client_id,
+                hospital_name: item.hospital_name || '',
+                prescription_qty: 0,
+                prescription_amount: 0,
+                payment_amount: 0,
+                total_absorption_rate: 0,
+                total_prescription_amount: 0
+              });
+            }
+            
+            const companyHospital = companyHospitalMap.get(key);
+            companyHospital.prescription_qty += item.prescription_qty || 0;
+            companyHospital.prescription_amount += item.prescription_amount || 0;
+            companyHospital.payment_amount += item.payment_amount || 0;
+            companyHospital.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
+            companyHospital.total_prescription_amount += item.prescription_amount || 0;
+            
+            // hospital_name이 없으면 현재 항목의 hospital_name으로 업데이트
+            if (!companyHospital.hospital_name && item.hospital_name) {
+              companyHospital.hospital_name = item.hospital_name;
+            }
+          });
+          
+          // 평균 흡수율 계산 및 배열로 변환
+          let aggregatedData = Array.from(companyHospitalMap.values()).map(item => {
+            const absorptionRate = item.total_prescription_amount > 0
+              ? item.total_absorption_rate / item.total_prescription_amount
+              : 0;
+            
+            const { total_absorption_rate, total_prescription_amount, ...cleanItem } = item;
+            return {
+              ...cleanItem,
+              absorption_rate: absorptionRate
+            };
+          });
+          
+          // hospital_name이 없는 경우 clients 테이블에서 조회하여 채우기
+          const itemsWithoutHospitalName = aggregatedData.filter(item => !item.hospital_name && item.hospital_id);
+          if (itemsWithoutHospitalName.length > 0) {
+            const hospitalIds = itemsWithoutHospitalName.map(item => item.hospital_id);
+            const { data: clientsData } = await supabase
+              .from('clients')
+              .select('id, name')
+              .in('id', hospitalIds);
+            
+            if (clientsData) {
+              const clientsMap = new Map(clientsData.map(c => [c.id, c]));
+              aggregatedData = aggregatedData.map(item => {
+                if (!item.hospital_name && item.hospital_id) {
+                  const client = clientsMap.get(item.hospital_id);
+                  if (client) {
+                    return {
+                      ...item,
+                      hospital_name: client.name || ''
+                    };
+                  }
+                }
+                return item;
+              });
+            }
+          }
+          
+          statisticsData.value = aggregatedData;
+        } else if (companyStatisticsFilter.value === 'product') {
+          // 업체 + 제품별 통계: (company_id, product_id) 조합별로 집계
+          const companyProductMap = new Map();
+          
+          statisticsDataFromTable.forEach(item => {
+            // 구분 필터 적용
+            if (selectedCompanyGroup.value && item.company_group !== selectedCompanyGroup.value) {
+              return;
+            }
+            
+            const key = `${item.company_id}_${item.product_id}`;
+            if (!companyProductMap.has(key)) {
+              companyProductMap.set(key, {
+                company_id: item.company_id,
+                company_name: item.company_name || '',
+                company_group: item.company_group || '',
+                business_registration_number: item.business_registration_number || '',
+                representative_name: item.representative_name || '',
+                product_id: item.product_id,
+                product_name: item.product_name || '',
+                insurance_code: item.insurance_code || '',
+                price: item.price || 0,
+                prescription_qty: 0,
+                prescription_amount: 0,
+                payment_amount: 0,
+                total_absorption_rate: 0,
+                total_prescription_amount: 0
+              });
+            }
+            
+            const companyProduct = companyProductMap.get(key);
+            companyProduct.prescription_qty += item.prescription_qty || 0;
+            companyProduct.prescription_amount += item.prescription_amount || 0;
+            companyProduct.payment_amount += item.payment_amount || 0;
+            companyProduct.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
+            companyProduct.total_prescription_amount += item.prescription_amount || 0;
+            
+            // product_name이 없으면 현재 항목의 product_name으로 업데이트
+            if (!companyProduct.product_name && item.product_name) {
+              companyProduct.product_name = item.product_name;
+            }
+            if (!companyProduct.insurance_code && item.insurance_code) {
+              companyProduct.insurance_code = item.insurance_code;
+            }
+          });
+          
+          // 평균 흡수율 계산 및 배열로 변환
+          let aggregatedData = Array.from(companyProductMap.values()).map(item => {
+            const absorptionRate = item.total_prescription_amount > 0
+              ? item.total_absorption_rate / item.total_prescription_amount
+              : 0;
+            
+            const { total_absorption_rate, total_prescription_amount, ...cleanItem } = item;
+            return {
+              ...cleanItem,
+              absorption_rate: absorptionRate
+            };
+          });
+          
+          statisticsData.value = aggregatedData;
+        } else {
+          // 업체별 통계: company_id로 GROUP BY하여 집계
+          const companyMap = new Map();
+          
+          // 디버깅: 특정 업체 데이터 확인
+          const targetCompanyId = 'df98e590-8775-4ac8-8436-67ddf6b3e3bd';
+          const targetCompanyData = statisticsDataFromTable.filter(item => item.company_id === targetCompanyId);
+          console.log(`[디버깅] 씨엠피월드 데이터 (통계 테이블):`, targetCompanyData.length > 0 ? targetCompanyData : '없음');
+          if (targetCompanyData.length > 0) {
+            console.log(`[디버깅] 씨엠피월드 데이터 개수:`, targetCompanyData.length);
+            console.log(`[디버깅] 씨엠피월드 prescription_qty 합계:`, targetCompanyData.reduce((sum, item) => sum + (item.prescription_qty || 0), 0));
+            console.log(`[디버깅] 씨엠피월드 prescription_amount 합계:`, targetCompanyData.reduce((sum, item) => sum + (item.prescription_amount || 0), 0));
+            console.log(`[디버깅] 씨엠피월드 데이터 상세:`, targetCompanyData.map(item => ({
+              company_id: item.company_id,
+              client_id: item.client_id,
+              product_id: item.product_id,
+              prescription_qty: item.prescription_qty,
+              prescription_amount: item.prescription_amount
+            })));
+          } else {
+            console.log(`[디버깅] 씨엠피월드 데이터가 통계 테이블에 없음. 전체 데이터 개수: ${statisticsDataFromTable.length}건`);
+            // 전체 데이터에서 company_id 분포 확인
+            const companyIdDistribution = statisticsDataFromTable.reduce((acc, item) => {
+              const id = item.company_id || 'null';
+              acc[id] = (acc[id] || 0) + 1;
+              return acc;
+            }, {});
+            console.log(`[디버깅] 통계 테이블의 고유 company_id 개수:`, Object.keys(companyIdDistribution).length);
+          }
+          
+          statisticsDataFromTable.forEach(item => {
+            // 구분 필터 적용
+            if (selectedCompanyGroup.value && item.company_group !== selectedCompanyGroup.value) {
+              if (item.company_id === targetCompanyId) {
+                console.log(`[디버깅] 씨엠피월드 필터링됨: company_group=${item.company_group}, selectedCompanyGroup=${selectedCompanyGroup.value}`);
+              }
+              return;
+            }
+            
+            const companyId = item.company_id;
+            if (!companyMap.has(companyId)) {
+              companyMap.set(companyId, {
+                company_id: companyId,
+                company_name: item.company_name,
+                company_group: item.company_group,
+                business_registration_number: item.business_registration_number,
+                representative_name: item.representative_name,
+                prescription_qty: 0,
+                prescription_amount: 0,
+                payment_amount: 0,
+                total_absorption_rate: 0,
+                total_prescription_amount: 0
+              });
+            }
+            
+            const company = companyMap.get(companyId);
+            company.prescription_qty += item.prescription_qty || 0;
+            company.prescription_amount += item.prescription_amount || 0;
+            company.payment_amount += item.payment_amount || 0;
+            company.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
+            company.total_prescription_amount += item.prescription_amount || 0;
+          });
+          
+          // 디버깅: 집계 후 결과 확인
+          if (companyMap.has(targetCompanyId)) {
+            const aggregatedCompany = companyMap.get(targetCompanyId);
+            console.log(`[디버깅] 씨엠피월드 집계 결과:`, aggregatedCompany);
+          } else {
+            console.log(`[디버깅] 씨엠피월드 집계 결과: companyMap에 없음`);
+            console.log(`[디버깅] companyMap에 있는 업체 ID들:`, Array.from(companyMap.keys()));
+          }
+          
+          // 평균 흡수율 계산 및 배열로 변환
+          let aggregatedData = Array.from(companyMap.values()).map(company => {
+            const absorptionRate = company.total_prescription_amount > 0
+              ? company.total_absorption_rate / company.total_prescription_amount
+              : 0;
+            
+            const { total_absorption_rate, total_prescription_amount, ...cleanCompany } = company;
+            return {
+              ...cleanCompany,
+              absorption_rate: absorptionRate
+            };
+          });
+          
+          // 디버깅: 집계 후 최종 데이터 확인
+          const finalCompanyData = aggregatedData.find(item => item.company_id === targetCompanyId);
+          if (finalCompanyData) {
+            console.log(`[디버깅] 씨엠피월드 최종 집계 데이터:`, finalCompanyData);
+          } else {
+            console.log(`[디버깅] 씨엠피월드 최종 집계 데이터: 없음`);
+          }
+          
+          // 모든 승인된 업체 조회하여 실적이 없는 업체도 포함
+          const { data: allCompanies } = await supabase
+            .from('companies')
+            .select('id, company_name, company_group, business_registration_number, representative_name')
+            .eq('approval_status', 'approved')
+            .eq('status', 'active')
+            .eq('user_type', 'user');
+          
+          if (allCompanies) {
+            let filteredCompanies = allCompanies;
+            if (selectedCompanyGroup.value) {
+              filteredCompanies = allCompanies.filter(c => c.company_group === selectedCompanyGroup.value);
+            }
+            
+            // 디버깅: 씨엠피월드 업체 정보 확인
+            const targetCompany = allCompanies.find(c => c.id === targetCompanyId);
+            if (targetCompany) {
+              console.log(`[디버깅] 씨엠피월드 업체 정보:`, targetCompany);
+              console.log(`[디버깅] 씨엠피월드 필터링 여부:`, selectedCompanyGroup.value ? `필터=${selectedCompanyGroup.value}, 업체그룹=${targetCompany.company_group}` : '필터 없음');
+            }
+            
+            const existingCompanyIds = new Set(aggregatedData.map(item => item.company_id));
+            const missingCompanies = filteredCompanies
+              .filter(company => !existingCompanyIds.has(company.id))
+              .map(company => ({
+                company_id: company.id,
+                company_name: company.company_name,
+                company_group: company.company_group || '',
+                business_registration_number: company.business_registration_number || '',
+                representative_name: company.representative_name || '',
+                prescription_qty: 0,
+                prescription_amount: 0,
+                payment_amount: 0,
+                absorption_rate: 0
+              }));
+            
+            aggregatedData = [...aggregatedData, ...missingCompanies];
+          }
+          
+          // 디버깅: 최종 statisticsData 확인
+          const finalStatisticsData = aggregatedData.find(item => item.company_id === targetCompanyId);
+          if (finalStatisticsData) {
+            console.log(`[디버깅] 씨엠피월드 최종 statisticsData:`, finalStatisticsData);
+          }
+          
+          statisticsData.value = aggregatedData;
+        }
+      } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
+        // 병원별 통계: 필터에 따라 집계 방식 변경
+        if (hospitalStatisticsFilter.value === 'product') {
+          // 병원 + 제품별 통계: (client_id, product_id) 조합별로 집계
+          const hospitalProductMap = new Map();
+          
+          statisticsDataFromTable.forEach(item => {
+            const key = `${item.client_id}_${item.product_id}`;
+            if (!hospitalProductMap.has(key)) {
+              hospitalProductMap.set(key, {
+                hospital_id: item.client_id,
+                hospital_name: item.hospital_name || '',
+                business_registration_number: item.hospital_business_registration_number || '',
+                address: item.address || '',
+                product_id: item.product_id,
+                product_name: item.product_name || '',
+                insurance_code: item.insurance_code || '',
+                price: item.price || 0,
+                prescription_qty: 0,
+                prescription_amount: 0,
+                payment_amount: 0,
+                total_absorption_rate: 0,
+                total_prescription_amount: 0,
+                companyGroups: new Set(),
+                companyNames: new Set()
+              });
+            }
+            
+            const hospitalProduct = hospitalProductMap.get(key);
+            hospitalProduct.prescription_qty += item.prescription_qty || 0;
+            hospitalProduct.prescription_amount += item.prescription_amount || 0;
+            hospitalProduct.payment_amount += item.payment_amount || 0;
+            hospitalProduct.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
+            hospitalProduct.total_prescription_amount += item.prescription_amount || 0;
+            
+            // hospital_name이 없으면 현재 항목의 hospital_name으로 업데이트
+            if (!hospitalProduct.hospital_name && item.hospital_name) {
+              hospitalProduct.hospital_name = item.hospital_name;
+            }
+            if (!hospitalProduct.business_registration_number && item.hospital_business_registration_number) {
+              hospitalProduct.business_registration_number = item.hospital_business_registration_number;
+            }
+            if (!hospitalProduct.address && item.address) {
+              hospitalProduct.address = item.address;
+            }
+            if (!hospitalProduct.product_name && item.product_name) {
+              hospitalProduct.product_name = item.product_name;
+            }
+            if (!hospitalProduct.insurance_code && item.insurance_code) {
+              hospitalProduct.insurance_code = item.insurance_code;
+            }
+            
+            if (item.company_group) {
+              hospitalProduct.companyGroups.add(item.company_group);
+            }
+            if (item.company_name) {
+              hospitalProduct.companyNames.add(item.company_name);
+            }
+          });
+          
+          // 평균 흡수율 계산 및 배열로 변환
+          let aggregatedHospitalData = Array.from(hospitalProductMap.values()).map(item => {
+            const absorptionRate = item.total_prescription_amount > 0
+              ? item.total_absorption_rate / item.total_prescription_amount
+              : 0;
+            
+            const { total_absorption_rate, total_prescription_amount, companyGroups, companyNames, ...cleanItem } = item;
+            return {
+              ...cleanItem,
+              absorption_rate: absorptionRate,
+              company_groups: Array.from(companyGroups).sort().join(', '),
+              company_names: Array.from(companyNames).sort().join(', ')
+            };
+          });
+          
+          // hospital_name이나 business_registration_number가 없는 경우 clients 테이블에서 조회하여 채우기
+          const hospitalsNeedingData = aggregatedHospitalData.filter(h => 
+            (!h.hospital_name || !h.business_registration_number) && h.hospital_id
+          );
+          if (hospitalsNeedingData.length > 0) {
+            const hospitalIds = hospitalsNeedingData.map(h => h.hospital_id);
+            const { data: clientsData } = await supabase
+              .from('clients')
+              .select('id, name, business_registration_number, address')
+              .in('id', hospitalIds);
+            
+            if (clientsData) {
+              const clientsMap = new Map(clientsData.map(c => [c.id, c]));
+              aggregatedHospitalData = aggregatedHospitalData.map(hospital => {
+                if (hospital.hospital_id) {
+                  const client = clientsMap.get(hospital.hospital_id);
+                  if (client) {
+                    return {
+                      ...hospital,
+                      hospital_name: hospital.hospital_name || client.name || '',
+                      business_registration_number: hospital.business_registration_number || client.business_registration_number || '',
+                      address: hospital.address || client.address || ''
+                    };
+                  }
+                }
+                return hospital;
+              });
+            }
+          }
+          
+          // product_name이 없는 경우 products 테이블에서 조회하여 채우기
+          const productsNeedingData = aggregatedHospitalData.filter(h => !h.product_name && h.product_id);
+          if (productsNeedingData.length > 0) {
+            const productIds = productsNeedingData.map(h => h.product_id);
+            const { data: productsData } = await supabase
+              .from('products')
+              .select('id, product_name, insurance_code, price')
+              .in('id', productIds);
+            
+            if (productsData) {
+              const productsMap = new Map(productsData.map(p => [p.id, p]));
+              aggregatedHospitalData = aggregatedHospitalData.map(item => {
+                if (item.product_id) {
+                  const product = productsMap.get(item.product_id);
+                  if (product) {
+                    return {
+                      ...item,
+                      product_name: item.product_name || product.product_name || '',
+                      insurance_code: item.insurance_code || product.insurance_code || '',
+                      price: item.price || product.price || 0
+                    };
+                  }
+                }
+                return item;
+              });
+            }
+          }
+          
+          statisticsData.value = aggregatedHospitalData;
+        } else {
+          // 병원별 통계: client_id로 GROUP BY하여 집계
+          const hospitalMap = new Map();
+          const hospitalCompanyMap = new Map();
+          
+          statisticsDataFromTable.forEach(item => {
+            const clientId = item.client_id;
+            if (!hospitalMap.has(clientId)) {
+              hospitalMap.set(clientId, {
+                hospital_id: clientId,
+                hospital_name: item.hospital_name || '',
+                hospital_business_registration_number: item.hospital_business_registration_number || '',
+                address: item.address || '',
+                prescription_qty: 0,
+                prescription_amount: 0,
+                payment_amount: 0,
+                total_absorption_rate: 0,
+                total_prescription_amount: 0,
+                companyGroups: new Set(),
+                companyNames: new Set()
+              });
+              hospitalCompanyMap.set(clientId, {
+                companyGroups: new Set(),
+                companyNames: new Set()
+              });
+            }
+            
+            const hospital = hospitalMap.get(clientId);
+            hospital.prescription_qty += item.prescription_qty || 0;
+            hospital.prescription_amount += item.prescription_amount || 0;
+            hospital.payment_amount += item.payment_amount || 0;
+            hospital.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
+            hospital.total_prescription_amount += item.prescription_amount || 0;
+            
+            // hospital_name이 없으면 현재 항목의 hospital_name으로 업데이트
+            if (!hospital.hospital_name && item.hospital_name) {
+              hospital.hospital_name = item.hospital_name;
+            }
+            if (!hospital.hospital_business_registration_number && item.hospital_business_registration_number) {
+              hospital.hospital_business_registration_number = item.hospital_business_registration_number;
+            }
+            if (!hospital.address && item.address) {
+              hospital.address = item.address;
+            }
+            
+            if (item.company_group) {
+              hospital.companyGroups.add(item.company_group);
+            }
+            if (item.company_name) {
+              hospital.companyNames.add(item.company_name);
+            }
+          });
+          
+          // 평균 흡수율 계산 및 배열로 변환
+          let aggregatedHospitalData = Array.from(hospitalMap.values()).map(hospital => {
+            const absorptionRate = hospital.total_prescription_amount > 0
+              ? hospital.total_absorption_rate / hospital.total_prescription_amount
+              : 0;
+            
+            const { total_absorption_rate, total_prescription_amount, companyGroups, companyNames, hospital_business_registration_number, ...cleanHospital } = hospital;
+            return {
+              ...cleanHospital,
+              business_registration_number: hospital_business_registration_number || '',
+              absorption_rate: absorptionRate,
+              company_groups: Array.from(companyGroups).sort().join(', '),
+              company_names: Array.from(companyNames).sort().join(', ')
+            };
+          });
+          
+          // hospital_name이나 business_registration_number가 없는 경우 clients 테이블에서 조회하여 채우기
+          const hospitalsNeedingData = aggregatedHospitalData.filter(h => 
+            (!h.hospital_name || !h.business_registration_number) && h.hospital_id
+          );
+          if (hospitalsNeedingData.length > 0) {
+            const hospitalIds = hospitalsNeedingData.map(h => h.hospital_id);
+            const { data: clientsData } = await supabase
+              .from('clients')
+              .select('id, name, business_registration_number, address')
+              .in('id', hospitalIds);
+            
+            if (clientsData) {
+              const clientsMap = new Map(clientsData.map(c => [c.id, c]));
+              aggregatedHospitalData = aggregatedHospitalData.map(hospital => {
+                if (hospital.hospital_id) {
+                  const client = clientsMap.get(hospital.hospital_id);
+                  if (client) {
+                    return {
+                      ...hospital,
+                      hospital_name: hospital.hospital_name || client.name || '',
+                      business_registration_number: hospital.business_registration_number || client.business_registration_number || '',
+                      address: hospital.address || client.address || ''
+                    };
+                  }
+                }
+                return hospital;
+              });
+            }
+          }
+          
+          statisticsData.value = aggregatedHospitalData;
+        }
+      } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
+        // 제품별 통계: product_id로 GROUP BY하여 집계
+        const productMap = new Map();
+        
+        statisticsDataFromTable.forEach(item => {
+          const productId = item.product_id;
+          if (!productMap.has(productId)) {
+            productMap.set(productId, {
+              product_id: productId,
+              product_name: item.product_name,
+              insurance_code: item.insurance_code,
+              price: item.price,
+              prescription_qty: 0,
+              prescription_amount: 0,
+              payment_amount: 0,
+              total_absorption_rate: 0,
+              total_prescription_amount: 0
+            });
+          }
+          
+          const product = productMap.get(productId);
+          product.prescription_qty += item.prescription_qty || 0;
+          product.prescription_amount += item.prescription_amount || 0;
+          product.payment_amount += item.payment_amount || 0;
+          product.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
+          product.total_prescription_amount += item.prescription_amount || 0;
+        });
+        
+        // 평균 흡수율 계산 및 배열로 변환
+        statisticsData.value = Array.from(productMap.values()).map(product => {
+          const absorptionRate = product.total_prescription_amount > 0
+            ? product.total_absorption_rate / product.total_prescription_amount
+            : 0;
+          
+          const { total_absorption_rate, total_prescription_amount, ...cleanProduct } = product;
+          return {
+            ...cleanProduct,
+            absorption_rate: absorptionRate
+          };
+        });
+      } else {
+        statisticsData.value = statisticsDataFromTable;
+      }
+      
       loading.value = false;
       return;
     }
     
-    // 통계 테이블에 데이터가 없으면 기존 방식으로 계산
-    console.log('통계 테이블에 데이터가 없어 기존 방식으로 계산합니다.');
+    // 통계 테이블에 데이터가 없으면 실적 데이터에서 직접 계산
+    console.log('통계 테이블에 데이터가 없어 실적 데이터에서 직접 계산합니다.');
     
-    // 실적 데이터 조회
-    let performanceQuery = supabase
-      .from('performance_records')
-      .select(`
-        *,
-        companies!inner(id, company_name, company_group, business_registration_number, representative_name),
-        products!inner(id, product_name, price, insurance_code),
-        clients!inner(id, name, business_registration_number, address)
-      `)
-      .eq('settlement_month', selectedSettlementMonth.value)
-      .neq('review_action', '삭제'); // 삭제된 레코드 제외
+    // 실적 데이터 조회 (업체별 등록 현황과 동일한 조건)
+    let performanceQuery;
+    if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
+      // 업체별 통계일 때는 실적 검수 방식으로 조회 (review_status='완료', review_action !== '삭제')
+      performanceQuery = supabase
+        .from('performance_records')
+        .select(`
+          id,
+          company_id,
+          client_id,
+          product_id,
+          review_status,
+          prescription_qty,
+          created_at,
+          commission_rate,
+          review_action,
+          companies(id, company_name, company_group, business_registration_number, representative_name),
+          products(price),
+          clients(id, name, business_registration_number, address)
+        `)
+        .eq('settlement_month', selectedSettlementMonth.value)
+        .eq('review_status', '완료') // 실적 검수 방식: 완료 상태만 포함
+        .or('review_action.is.null,review_action.neq.삭제'); // 실적 검수 방식: null(정상) 또는 삭제가 아닌 항목만 포함
+    } else {
+      // 다른 통계 타입일 때는 기존 방식
+      performanceQuery = supabase
+        .from('performance_records')
+        .select(`
+          *,
+          companies(id, company_name, company_group, business_registration_number, representative_name),
+          products(id, product_name, price, insurance_code),
+          clients(id, name, business_registration_number, address)
+        `)
+        .eq('settlement_month', selectedSettlementMonth.value);
+    }
 
 
     // 업체 필터링
@@ -1021,12 +1605,12 @@ async function fetchStatistics() {
 
     // 전체 데이터 가져오기 (배치 처리)
     let allData = [];
-    let from = 0;
-    const batchSize = 1000;
+    let performanceFrom = 0;
+    const performanceBatchSize = 1000;
 
     while (true) {
       const { data, error } = await performanceQuery
-        .range(from, from + batchSize - 1)
+        .range(performanceFrom, performanceFrom + performanceBatchSize - 1)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -1042,14 +1626,14 @@ async function fetchStatistics() {
         break;
       }
 
-      console.log(`배치 ${Math.floor(from / batchSize) + 1}: ${data.length}개 조회됨 (정산월: ${selectedSettlementMonth.value})`);
+      console.log(`배치 ${Math.floor(performanceFrom / performanceBatchSize) + 1}: ${data.length}개 조회됨 (정산월: ${selectedSettlementMonth.value})`);
       allData = allData.concat(data);
 
-      if (data.length < batchSize) {
+      if (data.length < performanceBatchSize) {
         break;
       }
 
-      from += batchSize;
+      performanceFrom += performanceBatchSize;
       
       // 컴포넌트가 언마운트되었으면 중단
       if (!isMounted.value) {
@@ -1164,6 +1748,25 @@ async function fetchStatistics() {
         // 업체별 통계
         console.log('업체별 통계 집계 시작, 흡수율 데이터 개수:', Object.keys(absorptionRates).length, '통계 필터:', companyStatisticsFilter.value);
         try {
+          // 모든 승인된 업체 조회 (실적이 없는 업체도 포함하기 위해)
+          let filteredCompanies = [];
+          const { data: allCompanies, error: companiesError } = await supabase
+            .from('companies')
+            .select('id, company_name, company_group, business_registration_number, representative_name')
+            .eq('approval_status', 'approved')
+            .eq('status', 'active')
+            .eq('user_type', 'user');
+          
+          if (companiesError) {
+            console.warn('업체 목록 조회 오류:', companiesError);
+          } else {
+            // 구분 필터가 있으면 적용
+            filteredCompanies = allCompanies || [];
+            if (selectedCompanyGroup.value && allCompanies) {
+              filteredCompanies = allCompanies.filter(c => c.company_group === selectedCompanyGroup.value);
+            }
+          }
+          
           if (companyStatisticsFilter.value === 'hospital') {
             // 업체 + 병의원별 통계
             statisticsData.value = aggregateByCompanyAndHospital(allData, absorptionRates);
@@ -1174,6 +1777,29 @@ async function fetchStatistics() {
             // 전체 (업체별만)
             statisticsData.value = aggregateByCompany(allData, absorptionRates);
           }
+          
+          // 실적이 없는 업체도 포함 (0 값으로)
+          if (filteredCompanies && filteredCompanies.length > 0) {
+            const existingCompanyIds = new Set(statisticsData.value.map(item => item.company_id));
+            const missingCompanies = filteredCompanies
+              .filter(company => !existingCompanyIds.has(company.id))
+              .map(company => ({
+                company_id: company.id,
+                company_name: company.company_name,
+                company_group: company.company_group || '',
+                business_registration_number: company.business_registration_number || '',
+                representative_name: company.representative_name || '',
+                prescription_qty: 0,
+                prescription_amount: 0,
+                payment_amount: 0,
+                absorption_rate: 0,
+                hospital_count: 0,
+                product_count: 0
+              }));
+            
+            statisticsData.value = [...statisticsData.value, ...missingCompanies];
+          }
+          
           console.log('집계 완료, 결과 개수:', statisticsData.value.length);
           if (statisticsData.value.length === 0) {
             console.warn('집계 결과가 비어있습니다. 데이터 샘플:', allData.slice(0, 2));
@@ -1404,8 +2030,9 @@ function aggregateByCompany(data, absorptionRates = {}) {
   
   data.forEach((record, index) => {
     try {
-    // 삭제 처리된 건은 제외
+    // 실적 검수 방식: 삭제 처리된 건 제외
     if (record.review_action === '삭제') return;
+    // 실적 검수 방식: 완료 상태만 포함 (이미 쿼리에서 필터링됨)
     
     const companyId = record.company_id;
     if (!companyId) {
@@ -1688,8 +2315,8 @@ function aggregateByCompanyAndHospital(data, absorptionRates = {}) {
   
   data.forEach((record, index) => {
     try {
-      // 삭제 처리된 건은 제외
-      if (record.review_action === '삭제') return;
+      // 삭제 처리된 건도 포함 (업체별 등록 현황과 동일한 조건)
+      // if (record.review_action === '삭제') return;
       
       const companyId = record.company_id;
       const hospitalId = record.client_id;
@@ -1792,8 +2419,8 @@ function aggregateByCompanyAndProduct(data, absorptionRates = {}) {
   
   data.forEach((record, index) => {
     try {
-      // 삭제 처리된 건은 제외
-      if (record.review_action === '삭제') return;
+      // 삭제 처리된 건도 포함 (업체별 등록 현황과 동일한 조건)
+      // if (record.review_action === '삭제') return;
       
       const companyId = record.company_id;
       const productId = record.product_id;
@@ -2486,14 +3113,14 @@ function onProductStatisticsFilterChange() {
   }
 }
 
-// 통계 계산 함수 (Edge Function 호출)
+// 통계 계산 함수 (모든 타입 한 번에 계산하여 테이블에 저장)
 async function calculateStatistics() {
   if (!selectedSettlementMonth.value) {
     alert('정산월을 선택해주세요.');
     return;
   }
 
-  if (!confirm(`${selectedSettlementMonth.value} 정산월의 통계를 계산하시겠습니까?\n이 작업은 시간이 걸릴 수 있습니다.`)) {
+  if (!confirm(`${selectedSettlementMonth.value} 정산월의 통계를 계산하시겠습니까?\n업체 + 병원 + 제품 조합별로 처방수량과 처방액 합계를 저장합니다.\n이 작업은 시간이 걸릴 수 있습니다.`)) {
     return;
   }
 
@@ -2504,32 +3131,9 @@ async function calculateStatistics() {
       settlement_month: selectedSettlementMonth.value
     };
 
-    // 통계 타입 추가
-    if (statisticsType.value) {
-      requestBody.statistics_type = statisticsType.value;
-    }
-
-    // 업체별 통계일 때 추가 파라미터
-    if (statisticsType.value === 'company') {
-      if (companyStatisticsFilter.value) {
-        requestBody.company_statistics_filter = companyStatisticsFilter.value;
-      }
-      if (selectedCompanyGroup.value) {
-        requestBody.company_group = selectedCompanyGroup.value;
-      }
-    }
-
-    // 병의원별 통계일 때 추가 파라미터
-    if (statisticsType.value === 'hospital') {
-      if (hospitalStatisticsFilter.value) {
-        requestBody.hospital_statistics_filter = hospitalStatisticsFilter.value;
-      }
-    }
-
-
     console.log('통계 계산 요청:', requestBody);
     
-    // 직접 fetch를 사용하여 에러 응답 본문을 읽을 수 있도록 함
+    // Edge Function 호출
     const supabaseConfig = await import('@/config/supabase.js')
     const supabaseUrl = supabaseConfig.default.url || 'https://vbmmfuraxvxlfpewqrsm.supabase.co'
     const { data: { session } } = await supabase.auth.getSession()
@@ -2552,29 +3156,9 @@ async function calculateStatistics() {
 
     if (!response.ok) {
       let errorMessage = '통계 계산 중 오류가 발생했습니다.'
-      let errorDetails = null
       try {
         const errorJson = JSON.parse(responseText)
         errorMessage = errorJson.error || errorJson.message || errorMessage
-        errorDetails = errorJson.insertionErrors || errorJson.details
-        console.error('에러 상세:', errorJson)
-        
-        // 삽입 오류 상세가 있으면 메시지에 포함
-        if (errorDetails && Array.isArray(errorDetails) && errorDetails.length > 0) {
-          const firstError = errorDetails[0]
-          if (firstError.error) {
-            errorMessage += `\n\n상세: ${firstError.error}`
-          }
-          if (firstError.code) {
-            errorMessage += `\n코드: ${firstError.code}`
-          }
-          if (firstError.details) {
-            errorMessage += `\n세부사항: ${firstError.details}`
-          }
-          if (firstError.hint) {
-            errorMessage += `\n힌트: ${firstError.hint}`
-          }
-        }
       } catch {
         errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`
       }
@@ -2583,14 +3167,12 @@ async function calculateStatistics() {
 
     const data = JSON.parse(responseText)
     console.log('통계 계산 성공:', data)
-
-    if (!data) {
-      throw new Error('통계 계산 응답이 없습니다.')
-    }
-
-    alert(`통계 계산이 완료되었습니다.\n생성된 통계: ${data?.count || 0}건`)
     
-    // 통계 계산 후 데이터 다시 로드
+    const alertMessage = `통계 계산이 완료되었습니다.\n총 저장된 조합: ${data?.count || data?.inserted || 0}건\n(업체 + 병원 + 제품 조합별)`
+    
+    alert(alertMessage)
+    
+    // 통계 계산 후 테이블에서 데이터 다시 로드
     await fetchStatistics()
 
   } catch (err) {
@@ -2642,11 +3224,7 @@ async function downloadExcel() {
   } else if (statisticsType.value === 'company' && drillDownType.value === 'product') {
     headers = ['No', '제품명', '처방수량', '처방액', '병원 수'];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-    if (hospitalStatisticsFilter.value === 'product') {
-      headers = ['No', '병의원명', '사업자등록번호', '주소', '담당업체 구분', '담당업체', '제품명', '처방수량', '처방액', '흡수율(%)'];
-    } else {
-      headers = ['No', '병의원명', '사업자등록번호', '주소', '담당업체 구분', '담당업체', '처방수량', '처방액', '흡수율(%)'];
-    }
+    headers = ['No', '병의원명', '사업자등록번호', '주소', '담당업체 구분', '담당업체', '처방수량', '처방액', '흡수율(%)'];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
     headers = ['No', '제품명', '처방수량', '처방액'];
   } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
@@ -2705,32 +3283,18 @@ async function downloadExcel() {
         row.hospital_count || 0
       ];
     } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-      if (hospitalStatisticsFilter.value === 'product') {
-        rowData = [
-          index + 1,
-          row.hospital_name || '',
-          row.business_registration_number || '',
-          row.address || '',
-          row.company_groups || '',
-          row.company_names || '',
-          row.product_name || '',
-          Number(row.prescription_qty) || 0,
-          Number(row.prescription_amount) || 0,
-          row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
-        ];
-      } else {
-        rowData = [
-          index + 1,
-          row.hospital_name || '',
-          row.business_registration_number || '',
-          row.address || '',
-          row.company_groups || '',
-          row.company_names || '',
-          Number(row.prescription_qty) || 0,
-          Number(row.prescription_amount) || 0,
-          row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
-        ];
-      }
+      // 병원별 통계: hospital_business_registration_number 사용
+      rowData = [
+        index + 1,
+        row.hospital_name || '',
+        row.hospital_business_registration_number || row.business_registration_number || '',
+        row.address || '',
+        row.company_groups || '',
+        row.company_names || '',
+        Number(row.prescription_qty) || 0,
+        Number(row.prescription_amount) || 0,
+        row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
+      ];
     } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
       rowData = [
         index + 1,
@@ -2806,10 +3370,8 @@ async function downloadExcel() {
       let numStartCol = 3;
       if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
         numStartCol = 6; // 업체별 통계: 6번째부터 (처방수량)
-      } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && hospitalStatisticsFilter.value === 'all') {
-        numStartCol = 7; // 병원별 통계(전체): 7번째부터 (처방수량)
-      } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && hospitalStatisticsFilter.value === 'product') {
-        numStartCol = 8; // 병원별 통계(제품별): 8번째부터 (처방수량)
+      } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
+        numStartCol = 7; // 병원별 통계: 7번째부터 (처방수량)
       }
       
       if (colNumber >= numStartCol) {
@@ -2832,7 +3394,7 @@ async function downloadExcel() {
       
       // 흡수율 컬럼 정렬
       if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-        const absorptionCol = hospitalStatisticsFilter.value === 'product' ? 10 : 9;
+        const absorptionCol = 9; // 병원별 통계: 9번째 컬럼 (흡수율)
         if (colNumber === absorptionCol) {
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
         }
@@ -2849,22 +3411,22 @@ async function downloadExcel() {
     const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalPaymentAmount / totalPrescriptionAmount) : 0;
     
     totalRowData = ['합계', '', '', '', '', 
-      Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-      Number(totalAmount.value.replace(/,/g, '')),
-      Number(totalPaymentAmount.value.replace(/,/g, '')),
+      Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
+      Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+      Number((totalPaymentAmount.value || '0').toString().replace(/,/g, '')),
       (avgAbsorptionRate * 100).toFixed(1) + '%'
     ];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
     totalRowData = ['합계', '', 
-      Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-      Number(totalAmount.value.replace(/,/g, '')),
-      totalProductCount.value
+      Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
+      Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+      totalProductCount.value || 0
     ];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'product') {
     totalRowData = ['합계', '', 
-      Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-      Number(totalAmount.value.replace(/,/g, '')),
-      totalHospitalCount.value
+      Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
+      Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+      totalHospitalCount.value || 0
     ];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
     // 평균 흡수율 계산
@@ -2872,56 +3434,48 @@ async function downloadExcel() {
     const totalPaymentAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.payment_amount) || 0), 0);
     const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalPaymentAmount / totalPrescriptionAmount) : 0;
     
-    if (hospitalStatisticsFilter.value === 'product') {
-      totalRowData = ['합계', '', '', '', '', '', 
-        Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-        Number(totalAmount.value.replace(/,/g, '')),
-        (avgAbsorptionRate * 100).toFixed(1) + '%'
-      ];
-    } else {
-      totalRowData = ['합계', '', '', '', '', 
-        Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-        Number(totalAmount.value.replace(/,/g, '')),
-        (avgAbsorptionRate * 100).toFixed(1) + '%'
-      ];
-    }
+    totalRowData = ['합계', '', '', '', '', 
+      Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
+      Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+      (avgAbsorptionRate * 100).toFixed(1) + '%'
+    ];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
     totalRowData = ['합계', '', 
-      Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-      Number(totalAmount.value.replace(/,/g, ''))
+      Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
+      Number((totalAmount.value || '0').toString().replace(/,/g, ''))
     ];
   } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
     if (productStatisticsFilter.value === 'company') {
       totalRowData = ['합계', '', '', '', '', '', 
-        Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-        Number(totalAmount.value.replace(/,/g, '')),
-        Number(totalPaymentAmount.value.replace(/,/g, ''))
+        Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
+        Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+        Number((totalPaymentAmount.value || '0').toString().replace(/,/g, ''))
       ];
     } else if (productStatisticsFilter.value === 'hospital') {
       totalRowData = ['합계', '', '', '', '', '', 
-        Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-        Number(totalAmount.value.replace(/,/g, '')),
-        Number(totalPaymentAmount.value.replace(/,/g, ''))
+        Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
+        Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+        Number((totalPaymentAmount.value || '0').toString().replace(/,/g, ''))
       ];
     } else {
       const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
       const totalPaymentAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.payment_amount) || 0), 0);
       const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalPaymentAmount / totalPrescriptionAmount) : 0;
       totalRowData = ['합계', '', '', 
-        Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-        Number(totalAmount.value.replace(/,/g, '')),
+        Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
+        Number((totalAmount.value || '0').toString().replace(/,/g, '')),
         (avgAbsorptionRate * 100).toFixed(1) + '%'
       ];
     }
   } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
     totalRowData = ['합계', '', 
-      Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-      Number(totalAmount.value.replace(/,/g, ''))
+      Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
+      Number((totalAmount.value || '0').toString().replace(/,/g, ''))
     ];
   } else if (statisticsType.value === 'product' && drillDownType.value === 'hospital') {
     totalRowData = ['합계', '', 
-      Number(totalQty.value.replace(/,/g, '').replace('.0', '')),
-      Number(totalAmount.value.replace(/,/g, ''))
+      Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
+      Number((totalAmount.value || '0').toString().replace(/,/g, ''))
     ];
   }
   const totalRow = worksheet.addRow(totalRowData);
@@ -2944,10 +3498,8 @@ async function downloadExcel() {
     let numStartCol = 3;
     if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
       numStartCol = 6; // 업체별 통계: 6번째부터 (처방수량)
-    } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && hospitalStatisticsFilter.value === 'all') {
-        numStartCol = 7; // 병원별 통계(전체): 7번째부터 (처방수량)
-      } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && hospitalStatisticsFilter.value === 'product') {
-        numStartCol = 8; // 병원별 통계(제품별): 8번째부터 (처방수량)
+    } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
+      numStartCol = 7; // 병원별 통계: 7번째부터 (처방수량)
     }
     
     if (colNumber >= numStartCol) {
@@ -2965,7 +3517,7 @@ async function downloadExcel() {
     
     // 흡수율 컬럼 정렬
     if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-      const absorptionCol = hospitalStatisticsFilter.value === 'product' ? 10 : 9;
+      const absorptionCol = 9; // 병원별 통계: 9번째 컬럼 (흡수율)
       if (colNumber === absorptionCol) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
