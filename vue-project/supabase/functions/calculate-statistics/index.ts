@@ -11,8 +11,6 @@ serve(async (req) => {
     return new Response('ok', { headers })
   }
 
-  console.log('=== 통계 갱신 시작 ===')
-
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -28,11 +26,8 @@ serve(async (req) => {
       )
     }
 
-    console.log(`정산월: ${settlement_month}`)
-
     // 기존 통계 삭제 (해당 정산월의 모든 통계 삭제)
-    console.log('기존 통계 삭제 시작...')
-    const { error: deleteError, count: deleteCount } = await supabase
+    const { error: deleteError } = await supabase
       .from('performance_statistics')
       .delete()
       .eq('settlement_month', settlement_month)
@@ -40,8 +35,6 @@ serve(async (req) => {
 
     if (deleteError) {
       console.error('기존 통계 삭제 오류:', deleteError)
-    } else {
-      console.log(`기존 통계 삭제 완료: ${deleteCount || 0}건`)
     }
 
     // 실적 데이터 조회 (실적 검수 방식과 동일)
@@ -70,47 +63,33 @@ serve(async (req) => {
     let allDataRaw: any[] = []
     let from = 0
     const batchSize = 1000
-    let batchCount = 0
-
-    console.log(`=== performance_records 조회 시작 ===`)
-    console.log(`정산월: ${settlement_month}`)
-    console.log(`조건: review_status='완료' AND (review_action IS NULL OR review_action != '삭제')`)
 
     while (true) {
-      batchCount++
       const { data, error } = await query
         .range(from, from + batchSize - 1)
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error(`배치 ${batchCount} 조회 오류:`, error)
+        console.error('데이터 조회 오류:', error)
         throw new Error(`데이터 조회 오류: ${error.message}`)
       }
 
       if (!data || data.length === 0) {
-        console.log(`배치 ${batchCount}: 데이터 없음, 조회 종료`)
         break
       }
 
       allDataRaw = allDataRaw.concat(data)
-      console.log(`배치 ${batchCount}: ${data.length}개 조회 (누적: ${allDataRaw.length}개)`)
 
       if (data.length < batchSize) {
-        console.log(`마지막 배치 (${data.length}개 < ${batchSize}개), 조회 종료`)
         break
       }
       from += batchSize
     }
 
-    console.log(`=== performance_records 조회 완료 ===`)
-    console.log(`총 조회된 데이터: ${allDataRaw.length}개`)
-
     // 필터링: review_action이 '삭제'가 아닌 것만 포함
     const allData = allDataRaw.filter(record => {
       return record.review_action === null || record.review_action !== '삭제'
     })
-
-    console.log(`필터링 후 데이터: ${allData.length}개`)
 
     if (allData.length === 0) {
       return new Response(
@@ -136,12 +115,8 @@ serve(async (req) => {
         })
       }
     }
-    console.log(`흡수율 데이터: ${Object.keys(absorptionRates).length}개`)
 
     // 통계 계산: (company_id, client_id, product_id) 조합별로 집계
-    console.log(`\n=== 통계 계산 시작 ===`)
-    console.log(`집계 기준: settlement_month, company_id, client_id, product_id`)
-    
     const statisticsMap = new Map<string, any>()
 
     allData.forEach(record => {
@@ -204,51 +179,25 @@ serve(async (req) => {
       }
     })
 
-    console.log(`통계 집계 완료: ${statistics.length}개 조합`)
-
     // 통계 데이터 저장
-    console.log(`\n=== 통계 데이터 저장 시작 ===`)
-    console.log(`저장할 통계 데이터: ${statistics.length}개`)
-    
     if (statistics.length > 0) {
       const batchSize = 1000
-      let totalInserted = 0
-      let totalErrors = 0
       
       for (let i = 0; i < statistics.length; i += batchSize) {
         const batch = statistics.slice(i, i + batchSize)
-        const batchNumber = Math.floor(i / batchSize) + 1
-
-        console.log(`배치 ${batchNumber} 삽입 시도: ${batch.length}개 (${i + 1}~${Math.min(i + batchSize, statistics.length)})`)
         
-        const { data: insertData, error: insertError } = await supabase
+        const { error: insertError } = await supabase
           .from('performance_statistics')
           .insert(batch)
-          .select()
 
         if (insertError) {
-          console.error(`❌ 배치 ${batchNumber} 삽입 오류:`, insertError)
-          console.error(`오류 상세:`, JSON.stringify(insertError, null, 2))
-          totalErrors++
-          throw new Error(`통계 저장 오류 (배치 ${batchNumber}): ${insertError.message}`)
-        } else {
-          const insertedCount = insertData?.length || 0
-          totalInserted += insertedCount
-          console.log(`✅ 배치 ${batchNumber} 삽입 완료: ${insertedCount}개`)
+          console.error('통계 저장 오류:', insertError)
+          throw new Error(`통계 저장 오류: ${insertError.message}`)
         }
-      }
-
-      console.log(`총 삽입 완료: ${totalInserted}개 / ${statistics.length}개`)
-      if (totalErrors > 0) {
-        console.error(`⚠️ 경고: ${totalErrors}개 배치에서 오류 발생`)
       }
     }
 
     // 최종 응답
-    console.log(`\n=== 최종 통계 데이터 요약 ===`)
-    console.log(`생성된 통계: ${statistics.length}개`)
-    console.log(`정산월: ${settlement_month}`)
-    
     const responseData: any = {
       message: 'Statistics calculated successfully',
       count: statistics.length,

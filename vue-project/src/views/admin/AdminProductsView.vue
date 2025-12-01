@@ -335,6 +335,7 @@ import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
 import * as XLSX from 'xlsx'
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils'
+import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages'
 
 
 // 컬럼 너비 한 곳에서 관리
@@ -457,12 +458,12 @@ const closeMonthlyRegisterModal = (force = false) => {
   monthlyRegisterLoading.value = false // 로딩 상태도 초기화
 }
 
-// 이번달부터 6개월 후까지의 월 목록 생성
+// 이전달부터 6개월 후까지의 월 목록 생성
 const generateTargetMonths = () => {
   const months = []
   const currentDate = new Date()
   
-  for (let i = 0; i < 7; i++) { // 이번달 포함 7개월
+  for (let i = -1; i < 6; i++) { // 이전달 포함 7개월
     const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1)
     const year = targetDate.getFullYear()
     const month = String(targetDate.getMonth() + 1).padStart(2, '0')
@@ -511,7 +512,8 @@ const executeMonthlyRegister = async () => {
       .eq('base_month', selectedSourceMonth.value)
 
     if (productsError) {
-      throw new Error('제품 데이터 조회 실패: ' + productsError.message)
+      const errorMessage = translateSupabaseError(productsError, '제품 데이터 조회');
+      throw new Error(errorMessage);
     }
 
     if (!sourceProducts || sourceProducts.length === 0) {
@@ -534,7 +536,8 @@ const executeMonthlyRegister = async () => {
       .eq('products.base_month', selectedSourceMonth.value)
 
     if (assignmentsError) {
-      throw new Error('업체 할당 데이터 조회 실패: ' + assignmentsError.message)
+      const errorMessage = translateSupabaseError(assignmentsError, '업체 할당 데이터 조회');
+      throw new Error(errorMessage);
     }
 
 
@@ -556,7 +559,8 @@ const executeMonthlyRegister = async () => {
       .select('id, insurance_code')
 
     if (insertError) {
-      throw new Error('제품 데이터 삽입 실패: ' + insertError.message)
+      const errorMessage = translateSupabaseError(insertError, '제품 데이터 삽입');
+      throw new Error(errorMessage);
     }
 
 
@@ -603,7 +607,9 @@ const executeMonthlyRegister = async () => {
     // 8. 복사 결과 검증 (개발용)
 
   } catch (error) {
-    alert('월별 등록 중 오류가 발생했습니다: ' + error.message)
+    console.error('월별 등록 오류:', error);
+    const errorMessage = translateGeneralError(error, '월별 등록');
+    alert(errorMessage);
     monthlyRegisterLoading.value = false // 오류 시에만 로딩 상태 해제
   }
 }
@@ -1125,13 +1131,16 @@ const handleFileUpload = async (event) => {
     const { error } = await supabase.from('products').insert(insertData)
 
     if (error) {
-      alert('업로드 실패: ' + error.message)
+      const errorMessage = translateSupabaseError(error, '엑셀 등록');
+      alert(`업로드 실패: ${errorMessage}`);
     } else {
       alert(`${insertData.length}건의 제품 데이터가 업로드되었습니다.`)
       await fetchProducts()
     }
   } catch (error) {
-    alert('파일 처리 중 오류가 발생했습니다.')
+    console.error('파일 처리 오류:', error);
+    const errorMessage = translateGeneralError(error, '파일 처리');
+    alert(errorMessage);
   } finally {
     // 엑셀 등록 로딩 종료
     excelLoading.value = false
@@ -1523,7 +1532,8 @@ const saveEdit = async (row) => {
     const { error } = await supabase.from('products').update(updateData).eq('id', row.id)
 
     if (error) {
-      alert('수정 실패: ' + error.message)
+      const errorMessage = translateSupabaseError(error, '제품 수정');
+      alert(`수정 실패: ${errorMessage}`);
       return
     }
 
@@ -1532,7 +1542,9 @@ const saveEdit = async (row) => {
 
     alert('수정되었습니다.')
   } catch (error) {
-    alert('수정 중 오류가 발생했습니다.')
+    console.error('수정 오류:', error);
+    const errorMessage = translateGeneralError(error, '제품 수정');
+    alert(errorMessage);
   }
 }
 
@@ -1549,7 +1561,9 @@ const deleteProduct = async (row) => {
     )
 
     if (rpcError) {
-      throw new Error(rpcError.message);
+      const errorMessage = translateSupabaseError(rpcError, '제품 참조 확인');
+      alert(`삭제 확인 중 오류: ${errorMessage}`);
+      return;
     }
 
     if (isReferenceExist != 0) {
@@ -1560,7 +1574,9 @@ const deleteProduct = async (row) => {
     const { error } = await supabase.from('products').delete().eq('id', row.id)
 
     if (error) {
-      throw new Error(error.message);
+      const errorMessage = translateSupabaseError(error, '제품 삭제');
+      alert(`삭제 실패: ${errorMessage}`);
+      return;
     }
 
     const index = products.value.findIndex((item) => item.id === row.id)
@@ -1570,7 +1586,9 @@ const deleteProduct = async (row) => {
 
     alert('삭제되었습니다.')
   } catch (error) {
-    alert('삭제 중 오류가 발생했습니다.');
+    console.error('삭제 오류:', error);
+    const errorMessage = translateGeneralError(error, '제품 삭제');
+    alert(errorMessage);
   }
 }
 
