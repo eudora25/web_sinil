@@ -165,6 +165,7 @@
           v-model:sortOrder="tableSortOrder"
           @sort="onTableSort"
           @unsort="onTableUnsort"
+          :rowClass="getRowClass"
 
           :pt="{
             wrapper: { style: 'min-width: 3100px;' },
@@ -1191,6 +1192,53 @@ async function loadAbsorptionAnalysisResults() {
       }
     }
 
+    // 프로모션 정보 조회 (색상 구분을 위해)
+    const productIds = [...new Set(allData.map(r => r.product_id).filter(id => id))];
+    const productInsuranceCodeMap = new Map();
+    let hospitalPerformanceMap = new Map();
+    
+    if (productIds.length > 0) {
+      // 제품 정보 조회
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('id, insurance_code')
+        .in('id', productIds);
+      
+      if (!productsError && productsData) {
+        productsData.forEach(p => {
+          if (p.insurance_code) {
+            productInsuranceCodeMap.set(p.id, String(p.insurance_code));
+          }
+        });
+      }
+
+      // 병원별 프로모션 실적 정보 조회
+      const insuranceCodes = Array.from(productInsuranceCodeMap.values());
+      const hospitalIds = [...new Set(allData.map(r => r.client_id).filter(id => id))];
+      const companyIds = [...new Set(allData.map(r => r.company_id).filter(id => id))];
+      
+      if (insuranceCodes.length > 0 && hospitalIds.length > 0 && companyIds.length > 0) {
+        const { data: hospitalPerf, error: hospitalPerfError } = await supabase
+          .from('promotion_product_hospital_performance')
+          .select(`
+            hospital_id,
+            first_performance_cso_id,
+            promotion_product_list!inner(insurance_code, final_commission_rate, promotion_start_date, promotion_end_date)
+          `)
+          .in('hospital_id', hospitalIds)
+          .in('first_performance_cso_id', companyIds)
+          .eq('has_performance', true);
+        
+        if (!hospitalPerfError && hospitalPerf) {
+          hospitalPerf.forEach(hp => {
+            const insuranceCode = String(hp.promotion_product_list?.insurance_code || '');
+            const key = `${hp.hospital_id}_${insuranceCode}_${hp.first_performance_cso_id}`;
+            hospitalPerformanceMap.set(key, hp.promotion_product_list);
+          });
+        }
+      }
+    }
+
     // 데이터 매핑 최적화 (배치 처리)
     const mappedData = allData.map((row, i) => {
         try {
@@ -1216,6 +1264,45 @@ async function loadAbsorptionAnalysisResults() {
             
             // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
             const finalPaymentAmount = Math.round(prescriptionAmount * (appliedAbsorptionRate / 100) * commissionRate);
+
+            // 프로모션 수수료율 적용 여부 확인
+            let isPromotionRateApplied = false;
+            const insuranceCode = productInsuranceCodeMap.get(row.product_id);
+            if (insuranceCode) {
+              const hospitalId = row.client_id;
+              const companyId = row.company_id;
+              const key = `${hospitalId}_${insuranceCode}_${companyId}`;
+              const promotionInfo = hospitalPerformanceMap.get(key);
+              
+              if (promotionInfo) {
+                // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
+                let isWithinPromotionPeriod = true;
+                
+                const settlementDate = new Date(row.settlement_month + '-01'); // 정산월의 첫 날
+                const lastDayOfSettlementMonth = new Date(settlementDate.getFullYear(), settlementDate.getMonth() + 1, 0); // 정산월의 마지막 날
+                
+                if (promotionInfo.promotion_start_date) {
+                  const startDate = new Date(promotionInfo.promotion_start_date);
+                  // 정산월의 첫 날이 시작일 이후 또는 같아야 함
+                  if (settlementDate < startDate) {
+                    isWithinPromotionPeriod = false;
+                  }
+                }
+                
+                if (promotionInfo.promotion_end_date) {
+                  const endDate = new Date(promotionInfo.promotion_end_date);
+                  // 정산월의 마지막 날이 종료일 이전 또는 같아야 함
+                  if (lastDayOfSettlementMonth > endDate) {
+                    isWithinPromotionPeriod = false;
+                  }
+                }
+                
+                // 프로모션 기간 내에 있는 경우에만 프로모션 적용으로 표시
+                if (isWithinPromotionPeriod && promotionInfo.final_commission_rate !== null && promotionInfo.final_commission_rate !== undefined) {
+                  isPromotionRateApplied = true;
+                }
+              }
+            }
 
             return {
                 id: row.id || null,
@@ -1253,6 +1340,7 @@ async function loadAbsorptionAnalysisResults() {
                 created_by: userMap.get(row.registered_by) || '-',
                 updated_date: row.updated_at ? formatDateTime(row.updated_at) : null,
                 updated_by: row.updated_by ? userMap.get(row.updated_by) || '-' : null,
+                isPromotionRateApplied: isPromotionRateApplied, // 프로모션 수수료율 적용 여부
             };
         } catch (error) {
             console.error('데이터 매핑 오류 (행 ' + i + '):', error, row);
@@ -1293,6 +1381,7 @@ async function loadAbsorptionAnalysisResults() {
                 created_by: '-',
                 updated_date: null,
                 updated_by: null,
+                isPromotionRateApplied: false, // 오류 발생 시 기본값
             };
         }
     });
@@ -1708,6 +1797,15 @@ function getActionSeverity(action) {
   if (action === '추가') return 'success';
   if (action === '삭제') return 'danger';
   return 'secondary';
+}
+
+function getRowClass(data) {
+  return [
+    { 'added-row': data.review_action === '추가' },
+    { 'modified-row': data.review_action === '수정' },
+    { 'deleted-row': data.review_action === '삭제' },
+    { 'promotion-rate-row': data.isPromotionRateApplied } // 프로모션 수수료율 적용된 행
+  ];
 }
 
 // 테이블 헤더 정렬 이벤트 핸들러
@@ -2401,6 +2499,41 @@ async function saveAbsorptionRate() {
 /* 셀 배경색을 흰색으로 지정 */
 :deep(.p-datatable-tbody > tr > td) {
   background: #ffffff !important;
+}
+
+/* 작업별 행 배경색 */
+:deep(.p-datatable .p-datatable-tbody > tr.added-row > td) {
+  background-color: #e3f2fd !important; /* 아주 연한 파란색 */
+}
+
+:deep(.p-datatable .p-datatable-tbody > tr.modified-row > td) {
+  background-color: #fffde7 !important; /* 아주 연한 노란색 */
+}
+
+:deep(.p-datatable .p-datatable-tbody > tr.deleted-row > td) {
+  background-color: #ffebee !important; /* 아주 연한 붉은색 */
+  color: #999 !important;
+  text-decoration: line-through !important;
+}
+
+/* 프로모션 수수료율 적용된 행 배경색 */
+:deep(.p-datatable .p-datatable-tbody > tr.promotion-rate-row > td) {
+  background-color: #f3e5f5 !important; /* 아주 연한 보라색 */
+}
+
+/* 프로모션 수수료율이 적용되고 추가/수정/삭제 작업이 있는 경우 우선순위 조정 */
+:deep(.p-datatable .p-datatable-tbody > tr.promotion-rate-row.added-row > td) {
+  background-color: #e1bee7 !important; /* 프로모션 + 추가: 약간 진한 보라색 */
+}
+
+:deep(.p-datatable .p-datatable-tbody > tr.promotion-rate-row.modified-row > td) {
+  background-color: #f1c0f7 !important; /* 프로모션 + 수정: 약간 진한 보라색 */
+}
+
+:deep(.p-datatable .p-datatable-tbody > tr.promotion-rate-row.deleted-row > td) {
+  background-color: #ffebee !important; /* 삭제 우선: 연한 붉은색 */
+  color: #999 !important;
+  text-decoration: line-through !important;
 }
 
 
