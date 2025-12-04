@@ -78,14 +78,30 @@ export async function updatePromotionProductHospitalPerformance(performanceRecor
 
     if (existingError && existingError.code === 'PGRST116') {
       // 기존 데이터가 없으면 INSERT
+      // 처방월이 프로모션 시작일 이전이면 first_performance_cso_id는 NULL
+      const prescriptionMonth = performanceRecord.prescription_month; // YYYY-MM 형식
+      let firstPerformanceCSOId = null;
+      
+      if (prescriptionMonth && promotionProduct.promotion_start_date) {
+        const prescriptionDate = new Date(prescriptionMonth + '-01');
+        const promotionStartDate = new Date(promotionProduct.promotion_start_date);
+        // 처방월이 프로모션 시작일 이후 또는 같으면 CSO ID 설정
+        if (prescriptionDate >= promotionStartDate) {
+          firstPerformanceCSOId = performanceRecord.company_id;
+        }
+      } else if (!promotionProduct.promotion_start_date) {
+        // 프로모션 시작일이 없으면 CSO ID 설정
+        firstPerformanceCSOId = performanceRecord.company_id;
+      }
+
       const { error: insertError } = await supabase
         .from('promotion_product_hospital_performance')
         .insert({
           promotion_product_id: promotionProduct.id,
           hospital_id: hospitalId,
           has_performance: true,
-          first_performance_cso_id: performanceRecord.company_id,
-          first_performance_month: performanceRecord.prescription_month || null,
+          first_performance_cso_id: firstPerformanceCSOId,
+          first_performance_month: prescriptionMonth || null,
           total_performance_amount: prescriptionAmount,
           created_by: userId,
           updated_by: userId
@@ -114,8 +130,23 @@ export async function updatePromotionProductHospitalPerformance(performanceRecor
       if (existingPerformanceRecords && existingPerformanceRecords.length > 0) {
         const firstRecord = existingPerformanceRecords[0];
         if (firstRecord.prescription_qty > 0) {
-          firstPerformanceCSOId = firstRecord.company_id;
           firstPerformanceMonth = firstRecord.prescription_month || null;
+          
+          // 처방월이 프로모션 시작일 이전이면 first_performance_cso_id는 NULL
+          if (firstPerformanceMonth && promotionProduct.promotion_start_date) {
+            const prescriptionDate = new Date(firstPerformanceMonth + '-01');
+            const promotionStartDate = new Date(promotionProduct.promotion_start_date);
+            // 처방월이 프로모션 시작일 이후 또는 같으면 CSO ID 설정
+            if (prescriptionDate >= promotionStartDate) {
+              firstPerformanceCSOId = firstRecord.company_id;
+            } else {
+              // 프로모션 시작일 이전이면 NULL
+              firstPerformanceCSOId = null;
+            }
+          } else if (!promotionProduct.promotion_start_date) {
+            // 프로모션 시작일이 없으면 CSO ID 설정
+            firstPerformanceCSOId = firstRecord.company_id;
+          }
         } else if (!firstPerformanceMonth && firstRecord.prescription_month) {
           firstPerformanceMonth = firstRecord.prescription_month;
         }
