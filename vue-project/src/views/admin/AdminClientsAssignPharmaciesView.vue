@@ -590,14 +590,62 @@ async function assignPharmacies() {
       throw error;
     }
 
+    // 성공 메시지 표시
+    const addedCount = selectedPharmacies.value.length
+    alert(`${addedCount}개의 문전약국이 지정되었습니다.`)
+
+    // 선택된 약국 초기화 (모달은 유지)
+    selectedPharmacies.value = []
+
+    // 해당 병원의 약국 목록만 업데이트
+    await updateClientPharmacies(selectedClient.value.id)
+
   } catch (error) {
     console.error('문전약국 지정 실패:', error);
     alert('문전약국 지정 중 오류가 발생했습니다: ' + error.message);
     return;
   }
+}
 
-  closeAssignModal()
-  await fetchClients()
+// 특정 병원의 약국 목록만 업데이트하는 함수
+async function updateClientPharmacies(clientId) {
+  try {
+    // 해당 병원의 약국 정보만 다시 조회
+    const { data: clientData, error } = await supabase
+      .from('clients')
+      .select(
+        `*, pharmacies:client_pharmacy_assignments(created_at, pharmacy:pharmacies(id, name, business_registration_number))`
+      )
+      .eq('id', clientId)
+      .eq('status', 'active')
+      .single()
+
+    if (error) {
+      console.error('병원 약국 정보 업데이트 오류:', error)
+      return
+    }
+
+    if (clientData) {
+      const pharmaciesArr = (clientData.pharmacies || []).map((p) => ({
+        ...p.pharmacy,
+        assignment_created_at: p.created_at
+      }))
+
+      // clients 배열에서 해당 병원 찾아서 업데이트
+      const clientIndex = clients.value.findIndex(c => c.id === clientId)
+      if (clientIndex !== -1) {
+        clients.value[clientIndex].pharmacies = pharmaciesArr
+
+        // filteredClients도 업데이트
+        const filteredIndex = filteredClients.value.findIndex(c => c.id === clientId)
+        if (filteredIndex !== -1) {
+          filteredClients.value[filteredIndex].pharmacies = pharmaciesArr
+        }
+      }
+    }
+  } catch (err) {
+    console.error('병원 약국 정보 업데이트 예외:', err)
+  }
 }
 async function deleteAssignment(client, pharmacy = null) {
   if (!confirm('정말 삭제하시겠습니까?')) {
