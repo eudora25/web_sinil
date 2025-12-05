@@ -26,16 +26,7 @@ serve(async (req) => {
       )
     }
 
-    // 기존 통계 삭제 (해당 정산월의 모든 통계 삭제)
-    const { error: deleteError } = await supabase
-      .from('performance_statistics')
-      .delete()
-      .eq('settlement_month', settlement_month)
-      .select('*', { count: 'exact', head: true })
-
-    if (deleteError) {
-      console.error('기존 통계 삭제 오류:', deleteError)
-    }
+    // 기존 통계 삭제는 하지 않음 (upsert 방식 사용)
 
     // 실적 데이터 조회 (실적 검수 방식과 동일)
     // 조건: review_status='완료' AND (review_action IS NULL OR review_action != '삭제')
@@ -47,6 +38,7 @@ serve(async (req) => {
         client_id,
         product_id,
         prescription_qty,
+        prescription_month,
         commission_rate,
         review_action,
         review_status,
@@ -59,10 +51,10 @@ serve(async (req) => {
       .eq('review_status', '완료')
       .or('review_action.is.null,review_action.neq.삭제')
 
-    // 전체 데이터 조회 (배치 처리)
-    let allDataRaw: any[] = []
+    // 전체 데이터 조회 (배치 처리, 메모리 최적화)
+    let allData: any[] = []
     let from = 0
-    const batchSize = 1000
+    const batchSize = 500 // 메모리 사용량 감소를 위해 배치 크기 축소
 
     while (true) {
       const { data, error } = await query
@@ -78,18 +70,17 @@ serve(async (req) => {
         break
       }
 
-      allDataRaw = allDataRaw.concat(data)
+      // 필터링과 동시에 배열에 추가 (중간 배열 생성 최소화)
+      const filtered = data.filter(record => {
+        return record.review_action === null || record.review_action !== '삭제'
+      })
+      allData = allData.concat(filtered)
 
       if (data.length < batchSize) {
         break
       }
       from += batchSize
     }
-
-    // 필터링: review_action이 '삭제'가 아닌 것만 포함
-    const allData = allDataRaw.filter(record => {
-      return record.review_action === null || record.review_action !== '삭제'
-    })
 
     if (allData.length === 0) {
       return new Response(
@@ -98,12 +89,12 @@ serve(async (req) => {
       )
     }
 
-    // 흡수율 조회
-    const absorptionRates: Record<number, number> = {}
-    const recordIds = allData.map(r => r.id)
+    // 흡수율 조회 (배치 처리 최적화)
+    const absorptionRates: Record<string, number> = {}
+    const recordIds = allData.map(r => String(r.id)) // 문자열로 변환하여 일관성 유지
     const absorptionBatchSize = 500
     for (let i = 0; i < recordIds.length; i += absorptionBatchSize) {
-      const batch = recordIds.slice(i, i + absorptionBatchSize)
+      const batch = recordIds.slice(i, i + absorptionBatchSize).map(id => parseInt(id))
       const { data: absorptionData } = await supabase
         .from('applied_absorption_rates')
         .select('performance_record_id, applied_absorption_rate')
@@ -111,9 +102,48 @@ serve(async (req) => {
 
       if (absorptionData) {
         absorptionData.forEach(item => {
-          absorptionRates[item.performance_record_id] = item.applied_absorption_rate || 1.0
+          absorptionRates[String(item.performance_record_id)] = item.applied_absorption_rate || 1.0
         })
       }
+    }
+
+    // 매출액 조회 (performance_records_absorption 테이블에서)
+    // settlement_month로 필터링하여 조회
+    // 두 가지 매핑 방식 사용: 1) id로 매핑, 2) company_id+client_id+product_id+prescription_month로 매핑
+    const revenueDataById: Record<string, { wholesale: number; direct: number; total: number }> = {}
+    const revenueDataByKey: Record<string, { wholesale: number; direct: number; total: number }> = {}
+    
+    // settlement_month로 먼저 필터링하여 조회 (더 효율적)
+    const { data: revenueRecords, error: revenueError } = await supabase
+      .from('performance_records_absorption')
+      .select('id, company_id, client_id, product_id, prescription_month, wholesale_revenue, direct_revenue, total_revenue')
+      .eq('settlement_month', settlement_month)
+
+    if (revenueError) {
+      console.error('매출액 조회 오류:', revenueError)
+    } else if (revenueRecords) {
+      // 1) id를 키로 하는 맵 생성 (주요 매핑 방식)
+      // JavaScript 객체 키는 문자열이므로 String()으로 변환
+      revenueRecords.forEach(item => {
+        const id = String(item.id) // 문자열로 변환하여 키로 사용
+        const revenue = {
+          wholesale: parseFloat(String(item.wholesale_revenue)) || 0,
+          direct: parseFloat(String(item.direct_revenue)) || 0,
+          total: parseFloat(String(item.total_revenue)) || 0
+        }
+        revenueDataById[id] = revenue
+        
+        // 2) company_id+client_id+product_id+prescription_month를 키로 하는 맵 생성 (백업 매핑 방식)
+        if (item.company_id && item.client_id && item.product_id && item.prescription_month) {
+          const key = `${item.company_id}_${item.client_id}_${item.product_id}_${item.prescription_month}`
+          revenueDataByKey[key] = revenue
+        }
+      })
+      // 로깅 최소화 (메모리 절약)
+      const revenueCount = Object.keys(revenueDataById).length
+      console.log(`매출액 데이터 조회 완료: ${revenueCount}개 레코드 매핑됨`)
+    } else {
+      console.warn('매출액 데이터가 없습니다. performance_records_absorption 테이블에 해당 정산월 데이터가 없을 수 있습니다.')
     }
 
     // 통계 계산: (company_id, client_id, product_id) 조합별로 집계
@@ -127,8 +157,23 @@ serve(async (req) => {
       const price = parseFloat(String(record.products?.price)) || 0
       const amount = (isNaN(qty) ? 0 : qty) * (isNaN(price) ? 0 : price)
       const commissionRate = parseFloat(String(record.commission_rate)) || 0
-      const absorptionRate = absorptionRates[record.id] || 1.0
+      const absorptionRate = absorptionRates[String(record.id)] || 1.0
       const paymentAmount = Math.round(amount * absorptionRate * (isNaN(commissionRate) ? 0 : commissionRate))
+
+      // 매출액 가져오기 (두 가지 방식 시도)
+      // 1) id로 매핑 시도 (문자열로 변환)
+      let revenue = revenueDataById[String(record.id)] || null
+      
+      // 2) id 매핑이 실패하면 키로 매핑 시도
+      if (!revenue && record.company_id && record.client_id && record.product_id && record.prescription_month) {
+        const key = `${record.company_id}_${record.client_id}_${record.product_id}_${record.prescription_month}`
+        revenue = revenueDataByKey[key] || null
+      }
+      
+      // 매핑 실패 시 0으로 설정
+      if (!revenue) {
+        revenue = { wholesale: 0, direct: 0, total: 0 }
+      }
 
       if (!statisticsMap.has(key)) {
         // 새로운 조합이면 초기화
@@ -140,6 +185,9 @@ serve(async (req) => {
           prescription_qty: 0,
           prescription_amount: 0,
           payment_amount: 0,
+          wholesale_revenue: 0,
+          direct_revenue: 0,
+          total_revenue: 0,
           total_absorption_rate: 0,
           total_prescription_amount: 0,
           // 참조 정보
@@ -160,41 +208,81 @@ serve(async (req) => {
       item.prescription_qty += (isNaN(qty) ? 0 : qty)
       item.prescription_amount += amount
       item.payment_amount += paymentAmount
+      // NUMERIC(15, 2) 범위 내에서 안전하게 누적 (최대값: 9999999999999.99)
+      const maxValue = 9999999999999.99
+      item.wholesale_revenue = Math.min(Number((item.wholesale_revenue + revenue.wholesale).toFixed(2)), maxValue)
+      item.direct_revenue = Math.min(Number((item.direct_revenue + revenue.direct).toFixed(2)), maxValue)
+      item.total_revenue = Math.min(Number((item.total_revenue + revenue.total).toFixed(2)), maxValue)
       item.total_absorption_rate += amount * absorptionRate
       item.total_prescription_amount += amount
     })
 
     // Map을 배열로 변환하고 평균 흡수율 계산
     const statistics = Array.from(statisticsMap.values()).map(item => {
-      const absorptionRate = item.total_prescription_amount > 0
-        ? item.total_absorption_rate / item.total_prescription_amount
-        : 0
+      // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
+      // 만약 매출액이 없으면 기존 방식 사용 (가중 평균)
+      let absorptionRate = 0
+      if (item.total_revenue > 0 && item.prescription_amount > 0) {
+        // 매출액 기반 흡수율 계산
+        absorptionRate = item.total_revenue / item.prescription_amount
+      } else if (item.total_prescription_amount > 0) {
+        // 매출액이 없으면 가중 평균 방식 사용
+        absorptionRate = item.total_absorption_rate / item.total_prescription_amount
+      }
       
       const { total_absorption_rate, total_prescription_amount, ...cleanItem } = item
+      
+      // NUMERIC(15, 2) 범위 검증 및 변환
+      const maxNumeric15_2 = 9999999999999.99
+      const wholesale = Math.min(Math.max(Number(cleanItem.wholesale_revenue.toFixed(2)), 0), maxNumeric15_2)
+      const direct = Math.min(Math.max(Number(cleanItem.direct_revenue.toFixed(2)), 0), maxNumeric15_2)
+      const total = Math.min(Math.max(Number(cleanItem.total_revenue.toFixed(2)), 0), maxNumeric15_2)
+      const absRate = Math.min(Math.max(Number(absorptionRate.toFixed(4)), 0), 9.9999) // NUMERIC(5, 4) 최대값
       
       return {
         ...cleanItem,
         prescription_qty: Math.round(cleanItem.prescription_qty),
-        absorption_rate: absorptionRate
+        wholesale_revenue: wholesale,
+        direct_revenue: direct,
+        total_revenue: total,
+        absorption_rate: absRate
       }
     })
+    
+    // 통계 요약 (최소한의 로깅만)
+    const revenueCount = statistics.filter(item => (item.total_revenue || 0) > 0).length
+    console.log(`통계 계산 완료: ${statistics.length}개 항목, 매출액 포함: ${revenueCount}개`)
 
-    // 통계 데이터 저장
+    // 통계 데이터 저장 (upsert 방식: 있으면 update, 없으면 insert)
     if (statistics.length > 0) {
-      const batchSize = 1000
+      const batchSize = 500 // 메모리 사용량 감소를 위해 배치 크기 축소
+      let processedCount = 0
       
       for (let i = 0; i < statistics.length; i += batchSize) {
         const batch = statistics.slice(i, i + batchSize)
         
-        const { error: insertError } = await supabase
+        // upsert: settlement_month, company_id, client_id, product_id를 키로 사용
+        const { error: upsertError } = await supabase
           .from('performance_statistics')
-          .insert(batch)
+          .upsert(batch, {
+            onConflict: 'settlement_month,company_id,client_id,product_id',
+            ignoreDuplicates: false
+          })
 
-        if (insertError) {
-          console.error('통계 저장 오류:', insertError)
-          throw new Error(`통계 저장 오류: ${insertError.message}`)
+        if (upsertError) {
+          console.error('통계 저장 오류:', upsertError)
+          throw new Error(`통계 저장 오류: ${upsertError.message}`)
+        }
+        
+        processedCount += batch.length
+        
+        // 진행 상황 로깅 (10% 단위로만)
+        if (i % (batchSize * 10) === 0 || i + batchSize >= statistics.length) {
+          console.log(`저장 진행: ${processedCount}/${statistics.length} (${Math.round((processedCount / statistics.length) * 100)}%)`)
         }
       }
+      
+      console.log(`통계 저장 완료: ${statistics.length}개 항목`)
     }
 
     // 최종 응답
@@ -202,7 +290,8 @@ serve(async (req) => {
       message: 'Statistics calculated successfully',
       count: statistics.length,
       settlement_month,
-      inserted: statistics.length
+      inserted: statistics.length,
+      updated: statistics.length // upsert이므로 inserted와 updated 모두 포함
     }
     
     return new Response(
