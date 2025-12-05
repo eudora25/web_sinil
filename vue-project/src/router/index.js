@@ -53,7 +53,8 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: LoginView
+      component: LoginView,
+      meta: { layout: 'empty', requiresAuth: false }
     },
     {
       path: '/reset-password',
