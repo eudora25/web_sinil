@@ -160,10 +160,26 @@ const handleLogin = async () => {
     }
     
     // 4단계: 로그인 성공 시 페이지 이동
-    if (companyRow.user_type === 'admin') {
-      router.push('/admin/notices');
+    // redirect 쿼리 파라미터가 있으면 해당 경로로 이동, 없으면 기본 페이지로 이동
+    const redirectPath = router.currentRoute.value.query.redirect;
+    if (redirectPath && typeof redirectPath === 'string') {
+      try {
+        await router.push(redirectPath);
+      } catch (redirectError) {
+        console.error('리다이렉트 경로로 이동 실패:', redirectError);
+        // 리다이렉트 실패 시 기본 페이지로 이동
+        if (companyRow.user_type === 'admin') {
+          router.push('/admin/notices');
+        } else {
+          router.push('/notices');
+        }
+      }
     } else {
-      router.push('/notices');
+      if (companyRow.user_type === 'admin') {
+        router.push('/admin/notices');
+      } else {
+        router.push('/notices');
+      }
     }
   } catch (error) {
     console.error('로그인 처리 중 오류:', error);

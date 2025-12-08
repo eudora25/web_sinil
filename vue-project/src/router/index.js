@@ -529,7 +529,12 @@ router.beforeEach(async (to, from, next) => {
         .maybeSingle();
       
       if (companyError) {
-        console.error('[Router Guard] Error checking company registration:', companyError);
+        // 네트워크 오류나 CORS 오류는 조용히 처리 (로그인 페이지로 리다이렉트만 수행)
+        if (companyError.message && companyError.message.includes('Failed to fetch')) {
+          console.warn('[Router Guard] Network error checking company registration, redirecting to login');
+        } else {
+          console.error('[Router Guard] Error checking company registration:', companyError);
+        }
         return next({ name: 'login', query: { redirect: to.fullPath } });
       }
       
