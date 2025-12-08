@@ -1412,6 +1412,7 @@ async function checkStatistics() {
             const existing = existingDataMap.get(hospitalId);
             
             // 기존 데이터에 CSO ID가 있고, 처방 시작일 이전 데이터가 발견되면 CSO ID를 null로 처리
+            // CSO ID와 무관하게, 프로모션 시작일 이전 데이터가 있으면 CSO ID를 null로 처리
             if (existing && existing.first_performance_cso_id !== null) {
               // 처방 시작일보다 이전인지 확인
               let isBeforeStartDate = false;
@@ -1423,11 +1424,9 @@ async function checkStatistics() {
                 isBeforeStartDate = record.prescription_month < baseMonth;
               }
               
-              // 동일 CSO인지 확인
-              const isSameCSO = record.company_id === existing.first_performance_cso_id;
-              
-              // 처방 시작일 이전 데이터이고 동일 CSO이면 CSO ID를 null로 처리
-              if (isBeforeStartDate && isSameCSO) {
+              // 처방 시작일 이전 데이터가 있으면 CSO ID와 무관하게 CSO ID를 null로 처리
+              // (어떤 CSO든 상관없이 프로모션 시작일 이전 데이터가 있으면 null 처리)
+              if (isBeforeStartDate) {
                 const { error: updateError } = await supabase
                   .from('promotion_product_hospital_performance')
                   .update({ 
@@ -1442,7 +1441,7 @@ async function checkStatistics() {
                   totalErrors++;
                 } else {
                   totalUpdated++;
-                  console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 병원 ${hospitalId} 처방 시작일 이전 데이터 발견으로 CSO ID null 처리 (처방월: ${record.prescription_month})`);
+                  console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 병원 ${hospitalId} 처방 시작일 이전 데이터 발견으로 CSO ID null 처리 (처방월: ${record.prescription_month}, CSO: ${record.company_id}, 기존 CSO: ${existing.first_performance_cso_id})`);
                   // existingDataMap도 업데이트
                   existingDataMap.set(hospitalId, {
                     ...existing,
