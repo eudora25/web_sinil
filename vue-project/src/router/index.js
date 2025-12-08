@@ -509,8 +509,13 @@ router.beforeEach(async (to, from, next) => {
 
   if (sessionError) {
     console.error('[Router Guard] Error getting session:', sessionError.message);
-    // 세션 가져오기 실패 시 로그인 페이지로 (심각한 오류 상황)
-    return next({ name: 'login', query: { redirect: to.fullPath } });
+    // 세션 가져오기 실패 시, 이미 로그인/회원가입 페이지가 아닌 경우에만 리다이렉트
+    if (to.name !== 'login' && to.name !== 'signup') {
+      return next({ name: 'login', query: { redirect: to.fullPath } });
+    } else {
+      // 이미 로그인/회원가입 페이지인 경우 그냥 진행
+      return next();
+    }
   }
 
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
@@ -529,13 +534,22 @@ router.beforeEach(async (to, from, next) => {
         .maybeSingle();
       
       if (companyError) {
-        // 네트워크 오류나 CORS 오류는 조용히 처리 (로그인 페이지로 리다이렉트만 수행)
+        // 네트워크 오류나 CORS 오류는 조용히 처리
         if (companyError.message && companyError.message.includes('Failed to fetch')) {
-          console.warn('[Router Guard] Network error checking company registration, redirecting to login');
+          console.warn('[Router Guard] Network error checking company registration');
+          // 이미 로그인/회원가입 페이지인 경우 그냥 진행
+          if (to.name === 'login' || to.name === 'signup') {
+            return next();
+          }
         } else {
           console.error('[Router Guard] Error checking company registration:', companyError);
         }
-        return next({ name: 'login', query: { redirect: to.fullPath } });
+        // 로그인/회원가입 페이지가 아닌 경우에만 리다이렉트
+        if (to.name !== 'login' && to.name !== 'signup') {
+          return next({ name: 'login', query: { redirect: to.fullPath } });
+        } else {
+          return next();
+        }
       }
       
       // 미등록 회원인 경우 로그인 페이지로 리다이렉트
@@ -581,6 +595,10 @@ router.beforeEach(async (to, from, next) => {
       }
     } catch (error) {
       console.error('[Router Guard] Error in registration check:', error);
+      // 이미 로그인/회원가입 페이지인 경우 그냥 진행
+      if (to.name === 'login' || to.name === 'signup') {
+        return next();
+      }
       return next({ name: 'login', query: { redirect: to.fullPath } });
     }
   } else {

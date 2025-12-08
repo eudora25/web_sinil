@@ -1,0 +1,107 @@
+services:
+  # Supabase 프로덕션 데이터베이스용 MCP 서버
+  postgres-mcp-supabase:
+    image: crystaldba/postgres-mcp
+    container_name: postgres-mcp-supabase
+    environment:
+      # 환경 변수로 설정하거나 기본값 사용
+      # 환경 변수 예시: export DATABASE_URI="postgresql://postgres:!tlsdlf-dnsdud~@db.vbmmfuraxvxlfpewqrsm.supabase.co:5432/postgres"
+      - DATABASE_URI=${DATABASE_URI:-postgresql://postgres:!tlsdlf-dnsdud~@db.vbmmfuraxvxlfpewqrsm.supabase.co:5432/postgres}
+    command: ["--access-mode=unrestricted"]
+    networks:
+      - crystaldba-network
+    labels:
+      - "com.docker.compose.project=mcp_crystaldabs"
+      - "com.docker.compose.service=postgres-mcp-supabase"
+      - "group=mcp_crystaldabs"
+      - "managed-by=mcp_crystaldabs"
+    profiles:
+      - supabase  # 프로파일을 사용하여 선택적으로 실행
+
+  # 로컬 개발 데이터베이스용 MCP 서버
+  postgres-mcp-local:
+    image: crystaldba/postgres-mcp
+    container_name: postgres-mcp-local
+    environment:
+      # 환경 변수로 설정하거나 기본값 사용
+      - DATABASE_URI=${LOCAL_DATABASE_URI:-postgresql://postgres:postgres@localhost:5432/testdb}
+    command: ["--access-mode=unrestricted"]
+    networks:
+      - crystaldba-network
+    labels:
+      - "com.docker.compose.project=mcp_crystaldabs"
+      - "com.docker.compose.service=postgres-mcp-local"
+      - "group=mcp_crystaldabs"
+      - "managed-by=mcp_crystaldabs"
+    profiles:
+      - local  # 프로파일을 사용하여 선택적으로 실행
+
+  # 기존 호환성을 위한 서비스들 (선택사항)
+  postgres-mcp-1:
+    image: crystaldba/postgres-mcp
+    container_name: busy_ardinghelli
+    environment:
+      - DATABASE_URI=${DATABASE_URI:-postgresql://postgres:postgres@localhost:5432/testdb}
+    command: ["--access-mode=unrestricted"]
+    networks:
+      - crystaldba-network
+    labels:
+      - "com.docker.compose.project=mcp_crystaldabs"
+      - "com.docker.compose.service=postgres-mcp-1"
+      - "group=mcp_crystaldabs"
+      - "managed-by=mcp_crystaldabs"
+    profiles:
+      - legacy
+
+  postgres-mcp-2:
+    image: crystaldba/postgres-mcp
+    container_name: magical_allen
+    environment:
+      - DATABASE_URI=${DATABASE_URI:-postgresql://postgres:postgres@localhost:5432/testdb}
+    command: ["--access-mode=unrestricted"]
+    networks:
+      - crystaldba-network
+    labels:
+      - "com.docker.compose.project=mcp_crystaldabs"
+      - "com.docker.compose.service=postgres-mcp-2"
+      - "group=mcp_crystaldabs"
+      - "managed-by=mcp_crystaldabs"
+    profiles:
+      - legacy
+
+  postgres-mcp-3:
+    image: crystaldba/postgres-mcp
+    container_name: reverent_cray
+    environment:
+      - DATABASE_URI=${DATABASE_URI:-postgresql://postgres:postgres@localhost:5432/testdb}
+    command: ["--access-mode=unrestricted"]
+    networks:
+      - crystaldba-network
+    labels:
+      - "com.docker.compose.project=mcp_crystaldabs"
+      - "com.docker.compose.service=postgres-mcp-3"
+      - "group=mcp_crystaldabs"
+      - "managed-by=mcp_crystaldabs"
+    profiles:
+      - legacy
+
+  postgres-mcp-4:
+    image: crystaldba/postgres-mcp
+    container_name: eager_faraday
+    environment:
+      - DATABASE_URI=${DATABASE_URI:-postgresql://postgres:postgres@localhost:5432/testdb}
+    command: ["--access-mode=unrestricted"]
+    networks:
+      - crystaldba-network
+    labels:
+      - "com.docker.compose.project=mcp_crystaldabs"
+      - "com.docker.compose.service=postgres-mcp-4"
+      - "group=mcp_crystaldabs"
+      - "managed-by=mcp_crystaldabs"
+    profiles:
+      - legacy
+
+networks:
+  crystaldba-network:
+    driver: bridge
+

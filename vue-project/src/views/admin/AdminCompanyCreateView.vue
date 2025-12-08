@@ -109,6 +109,7 @@ import Dropdown from 'primevue/dropdown'
 import Button from 'primevue/button'
 import { supabase } from '@/supabase'
 import TopNavigationBar from '@/components/TopNavigationBar.vue'
+import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages'
 
 const email = ref('')
 const password = ref('')
@@ -522,14 +523,34 @@ const handleSubmit = async () => {
              });
             
             if (error) {
+              // Edge Function 오류 처리
               let errorMessage = '사용자 계정 생성에 실패했습니다.';
               
-              if (error.message.includes('already been registered')) {
+              // Edge Function이 non-2xx 상태 코드를 반환한 경우
+              if (error.message && error.message.includes('non-2xx')) {
+                // Edge Function의 응답 본문에서 오류 메시지 추출 시도
+                if (error.context && error.context.body) {
+                  try {
+                    const errorBody = typeof error.context.body === 'string' 
+                      ? JSON.parse(error.context.body) 
+                      : error.context.body;
+                    if (errorBody.error) {
+                      errorMessage = translateSupabaseError({ message: errorBody.error }, '업체 등록');
+                    } else {
+                      errorMessage = '중복된 이메일 주소이거나 서버 처리 중 오류가 발생했습니다.';
+                    }
+                  } catch (e) {
+                    errorMessage = '서버 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.';
+                  }
+                } else {
+                  errorMessage = '중복된 이메일 주소이거나 서버 처리 중 오류가 발생했습니다.';
+                }
+              } else if (error.message && error.message.includes('already been registered')) {
                 errorMessage = '이미 등록된 이메일 주소입니다.';
-              } else if (error.message.includes('invalid')) {
+              } else if (error.message && error.message.includes('invalid')) {
                 errorMessage = '이메일 주소 형식이 올바르지 않습니다.';
-              } else if (error.message) {
-                errorMessage = `사용자 계정 생성 실패: ${error.message}`;
+              } else {
+                errorMessage = translateSupabaseError(error, '업체 등록');
               }
               
               alert(errorMessage);
@@ -548,19 +569,8 @@ const handleSubmit = async () => {
     const from = route.query?.from === 'pending' ? 'pending' : 'approved';
     router.push(`/admin/companies/${from}`);
   } catch (err) {
-    let errorMessage = '업체 등록 중 오류가 발생했습니다.';
-    
-    // 구체적인 오류 메시지 처리
-    if (err.message && err.message.includes('fetch')) {
-      errorMessage = '서버 연결에 실패했습니다. 네트워크 연결을 확인해주세요.';
-    } else if (err.message && err.message.includes('JSON')) {
-      errorMessage = '서버 응답을 처리할 수 없습니다. 다시 시도해주세요.';
-    } else if (err.message && err.message.includes('timeout')) {
-      errorMessage = '요청 시간이 초과되었습니다. 다시 시도해주세요.';
-    } else if (err.message) {
-      errorMessage = `업체 등록 실패: ${err.message}`;
-    }
-    
+    console.error('업체 등록 오류:', err);
+    const errorMessage = translateGeneralError(err, '업체 등록');
     alert(errorMessage);
   } finally {
     loading.value = false;

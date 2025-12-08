@@ -37,6 +37,12 @@ const setUserState = (sessionUser) => {
 const handleRedirect = async (currentSession) => {
   const currentPath = router.currentRoute.value.path;
   const actualPath = window.location.pathname; // 브라우저의 실제 URL 경로
+  
+  // about:blank나 유효하지 않은 경로인 경우 처리하지 않음
+  if (!actualPath || actualPath === '' || window.location.href.startsWith('about:')) {
+    console.warn('[App.vue] handleRedirect: Invalid path detected, skipping redirect');
+    return;
+  }
 
   if (currentSession && currentSession.user) {
     // 사용자가 로그인된 상태
@@ -172,6 +178,17 @@ onMounted(() => {
 });
 
 async function initializeApp() {
+  
+  // about:blank나 유효하지 않은 경로인 경우 처리하지 않음
+  if (!window.location.pathname || window.location.pathname === '' || window.location.href.startsWith('about:')) {
+    console.warn('[App.vue] initializeApp: Invalid path detected, redirecting to login');
+    try {
+      await router.push('/login');
+    } catch (e) {
+      console.error('[App.vue] initializeApp: Failed to push to /login', e);
+    }
+    return;
+  }
   
   // URL 파라미터에서 비밀번호 재설정 토큰 확인
   const urlParams = new URLSearchParams(window.location.search);

@@ -61,6 +61,7 @@ import Button from 'primevue/button';
 import { supabase } from '@/supabase';
 import { useRouter } from 'vue-router';
 import { onMounted, onUnmounted } from 'vue';
+import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages';
 
 const formData = ref({
   email: '',
@@ -406,6 +407,13 @@ const handleSignup = async () => {
     if (error) {
       console.error('Supabase Auth 오류:', error);
       
+      // 보안 관련 오류 (짧은 시간 내 재시도)
+      if (error.message && (error.message.includes('For security purposes') || error.message.includes('rate limit'))) {
+        const errorMessage = translateSupabaseError(error, '회원가입');
+        alert(errorMessage);
+        return;
+      }
+      
       // 이메일 검증 오류인 경우 대안 제시
       if (error.message && (error.message.includes('invalid') || 
           error.message.includes('Email address') ||
@@ -438,7 +446,8 @@ const handleSignup = async () => {
           
           if (testError) {
             console.error('테스트 이메일 가입 실패:', testError);
-            alert('테스트 이메일 가입에도 실패했습니다. 관리자에게 문의해주세요.');
+            const errorMessage = translateSupabaseError(testError, '회원가입');
+            alert(errorMessage);
             return;
           }
           
@@ -479,7 +488,8 @@ const handleSignup = async () => {
           
           if (companyInsertError) {
             console.error('테스트 회사 정보 삽입 실패:', companyInsertError);
-            alert('회사 정보 등록에 실패했습니다. 관리자에게 문의해주세요.');
+            const errorMessage = translateSupabaseError(companyInsertError, '회사 정보 등록');
+            alert(errorMessage);
             return;
           }
           
@@ -519,26 +529,7 @@ const handleSignup = async () => {
       
       if (companyInsertError) {
         console.error('회사 정보 삽입 실패:', companyInsertError);
-        
-        let errorMessage = '회사 정보 등록에 실패했습니다.';
-        
-        // 구체적인 오류 메시지 처리
-        if (companyInsertError.message.includes('row-level security policy')) {
-          errorMessage = '보안 정책으로 인해 회사 정보 등록이 제한되었습니다. 관리자에게 문의해주세요.';
-        } else if (companyInsertError.message.includes('duplicate key')) {
-          errorMessage = '이미 등록된 사업자등록번호입니다. 다른 사업자등록번호를 사용해주세요.';
-        } else if (companyInsertError.message.includes('foreign key')) {
-          errorMessage = '사용자 정보와 연결할 수 없습니다. 다시 시도해주세요.';
-        } else if (companyInsertError.message.includes('not null')) {
-          errorMessage = '필수 정보가 누락되었습니다. 모든 필수 항목을 입력해주세요.';
-        } else if (companyInsertError.message.includes('unique')) {
-          errorMessage = '중복된 정보가 있습니다. 다른 정보를 입력해주세요.';
-        } else if (companyInsertError.code) {
-          errorMessage = `회사 정보 등록 실패 (오류 코드: ${companyInsertError.code})`;
-        } else if (companyInsertError.message) {
-          errorMessage = `회사 정보 등록 실패: ${companyInsertError.message}`;
-        }
-        
+        const errorMessage = translateSupabaseError(companyInsertError, '회사 정보 등록');
         alert(errorMessage);
         console.error('상세 오류 정보:', {
           message: companyInsertError.message,
@@ -564,27 +555,18 @@ const handleSignup = async () => {
     console.error('Error code:', error.code);
     console.error('Error status:', error.status);
     
-    let errorMessage = '회원가입에 실패했습니다.';
-    
-    if (error.message === 'User already registered') {
-      errorMessage = '이미 등록된 아이디입니다.';
-    } else if (error.message === 'Unable to validate email address: invalid format') {
-      errorMessage = '아이디를 이메일 형식으로 입력해주세요. (예: user@example.com)';
-    } else if (error.message && error.message.includes('invalid')) {
-      errorMessage = '입력한 이메일 주소가 유효하지 않습니다. 올바른 이메일 주소를 입력해주세요.';
-    } else if (error.message && error.message.includes('Email address')) {
-      errorMessage = '이메일 주소가 유효하지 않습니다. 실제 존재하는 이메일 주소를 사용하거나, 관리자에게 문의하세요.';
-    } else if (error.message && error.message.includes('password')) {
-      errorMessage = '비밀번호가 요구사항을 충족하지 않습니다. (최소 6자 이상)';
-    } else if (error.message && error.message.includes('network')) {
-      errorMessage = '네트워크 연결을 확인해주세요.';
-    } else if (error.error_description) {
-      errorMessage = error.error_description;
-    } else if (error.message) {
-      errorMessage = `회원가입 실패: ${error.message}`;
+    // Supabase Auth 오류인 경우
+    if (error.message && (error.message.includes('User already registered') || 
+        error.message.includes('email') || 
+        error.message.includes('password') ||
+        error.message.includes('For security purposes'))) {
+      const errorMessage = translateSupabaseError(error, '회원가입');
+      alert(errorMessage);
+    } else {
+      // 일반 오류
+      const errorMessage = translateGeneralError(error, '회원가입');
+      alert(errorMessage);
     }
-    
-    alert(errorMessage);
   }
 };
 

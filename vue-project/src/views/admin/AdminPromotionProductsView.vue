@@ -827,6 +827,7 @@ async function checkStatistics() {
             .eq('products.insurance_code', insuranceCode)
             .eq('products.status', 'active')
             .eq('companies.company_group', 'NEWCSO')
+            .eq('review_status', '완료')
             .or('review_action.is.null,review_action.neq.삭제')
             .range(prescriptionMonthFrom, prescriptionMonthFrom + prescriptionMonthBatchSize - 1);
 
@@ -960,7 +961,7 @@ async function checkStatistics() {
 
         // 기준일 이전 처방월 데이터 조회
         for (const prescriptionMonth of beforePrescriptionMonths) {
-          // 해당 처방월을 base_month로 하는 제품 ID만 조회
+          // 해당 처방월을 base_month로 하는 제품 ID 조회
           const { data: monthProducts, error: monthProductsError } = await supabase
             .from('products')
             .select('id')
@@ -968,11 +969,7 @@ async function checkStatistics() {
             .eq('base_month', prescriptionMonth)
             .eq('status', 'active');
 
-          if (monthProductsError || !monthProducts || monthProducts.length === 0) {
-            continue;
-          }
-
-          const monthProductIds = monthProducts.map(p => p.id);
+          // insurance_code와 prescription_month로 직접 조회 (base_month와 prescription_month가 다른 경우도 포함)
           from = 0;
 
           while (true) {
@@ -985,12 +982,13 @@ async function checkStatistics() {
                 prescription_month,
                 created_at,
                 review_action,
-                products!inner(price),
+                products!inner(insurance_code, price, base_month),
                 companies!inner(company_group)
               `)
-              .in('product_id', monthProductIds)
+              .eq('products.insurance_code', insuranceCode)
               .eq('prescription_month', prescriptionMonth)
               .eq('companies.company_group', 'NEWCSO')
+              .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
               .range(from, from + batchSize - 1);
@@ -1017,19 +1015,7 @@ async function checkStatistics() {
         // 기준일과 같은 처방월 데이터 조회 (created_at으로 날짜 비교하여 분류)
         let sameMonthRecords = [];
         for (const prescriptionMonth of sameMonthPrescriptionMonths) {
-          // 해당 처방월을 base_month로 하는 제품 ID만 조회
-          const { data: monthProducts, error: monthProductsError } = await supabase
-            .from('products')
-            .select('id')
-            .eq('insurance_code', insuranceCode)
-            .eq('base_month', prescriptionMonth)
-            .eq('status', 'active');
-
-          if (monthProductsError || !monthProducts || monthProducts.length === 0) {
-            continue;
-          }
-
-          const monthProductIds = monthProducts.map(p => p.id);
+          // insurance_code와 prescription_month로 직접 조회 (base_month와 prescription_month가 다른 경우도 포함)
           from = 0;
 
           while (true) {
@@ -1042,12 +1028,13 @@ async function checkStatistics() {
                 prescription_month,
                 created_at,
                 review_action,
-                products!inner(price),
+                products!inner(insurance_code, price, base_month),
                 companies!inner(company_group)
               `)
-              .in('product_id', monthProductIds)
+              .eq('products.insurance_code', insuranceCode)
               .eq('prescription_month', prescriptionMonth)
               .eq('companies.company_group', 'NEWCSO')
+              .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
               .range(from, from + batchSize - 1);
@@ -1072,13 +1059,16 @@ async function checkStatistics() {
         }
 
         // 같은 처방월 데이터를 시작일 기준으로 분류
+        // prescription_month를 기준으로 분류 (created_at이 아닌)
         if (promotionStartDate) {
           sameMonthRecords.forEach(record => {
-            const recordDate = new Date(record.created_at);
-            if (recordDate < promotionStartDate) {
-              beforeBaseMonthRecords.push(record);
-            } else {
-              // 이후 데이터는 나중에 추가
+            if (record.prescription_month) {
+              const prescriptionDate = new Date(record.prescription_month + '-01');
+              if (prescriptionDate < promotionStartDate) {
+                beforeBaseMonthRecords.push(record);
+              } else {
+                // 이후 데이터는 나중에 추가
+              }
             }
           });
         } else {
@@ -1112,19 +1102,7 @@ async function checkStatistics() {
 
         // 기준일 이후 처방월 데이터 조회
         for (const prescriptionMonth of afterPrescriptionMonths) {
-          // 해당 처방월을 base_month로 하는 제품 ID만 조회
-          const { data: monthProducts, error: monthProductsError } = await supabase
-            .from('products')
-            .select('id')
-            .eq('insurance_code', insuranceCode)
-            .eq('base_month', prescriptionMonth)
-            .eq('status', 'active');
-
-          if (monthProductsError || !monthProducts || monthProducts.length === 0) {
-            continue;
-          }
-
-          const monthProductIds = monthProducts.map(p => p.id);
+          // insurance_code와 prescription_month로 직접 조회 (base_month와 prescription_month가 다른 경우도 포함)
           from = 0;
 
           while (true) {
@@ -1137,12 +1115,13 @@ async function checkStatistics() {
                 prescription_month,
                 created_at,
                 review_action,
-                products!inner(price),
+                products!inner(insurance_code, price, base_month),
                 companies!inner(company_group)
               `)
-              .in('product_id', monthProductIds)
+              .eq('products.insurance_code', insuranceCode)
               .eq('prescription_month', prescriptionMonth)
               .eq('companies.company_group', 'NEWCSO')
+              .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
               .range(from, from + batchSize - 1);
@@ -1185,19 +1164,7 @@ async function checkStatistics() {
         // 종료일 이후 처방월 데이터 조회 (프로모션 적용 대상 아님, total에만 포함)
         let afterEndMonthRecords = [];
         for (const prescriptionMonth of afterEndMonthPrescriptionMonths) {
-          // 해당 처방월을 base_month로 하는 제품 ID만 조회
-          const { data: monthProducts, error: monthProductsError } = await supabase
-            .from('products')
-            .select('id')
-            .eq('insurance_code', insuranceCode)
-            .eq('base_month', prescriptionMonth)
-            .eq('status', 'active');
-
-          if (monthProductsError || !monthProducts || monthProducts.length === 0) {
-            continue;
-          }
-
-          const monthProductIds = monthProducts.map(p => p.id);
+          // insurance_code와 prescription_month로 직접 조회 (base_month와 prescription_month가 다른 경우도 포함)
           from = 0;
 
           while (true) {
@@ -1210,12 +1177,13 @@ async function checkStatistics() {
                 prescription_month,
                 created_at,
                 review_action,
-                products!inner(price),
+                products!inner(insurance_code, price, base_month),
                 companies!inner(company_group)
               `)
-              .in('product_id', monthProductIds)
+              .eq('products.insurance_code', insuranceCode)
               .eq('prescription_month', prescriptionMonth)
               .eq('companies.company_group', 'NEWCSO')
+              .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
               .range(from, from + batchSize - 1);
@@ -1243,19 +1211,7 @@ async function checkStatistics() {
         if (promotionEndDate && endMonth) {
           const sameEndMonthPrescriptionMonths = prescriptionMonths.filter(month => month === endMonth);
           for (const prescriptionMonth of sameEndMonthPrescriptionMonths) {
-            // 해당 처방월을 base_month로 하는 제품 ID만 조회
-            const { data: monthProducts, error: monthProductsError } = await supabase
-              .from('products')
-              .select('id')
-              .eq('insurance_code', insuranceCode)
-              .eq('base_month', prescriptionMonth)
-              .eq('status', 'active');
-
-            if (monthProductsError || !monthProducts || monthProducts.length === 0) {
-              continue;
-            }
-
-            const monthProductIds = monthProducts.map(p => p.id);
+            // insurance_code와 prescription_month로 직접 조회 (base_month와 prescription_month가 다른 경우도 포함)
             from = 0;
 
             while (true) {
@@ -1268,12 +1224,13 @@ async function checkStatistics() {
                   prescription_month,
                   created_at,
                   review_action,
-                  products!inner(price),
+                  products!inner(insurance_code, price, base_month),
                   companies!inner(company_group)
                 `)
-                .in('product_id', monthProductIds)
+                .eq('products.insurance_code', insuranceCode)
                 .eq('prescription_month', prescriptionMonth)
                 .eq('companies.company_group', 'NEWCSO')
+                .eq('review_status', '완료')
                 .or('review_action.is.null,review_action.neq.삭제')
                 .order('created_at', { ascending: true })
                 .range(from, from + batchSize - 1);

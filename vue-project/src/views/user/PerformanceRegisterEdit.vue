@@ -289,6 +289,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 // 주석: updatePromotionProductHospitalPerformance는 트리거가 자동 처리하므로 불필요
 import Button from 'primevue/button';
+import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages';
 
 const route = useRoute();
 const router = useRouter();
@@ -1046,15 +1047,39 @@ function onPrescriptionTypeInput(rowIdx) {
 }
 
 function onQtyInput(rowIdx) {
-  const qty = Number(inputRows.value[rowIdx].prescription_qty.toString().replace(/,/g, ''));
-  const price = Number(inputRows.value[rowIdx].price.toString().replace(/,/g, ''));
+  const row = inputRows.value[rowIdx];
+  let qtyValue = row.prescription_qty.toString().replace(/,/g, '');
+  
+  // 숫자가 아닌 문자 제거 (소수점은 허용하지 않음)
+  qtyValue = qtyValue.replace(/[^0-9]/g, '');
+  
+  // 빈 문자열이면 그대로 유지, 아니면 숫자로 변환
+  if (qtyValue === '') {
+    row.prescription_qty = '';
+    row.prescription_amount = '';
+    row.payment_amount = '';
+    return;
+  }
+  
+  // 숫자로 변환하여 저장
+  const qty = Number(qtyValue);
+  if (isNaN(qty) || qty < 0) {
+    row.prescription_qty = '';
+    row.prescription_amount = '';
+    row.payment_amount = '';
+    return;
+  }
+  
+  row.prescription_qty = qtyValue;
+  
+  const price = Number(row.price.toString().replace(/,/g, ''));
   if (!isNaN(qty) && !isNaN(price) && price > 0) {
-    inputRows.value[rowIdx].prescription_amount = (qty * price).toLocaleString();
+    row.prescription_amount = (qty * price).toLocaleString();
     // 처방액이 변경되면 지급액도 재계산
     calculatePaymentAmount(rowIdx);
   } else {
-    inputRows.value[rowIdx].prescription_amount = '';
-    inputRows.value[rowIdx].payment_amount = '';
+    row.prescription_amount = '';
+    row.payment_amount = '';
   }
 }
 
@@ -1269,6 +1294,17 @@ async function savePerformanceData() {
 
   // 1. INSERT
   if (rowsToInsert.length > 0) {
+    // 저장 전 유효성 검사: 수량이 숫자인지 확인
+    for (let i = 0; i < rowsToInsert.length; i++) {
+      const row = rowsToInsert[i];
+      const qtyStr = String(row.prescription_qty || '').replace(/,/g, '');
+      const qtyNum = Number(qtyStr);
+      
+      if (!qtyStr || qtyStr.trim() === '' || isNaN(qtyNum) || qtyNum < 0) {
+        throw new Error(`처방 수량은 0 이상의 숫자여야 합니다. (${i + 1}번째 행)`);
+      }
+    }
+    
     const grade = await getCommissionGradeForClientCompany(myCompany.id, Number(clientId));
     
     // 관리자가 입력하는 경우 바로 완료 상태로 저장
@@ -1288,13 +1324,20 @@ async function savePerformanceData() {
         commissionRate = row.commission_rate_e;
       }
 
+      const qtyStr = String(row.prescription_qty || '').replace(/,/g, '');
+      const qtyNum = Number(qtyStr);
+      
+      if (isNaN(qtyNum) || qtyNum < 0) {
+        throw new Error('처방 수량은 0 이상의 숫자여야 합니다.');
+      }
+
       return {
       company_id: myCompany.id,
       settlement_month: settlementMonth,
       prescription_month: row.prescription_month,
       client_id: Number(clientId),
       product_id: row.product_id,
-      prescription_qty: Number(row.prescription_qty),
+      prescription_qty: qtyNum,
       prescription_type: row.prescription_type,
       remarks: row.remarks,
       registered_by: currentUserUid, // 실제 등록한 사용자 ID (관리자 또는 일반사용자)
@@ -1315,7 +1358,8 @@ async function savePerformanceData() {
         hint: error.hint,
         dataCount: dataToInsert.length
       });
-      throw new Error(`실적 추가 중 오류: ${error.message || '알 수 없는 오류가 발생했습니다.'}`);
+      const errorMessage = translateSupabaseError(error, '실적 추가');
+      throw new Error(errorMessage);
     }
     
     // 주석: 트리거가 자동으로 promotion_product_hospital_performance를 업데이트하므로
@@ -1371,7 +1415,8 @@ async function savePerformanceData() {
         hint: firstError.error.hint,
         updateCount: rowsToUpdate.length
       });
-      throw new Error(`실적 수정 중 오류: ${firstError.error.message || '알 수 없는 오류가 발생했습니다.'}`);
+      const errorMessage = translateSupabaseError(firstError.error, '실적 수정');
+      throw new Error(errorMessage);
     }
     
     // 주석: 트리거가 자동으로 promotion_product_hospital_performance를 업데이트하므로
@@ -1394,7 +1439,8 @@ async function savePerformanceData() {
         hint: firstError.error.hint,
         deleteCount: rowsToDelete.length
       });
-      throw new Error(`실적 삭제 중 오류: ${firstError.error.message || '알 수 없는 오류가 발생했습니다.'}`);
+      const errorMessage = translateSupabaseError(firstError.error, '실적 삭제');
+      throw new Error(errorMessage);
     }
   }
 
@@ -1462,6 +1508,16 @@ async function onSave() {
     
     // 사용자 친화적인 에러 메시지 생성
     let errorMessage = '실적 저장 시 오류가 발생했습니다.';
+    
+    // 이미 한글화된 메시지인 경우 그대로 사용
+    if (err.message && !err.message.includes('null value') && !err.message.includes('prescription_qty')) {
+      errorMessage = err.message;
+    } else if (err.message) {
+      // Supabase 오류인 경우 한글화
+      errorMessage = translateSupabaseError(err, '실적 저장');
+    } else {
+      errorMessage = translateGeneralError(err, '실적 저장');
+    }
     
     if (err.message) {
       if (err.message.includes('정산월') || err.message.includes('병원')) {
