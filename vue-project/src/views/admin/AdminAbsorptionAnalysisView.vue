@@ -1033,7 +1033,24 @@ async function loadAbsorptionAnalysisResults() {
       let query = supabase
         .from('performance_records_absorption')
         .select(`
-          *,
+          id,
+          settlement_month,
+          company_id,
+          client_id,
+          product_id,
+          prescription_month,
+          prescription_qty,
+          prescription_type,
+          commission_rate,
+          remarks,
+          review_action,
+          wholesale_revenue,
+          direct_revenue,
+          total_revenue,
+          absorption_rate,
+          analysis_time,
+          created_at,
+          updated_at,
           company:companies!performance_records_absorption_company_id_fkey(company_name, company_group),
           client:clients(name),
           product:products(product_name, insurance_code, price)
@@ -1085,7 +1102,24 @@ async function loadAbsorptionAnalysisResults() {
       let query = supabase
         .from('performance_records_absorption')
         .select(`
-          *,
+          id,
+          settlement_month,
+          company_id,
+          client_id,
+          product_id,
+          prescription_month,
+          prescription_qty,
+          prescription_type,
+          commission_rate,
+          remarks,
+          review_action,
+          wholesale_revenue,
+          direct_revenue,
+          total_revenue,
+          absorption_rate,
+          analysis_time,
+          created_at,
+          updated_at,
           company:companies!performance_records_absorption_company_id_fkey(company_name, company_group),
           client:clients(name),
           product:products(product_name, insurance_code, price)
@@ -1551,7 +1585,22 @@ const calculateAbsorptionRates = async () => {
     // 필터 조건에 맞는 performance_records 데이터 조회
     let sourceQuery = supabase
       .from('performance_records')
-      .select('*')
+      .select(`
+        id,
+        company_id,
+        client_id,
+        product_id,
+        settlement_month,
+        prescription_month,
+        prescription_qty,
+        prescription_type,
+        commission_rate,
+        remarks,
+        review_status,
+        review_action,
+        created_at,
+        updated_at
+      `)
       .eq('settlement_month', selectedSettlementMonth.value)
       .eq('review_status', '완료');
     

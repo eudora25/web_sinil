@@ -639,7 +639,20 @@ async function fetchPerformanceRecords() {
     let query = supabase
       .from('performance_records')
       .select(`
-        *,
+        id,
+        review_status,
+        review_action,
+        prescription_month,
+        prescription_qty,
+        prescription_type,
+        remarks,
+        created_at,
+        updated_at,
+        registered_by,
+        updated_by,
+        company_id,
+        client_id,
+        product_id,
         companies!inner(company_name, company_group, representative_name, assigned_pharmacist_contact),
         products!inner(product_name, insurance_code, price),
         clients!inner(name)
