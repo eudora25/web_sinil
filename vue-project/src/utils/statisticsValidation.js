@@ -159,9 +159,10 @@ export function validateTotals(rows, groupField = null) {
  * 필수 필드, 데이터 타입, 음수 값 등 확인
  * 
  * @param {Array} rows - 통계 데이터 행 배열
+ * @param {string} statisticsType - 통계 타입 ('company', 'hospital', 'product')
  * @returns {Object} 검증 결과 및 발견된 문제 목록
  */
-export function validateDataIntegrity(rows) {
+export function validateDataIntegrity(rows, statisticsType = null) {
   if (!rows || rows.length === 0) {
     return { isValid: true, issues: [], message: '데이터가 없습니다.' };
   }
@@ -169,14 +170,47 @@ export function validateDataIntegrity(rows) {
   const issues = [];
 
   rows.forEach((row, index) => {
-    // 필수 필드 확인
-    if (row.company_id === null || row.company_id === undefined) {
-      issues.push({
-        row: index + 1,
-        type: '필수 필드 누락',
-        field: 'company_id',
-        message: `행 ${index + 1}: company_id가 없습니다.`
-      });
+    // 통계 타입에 따라 필수 필드 확인
+    if (statisticsType === 'company') {
+      // 업체별 통계: company_id 필수
+      if (row.company_id === null || row.company_id === undefined) {
+        issues.push({
+          row: index + 1,
+          type: '필수 필드 누락',
+          field: 'company_id',
+          message: `행 ${index + 1}: company_id가 없습니다.`
+        });
+      }
+    } else if (statisticsType === 'hospital') {
+      // 병의원별 통계: hospital_id 필수 (company_id는 선택)
+      if (row.hospital_id === null || row.hospital_id === undefined) {
+        issues.push({
+          row: index + 1,
+          type: '필수 필드 누락',
+          field: 'hospital_id',
+          message: `행 ${index + 1}: hospital_id가 없습니다.`
+        });
+      }
+    } else if (statisticsType === 'product') {
+      // 제품별 통계: product_id 필수 (company_id는 선택)
+      if (row.product_id === null || row.product_id === undefined) {
+        issues.push({
+          row: index + 1,
+          type: '필수 필드 누락',
+          field: 'product_id',
+          message: `행 ${index + 1}: product_id가 없습니다.`
+        });
+      }
+    } else {
+      // 통계 타입이 지정되지 않은 경우: 기본적으로 company_id 확인 (하위 호환성)
+      if (row.company_id === null || row.company_id === undefined) {
+        issues.push({
+          row: index + 1,
+          type: '필수 필드 누락',
+          field: 'company_id',
+          message: `행 ${index + 1}: company_id가 없습니다.`
+        });
+      }
     }
 
     // 음수 값 확인

@@ -677,6 +677,61 @@
     <!-- ConfirmDialog -->
     <ConfirmDialog />
     
+    <!-- 데이터 검증 결과 모달 -->
+    <Dialog 
+      v-model:visible="showValidationResultModal" 
+      :modal="true" 
+      :closable="true"
+      :draggable="false"
+      :style="{ width: '600px', maxWidth: '90vw' }"
+      class="validation-result-dialog"
+      @update:visible="(val) => showValidationResultModal = val"
+    >
+      <template #header>
+        <div class="dialog-header">
+          <div class="dialog-header-left">
+            <div class="dialog-icon-wrapper" :class="validationResult.isValid ? 'success' : 'warning'">
+              <i :class="validationResult.isValid ? 'pi pi-check-circle' : 'pi pi-exclamation-triangle'"></i>
+            </div>
+            <div class="dialog-title-message">
+              <strong>검증 결과</strong>
+            </div>
+          </div>
+        </div>
+      </template>
+      
+      <div class="dialog-content">
+        <div class="validation-summary" :class="validationResult.isValid ? 'success' : 'warning'">
+          <p>{{ validationResult.summary }}</p>
+        </div>
+        
+        <div v-if="validationResult.details.length > 0" class="validation-details">
+          <div class="details-header">
+            <strong>발견된 문제:</strong>
+          </div>
+          <div class="details-list">
+            <div 
+              v-for="(detail, index) in validationResult.details" 
+              :key="index"
+              class="detail-item"
+            >
+              <i class="pi pi-circle-fill"></i>
+              <span>{{ detail }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <Button 
+          label="확인" 
+          icon="pi pi-check" 
+          @click="showValidationResultModal = false"
+          class="p-button-primary"
+        />
+      </template>
+    </Dialog>
+    
     <!-- 통계 계산 확인 모달 -->
     <Dialog 
       v-model:visible="showStatisticsConfirmModal" 
@@ -794,6 +849,15 @@ const confirm = useConfirm();
 
 // 통계 계산 확인 모달
 const showStatisticsConfirmModal = ref(false);
+
+// 데이터 검증 결과 모달
+const showValidationResultModal = ref(false);
+const validationResult = ref({
+  isValid: true,
+  issues: [],
+  summary: '',
+  details: []
+});
 
 // 개발 모드 체크
 const isDevelopment = import.meta.env.DEV;
@@ -3723,8 +3787,8 @@ async function validateData() {
       });
     }
 
-    // 3. 데이터 무결성 검증
-    const integrityValidation = validateDataIntegrity(displayRows.value);
+    // 3. 데이터 무결성 검증 (통계 타입 전달)
+    const integrityValidation = validateDataIntegrity(displayRows.value, statisticsType.value);
     if (!integrityValidation.isValid) {
       issues.push(...integrityValidation.issues.map(issue => ({
         type: issue.type,
@@ -3742,31 +3806,27 @@ async function validateData() {
     }
 
     // 결과 표시
-    if (issues.length === 0) {
-      toast.add({
-        severity: 'success',
-        summary: '검증 완료',
-        detail: '모든 데이터가 정확합니다.',
-        life: 5000
-      });
-    } else {
-      const issueMessages = issues.map(issue => `• ${issue.type}: ${issue.message}`).join('\n');
-      toast.add({
-        severity: 'warn',
-        summary: '검증 결과',
-        detail: `${issues.length}개의 문제가 발견되었습니다.\n\n${issueMessages}`,
-        life: 10000
-      });
-      
-      // 개발 모드에서만 상세 로그 출력
-      if (isDevelopment) {
-        console.group('데이터 검증 결과');
-        console.log('흡수율 검증:', absorptionValidation);
-        console.log('합계 검증:', totalsValidation);
-        console.log('무결성 검증:', integrityValidation);
-        console.log('이상치 감지:', outliersValidation);
-        console.groupEnd();
-      }
+    const details = issues.map(issue => `${issue.type}: ${issue.message}`);
+    
+    validationResult.value = {
+      isValid: issues.length === 0,
+      issues: issues,
+      summary: issues.length === 0 
+        ? '모든 데이터가 정확합니다.' 
+        : `${issues.length}개의 문제가 발견되었습니다.`,
+      details: details
+    };
+    
+    showValidationResultModal.value = true;
+    
+    // 개발 모드에서만 상세 로그 출력
+    if (isDevelopment) {
+      console.group('데이터 검증 결과');
+      console.log('흡수율 검증:', absorptionValidation);
+      console.log('합계 검증:', totalsValidation);
+      console.log('무결성 검증:', integrityValidation);
+      console.log('이상치 감지:', outliersValidation);
+      console.groupEnd();
     }
   } catch (err) {
     console.error('데이터 검증 오류:', err);
@@ -3807,13 +3867,13 @@ async function downloadExcel() {
   // 헤더 정의
   let headers = [];
   if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
-    headers = ['No', '구분', '업체명', '사업자번호', '대표자', '처방수량', '처방액', '지급액', '흡수율'];
+    headers = ['No', '구분', '업체명', '사업자번호', '대표자', '처방수량', '처방액', '지급액', '매출액', '흡수율'];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
     headers = ['No', '병의원명', '처방수량', '처방액', '제품 수'];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'product') {
     headers = ['No', '제품명', '처방수량', '처방액', '병원 수'];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-    headers = ['No', '병의원명', '사업자등록번호', '주소', '담당업체 구분', '담당업체', '처방수량', '처방액', '흡수율(%)'];
+    headers = ['No', '병의원명', '사업자등록번호', '주소', '담당업체 구분', '담당업체', '처방수량', '처방액', '매출액', '흡수율(%)'];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
     headers = ['No', '제품명', '처방수량', '처방액'];
   } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
@@ -3825,7 +3885,7 @@ async function downloadExcel() {
       headers = ['No', '제품명', '보험코드', '약가', '처방수량', '처방액', '흡수율(%)'];
     }
   } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
-    headers = ['No', '업체명', '처방수량', '처방액'];
+    headers = ['No', '업체명', '처방수량', '처방액', '매출액', '흡수율(%)'];
   } else if (statisticsType.value === 'product' && drillDownType.value === 'hospital') {
     headers = ['No', '병의원명', '처방수량', '처방액'];
   }
@@ -3853,6 +3913,7 @@ async function downloadExcel() {
         Number(row.prescription_qty) || 0,
         Number(row.prescription_amount) || 0,
         Number(row.payment_amount) || 0,
+        Number(row.total_revenue) || 0,
         row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
     } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
@@ -3882,6 +3943,7 @@ async function downloadExcel() {
         row.company_names || '',
         Number(row.prescription_qty) || 0,
         Number(row.prescription_amount) || 0,
+        Number(row.total_revenue) || 0,
         row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
     } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
@@ -3933,7 +3995,9 @@ async function downloadExcel() {
         index + 1,
         row.company_name || '',
         Number(row.prescription_qty) || 0,
-        Number(row.prescription_amount) || 0
+        Number(row.prescription_amount) || 0,
+        Number(row.total_revenue) || 0,
+        row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
     } else if (statisticsType.value === 'product' && drillDownType.value === 'hospital') {
       rowData = [
@@ -3983,7 +4047,14 @@ async function downloadExcel() {
       
       // 흡수율 컬럼 정렬
       if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-        const absorptionCol = 9; // 병원별 통계: 9번째 컬럼 (흡수율)
+        const absorptionCol = 10; // 병원별 통계: 10번째 컬럼 (흡수율, 매출액 추가로 변경)
+        if (colNumber === absorptionCol) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+      }
+      // 제품 → 업체별 드릴다운 흡수율 컬럼 정렬
+      if (statisticsType.value === 'product' && drillDownType.value === 'company') {
+        const absorptionCol = 6; // 제품 → 업체별: 6번째 컬럼 (흡수율)
         if (colNumber === absorptionCol) {
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
         }
@@ -3994,15 +4065,16 @@ async function downloadExcel() {
   // 합계 행 추가
   let totalRowData = [];
   if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
-    // 평균 흡수율 계산
+    // 평균 흡수율 계산 (매출액 기반)
     const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalPaymentAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.payment_amount) || 0), 0);
-    const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalPaymentAmount / totalPrescriptionAmount) : 0;
+    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
+    const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
     
     totalRowData = ['합계', '', '', '', '', 
       Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
       Number((totalAmount.value || '0').toString().replace(/,/g, '')),
       Number((totalPaymentAmount.value || '0').toString().replace(/,/g, '')),
+      Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
       (avgAbsorptionRate * 100).toFixed(1) + '%'
     ];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
@@ -4018,14 +4090,15 @@ async function downloadExcel() {
       totalHospitalCount.value || 0
     ];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-    // 평균 흡수율 계산
+    // 평균 흡수율 계산 (매출액 기반)
     const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalPaymentAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.payment_amount) || 0), 0);
-    const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalPaymentAmount / totalPrescriptionAmount) : 0;
+    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
+    const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
     
-    totalRowData = ['합계', '', '', '', '', 
+    totalRowData = ['합계', '', '', '', '', '', 
       Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
       Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+      Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
       (avgAbsorptionRate * 100).toFixed(1) + '%'
     ];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
@@ -4057,9 +4130,16 @@ async function downloadExcel() {
       ];
     }
   } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
+    // 평균 흡수율 계산 (매출액 기반)
+    const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
+    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
+    const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
+    
     totalRowData = ['합계', '', 
       Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
-      Number((totalAmount.value || '0').toString().replace(/,/g, ''))
+      Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+      Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
+      (avgAbsorptionRate * 100).toFixed(1) + '%'
     ];
   } else if (statisticsType.value === 'product' && drillDownType.value === 'hospital') {
     totalRowData = ['합계', '', 
@@ -4079,8 +4159,8 @@ async function downloadExcel() {
     if (statisticsType.value === 'company' && drillDownLevel.value === 0 && (colNumber === 2 || colNumber === 4 || colNumber === 5)) {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     }
-    // 흡수율 컬럼 (업체별 통계일 때만)
-    if (statisticsType.value === 'company' && drillDownLevel.value === 0 && colNumber === 9) {
+    // 흡수율 컬럼 (업체별 통계일 때만) - 매출액 추가로 10번째 컬럼
+    if (statisticsType.value === 'company' && drillDownLevel.value === 0 && colNumber === 10) {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     }
     // 숫자 컬럼 정렬
@@ -4106,7 +4186,14 @@ async function downloadExcel() {
     
     // 흡수율 컬럼 정렬
     if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-      const absorptionCol = 9; // 병원별 통계: 9번째 컬럼 (흡수율)
+      const absorptionCol = 10; // 병원별 통계: 10번째 컬럼 (흡수율, 매출액 추가로 변경)
+      if (colNumber === absorptionCol) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+    }
+    // 제품 → 업체별 드릴다운 흡수율 컬럼 정렬
+    if (statisticsType.value === 'product' && drillDownType.value === 'company') {
+      const absorptionCol = 6; // 제품 → 업체별: 6번째 컬럼 (흡수율)
       if (colNumber === absorptionCol) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
@@ -4578,6 +4665,125 @@ onUnmounted(() => {
 
 :deep(.statistics-confirm-dialog .p-button-label) {
   font-weight: 600;
+}
+
+/* 데이터 검증 결과 모달 스타일 */
+.validation-result-dialog .dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.validation-result-dialog .dialog-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.validation-result-dialog .dialog-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.validation-result-dialog .dialog-icon-wrapper.success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.validation-result-dialog .dialog-icon-wrapper.warning {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.validation-result-dialog .dialog-title-message {
+  font-size: 18px;
+  font-weight: 600;
+  color: #212529;
+}
+
+.validation-result-dialog .dialog-content {
+  padding: 24px;
+}
+
+.validation-result-dialog .validation-summary {
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.validation-result-dialog .validation-summary.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.validation-result-dialog .validation-summary.warning {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.validation-result-dialog .validation-details {
+  margin-top: 20px;
+}
+
+.validation-result-dialog .details-header {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #212529;
+}
+
+.validation-result-dialog .details-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.validation-result-dialog .detail-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #495057;
+}
+
+.validation-result-dialog .detail-item i {
+  color: #dc3545;
+  font-size: 6px;
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
+.validation-result-dialog .detail-item span {
+  flex: 1;
+  word-break: break-word;
+}
+
+:deep(.validation-result-dialog .p-dialog-footer) {
+  padding: 16px 24px;
+  border-top: 1px solid #e9ecef;
+  display: flex;
+  justify-content: flex-end;
+}
+
+:deep(.validation-result-dialog .p-button) {
+  min-width: 100px;
+  padding: 10px 20px;
 }
 </style>
 
