@@ -1177,13 +1177,12 @@ async function fetchStatistics() {
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedData = Array.from(companyHospitalMap.values()).map(item => {
             // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 없으면 가중 평균 방식 사용
+            // 매출액이 0이면 흡수율도 0
             let absorptionRate = 0;
             if (item.total_revenue > 0 && item.prescription_amount > 0) {
               absorptionRate = item.total_revenue / item.prescription_amount;
-            } else if (item.total_prescription_amount > 0) {
-              absorptionRate = item.total_absorption_rate / item.total_prescription_amount;
             }
+            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
             
             const { total_absorption_rate, total_prescription_amount, ...cleanItem } = item;
             return {
@@ -1274,13 +1273,12 @@ async function fetchStatistics() {
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedData = Array.from(companyProductMap.values()).map(item => {
             // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 없으면 가중 평균 방식 사용
+            // 매출액이 0이면 흡수율도 0
             let absorptionRate = 0;
             if (item.total_revenue > 0 && item.prescription_amount > 0) {
               absorptionRate = item.total_revenue / item.prescription_amount;
-            } else if (item.total_prescription_amount > 0) {
-              absorptionRate = item.total_absorption_rate / item.total_prescription_amount;
             }
+            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
             
             const { total_absorption_rate, total_prescription_amount, ...cleanItem } = item;
             return {
@@ -1333,13 +1331,12 @@ async function fetchStatistics() {
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedData = Array.from(companyMap.values()).map(company => {
             // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 없으면 가중 평균 방식 사용
+            // 매출액이 0이면 흡수율도 0
             let absorptionRate = 0;
             if (company.total_revenue > 0 && company.prescription_amount > 0) {
               absorptionRate = company.total_revenue / company.prescription_amount;
-            } else if (company.total_prescription_amount > 0) {
-              absorptionRate = company.total_absorption_rate / company.total_prescription_amount;
             }
+            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
             
             const { total_absorption_rate, total_prescription_amount, ...cleanCompany } = company;
             return {
@@ -1451,13 +1448,12 @@ async function fetchStatistics() {
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedHospitalData = Array.from(hospitalProductMap.values()).map(item => {
             // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 없으면 가중 평균 방식 사용
+            // 매출액이 0이면 흡수율도 0
             let absorptionRate = 0;
             if (item.total_revenue > 0 && item.prescription_amount > 0) {
               absorptionRate = item.total_revenue / item.prescription_amount;
-            } else if (item.total_prescription_amount > 0) {
-              absorptionRate = item.total_absorption_rate / item.total_prescription_amount;
             }
+            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
             
             const { total_absorption_rate, total_prescription_amount, companyGroups, companyNames, ...cleanItem } = item;
             return {
@@ -1589,13 +1585,12 @@ async function fetchStatistics() {
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedHospitalData = Array.from(hospitalMap.values()).map(hospital => {
             // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 없으면 가중 평균 방식 사용
+            // 매출액이 0이면 흡수율도 0
             let absorptionRate = 0;
             if (hospital.total_revenue > 0 && hospital.prescription_amount > 0) {
               absorptionRate = hospital.total_revenue / hospital.prescription_amount;
-            } else if (hospital.total_prescription_amount > 0) {
-              absorptionRate = hospital.total_absorption_rate / hospital.total_prescription_amount;
             }
+            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
             
             const { total_absorption_rate, total_prescription_amount, companyGroups, companyNames, hospital_business_registration_number, ...cleanHospital } = hospital;
             return {
@@ -1773,13 +1768,12 @@ async function fetchStatistics() {
           // 평균 흡수율 계산 및 배열로 변환
           statisticsData.value = Array.from(productMap.values()).map(product => {
             // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 없으면 가중 평균 방식 사용
+            // 매출액이 0이면 흡수율도 0
             let absorptionRate = 0;
             if (product.total_revenue > 0 && product.prescription_amount > 0) {
               absorptionRate = product.total_revenue / product.prescription_amount;
-            } else if (product.total_prescription_amount > 0) {
-              absorptionRate = product.total_absorption_rate / product.total_prescription_amount;
             }
+            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
             
             const { total_absorption_rate, total_prescription_amount, ...cleanProduct } = product;
             return {
@@ -1836,13 +1830,12 @@ async function fetchStatistics() {
         // 평균 흡수율 계산 및 배열로 변환
         statisticsData.value = Array.from(companyMap.values()).map(company => {
           // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-          // 매출액이 없으면 가중 평균 방식 사용
+          // 매출액이 0이면 흡수율도 0
           let absorptionRate = 0;
           if (company.total_revenue > 0 && company.prescription_amount > 0) {
             absorptionRate = company.total_revenue / company.prescription_amount;
-          } else if (company.total_prescription_amount > 0) {
-            absorptionRate = company.total_absorption_rate / company.total_prescription_amount;
           }
+          // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
           
           const { total_absorption_rate, total_prescription_amount, ...cleanCompany } = company;
           return {
@@ -2544,15 +2537,13 @@ function aggregateByCompany(data, absorptionRates = {}) {
 
   return Array.from(map.values()).map(item => {
     // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-    // 매출액이 없으면 가중 평균 방식 사용
+    // 매출액이 0이면 흡수율도 0
     let absorptionRate = 0;
     if (item.total_revenue > 0 && item.prescription_amount > 0) {
       // 매출액 기반 흡수율 계산 (올바른 방식)
       absorptionRate = item.total_revenue / item.prescription_amount;
-    } else if (item.total_prescription_amount > 0) {
-      // 매출액이 없으면 가중 평균 방식 사용
-      absorptionRate = item.total_absorption_rate / item.total_prescription_amount;
     }
+    // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
     
     const result = {
       company_id: item.company_id,
@@ -2640,15 +2631,13 @@ function aggregateByHospital(data, absorptionRates = {}) {
 
   return Array.from(map.values()).map(item => {
     // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-    // 매출액이 없으면 지급액 기반으로 계산 (하위 호환성)
+    // 매출액이 0이면 흡수율도 0
     let absorptionRate = 0;
     if (item.total_revenue > 0 && item.prescription_amount > 0) {
       // 매출액 기반 흡수율 계산 (올바른 방식)
       absorptionRate = item.total_revenue / item.prescription_amount;
-    } else if (item.prescription_amount > 0) {
-      // 매출액이 없으면 지급액 기반으로 계산 (기존 방식, 하위 호환성)
-      absorptionRate = item.payment_amount / item.prescription_amount;
     }
+    // 매출액이 0이면 흡수율도 0으로 설정 (지급액 기반 계산 제거)
     
     // 담당업체 목록을 콤마로 구분
     const companyNames = Array.from(item.companies).sort().join(', ');
@@ -2733,15 +2722,13 @@ function aggregateByProduct(data, absorptionRates = {}) {
 
   return Array.from(map.values()).map(item => {
     // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-    // 매출액이 없으면 가중 평균 방식 사용
+    // 매출액이 0이면 흡수율도 0
     let absorptionRate = 0;
     if (item.total_revenue > 0 && item.prescription_amount > 0) {
       // 매출액 기반 흡수율 계산 (올바른 방식)
       absorptionRate = item.total_revenue / item.prescription_amount;
-    } else if (item.total_prescription_amount > 0) {
-      // 매출액이 없으면 가중 평균 방식 사용
-      absorptionRate = item.total_absorption_rate / item.total_prescription_amount;
     }
+    // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
     
     const result = {
       product_id: item.product_id,
