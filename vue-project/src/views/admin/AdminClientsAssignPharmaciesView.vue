@@ -496,7 +496,8 @@ function applyFilters() {
       (c.owner_name && c.owner_name.toLowerCase().includes(keyword)) ||
       (c.address && c.address.toLowerCase().includes(keyword)) ||
       (c.pharmacies && c.pharmacies.some(pharmacy =>
-        pharmacy.name && pharmacy.name.toLowerCase().includes(keyword)
+        (pharmacy.name && pharmacy.name.toLowerCase().includes(keyword)) ||
+        (pharmacy.business_registration_number && pharmacy.business_registration_number.toLowerCase().includes(keyword))
       )) ||
       (c.companies && c.companies.some(company =>
         (company.company_group && company.company_group.toLowerCase().includes(keyword)) ||
