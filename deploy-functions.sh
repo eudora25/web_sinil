@@ -5,7 +5,6 @@
 
 # 함수 목록
 FUNCTIONS=(
-  "calculate-statistics"
   "admin-create-company"
   "create-missing-users"
   "create-notice"
