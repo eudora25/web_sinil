@@ -1518,9 +1518,24 @@ async function checkStatistics() {
             existingAfterAmountMap.set(hospitalId, currentAmount + prescriptionAmount);
             
             // 기준일 이후 데이터인데 first_performance_cso_id가 null이면 CSO ID로 수정
+            // 단, 프로모션 시작일 이전 데이터가 있으면 CSO ID는 null로 유지해야 함
             // existingDataMap만 업데이트하고, 실제 DB 업데이트는 나중에 일괄 처리 (1783-1807줄)
             if (existing && existing.first_performance_month && existing.first_performance_month >= baseMonth) {
-              if (existing.first_performance_cso_id === null) {
+              // 프로모션 시작일 이전 데이터가 있는지 확인
+              const hasBeforeStartDateData = beforeBaseMonthRecords.some(r => {
+                if (!r.client_id || r.review_action === '삭제') return false;
+                if (r.client_id !== hospitalId) return false;
+                if (promotionStartDate && r.prescription_month) {
+                  const prescriptionDate = new Date(r.prescription_month + '-01');
+                  return prescriptionDate < promotionStartDate;
+                } else if (!promotionStartDate && r.prescription_month) {
+                  return r.prescription_month < baseMonth;
+                }
+                return false;
+              });
+
+              // 프로모션 시작일 이전 데이터가 없을 때만 CSO ID 설정
+              if (!hasBeforeStartDateData && existing.first_performance_cso_id === null) {
                 existing.first_performance_cso_id = record.company_id;
                 // existingDataMap도 업데이트 (일괄 업데이트 시 사용)
                 existingDataMap.set(hospitalId, {
@@ -1537,9 +1552,23 @@ async function checkStatistics() {
             const existing = hospitalDataMap.get(hospitalId);
             // 기준일 이전 데이터인 경우 (first_performance_month < baseMonth) CSO ID는 null로 유지
             // 기준일 이후 데이터인 경우에만 CSO ID 업데이트
+            // 단, 프로모션 시작일 이전 데이터가 있으면 CSO ID는 null로 유지
             if (existing.first_performance_month && existing.first_performance_month >= baseMonth) {
-              // 기준일 이후 데이터인데 first_performance_cso_id가 null이면 CSO ID 업데이트
-              if (existing.first_performance_cso_id === null) {
+              // 프로모션 시작일 이전 데이터가 있는지 확인
+              const hasBeforeStartDateData = beforeBaseMonthRecords.some(r => {
+                if (!r.client_id || r.review_action === '삭제') return false;
+                if (r.client_id !== hospitalId) return false;
+                if (promotionStartDate && r.prescription_month) {
+                  const prescriptionDate = new Date(r.prescription_month + '-01');
+                  return prescriptionDate < promotionStartDate;
+                } else if (!promotionStartDate && r.prescription_month) {
+                  return r.prescription_month < baseMonth;
+                }
+                return false;
+              });
+
+              // 프로모션 시작일 이전 데이터가 없을 때만 CSO ID 업데이트
+              if (!hasBeforeStartDateData && existing.first_performance_cso_id === null) {
                 existing.first_performance_cso_id = record.company_id;
               }
             }
@@ -1743,28 +1772,72 @@ async function checkStatistics() {
         }
         
         // 기존 데이터 중 기준일 이후인데 CSO ID가 null인 경우 업데이트
+        // 단, 프로모션 시작일 이전 데이터가 있으면 CSO ID는 null로 유지해야 함
         for (const [hospitalId, afterAmount] of existingAfterAmountMap.entries()) {
           const existing = existingDataMap.get(hospitalId);
-          if (existing && existing.first_performance_month && existing.first_performance_month >= baseMonth) {
-            if (existing.first_performance_cso_id === null) {
-              // 기준일 이후 데이터 중 첫 번째 레코드의 company_id를 찾아서 업데이트
-              const firstAfterRecord = afterBaseMonthRecords.find(r => r.client_id === hospitalId);
-              if (firstAfterRecord && firstAfterRecord.company_id) {
-                const { error: updateError } = await supabase
-                  .from('promotion_product_hospital_performance')
-                  .update({ 
-                    first_performance_cso_id: firstAfterRecord.company_id,
-                    updated_by: user.id
-                  })
-                  .eq('promotion_product_id', promotionProduct.id)
-                  .eq('hospital_id', hospitalId);
-                
-                if (updateError) {
-                  console.error(`기존 데이터 CSO ID 업데이트 오류 (제품 ${promotionProduct.product_name}, 병원 ${hospitalId}):`, updateError);
-                  totalErrors++;
-                } else {
-                  totalUpdated++;
+          if (existing && existing.first_performance_month) {
+            // 프로모션 시작일 이전 데이터가 있는지 확인
+            let hasBeforeStartDateData = false;
+            if (promotionStartDate) {
+              // beforeBaseMonthRecords에서 해당 병원의 프로모션 시작일 이전 데이터 확인
+              hasBeforeStartDateData = beforeBaseMonthRecords.some(record => {
+                if (!record.client_id || record.review_action === '삭제') return false;
+                if (record.client_id !== hospitalId) return false;
+                if (record.prescription_month) {
+                  const prescriptionDate = new Date(record.prescription_month + '-01');
+                  return prescriptionDate < promotionStartDate;
                 }
+                return false;
+              });
+            } else {
+              // 프로모션 시작일이 없으면 baseMonth 이전 데이터 확인
+              hasBeforeStartDateData = beforeBaseMonthRecords.some(record => {
+                if (!record.client_id || record.review_action === '삭제') return false;
+                if (record.client_id !== hospitalId) return false;
+                return record.prescription_month && record.prescription_month < baseMonth;
+              });
+            }
+
+            // 프로모션 시작일 이전 데이터가 없고, first_performance_month가 기준일 이후인 경우에만 CSO ID 업데이트
+            if (!hasBeforeStartDateData && existing.first_performance_month >= baseMonth) {
+              if (existing.first_performance_cso_id === null) {
+                // 기준일 이후 데이터 중 첫 번째 레코드의 company_id를 찾아서 업데이트
+                const firstAfterRecord = afterBaseMonthRecords.find(r => r.client_id === hospitalId);
+                if (firstAfterRecord && firstAfterRecord.company_id) {
+                  const { error: updateError } = await supabase
+                    .from('promotion_product_hospital_performance')
+                    .update({ 
+                      first_performance_cso_id: firstAfterRecord.company_id,
+                      updated_by: user.id
+                    })
+                    .eq('promotion_product_id', promotionProduct.id)
+                    .eq('hospital_id', hospitalId);
+                  
+                  if (updateError) {
+                    console.error(`기존 데이터 CSO ID 업데이트 오류 (제품 ${promotionProduct.product_name}, 병원 ${hospitalId}):`, updateError);
+                    totalErrors++;
+                  } else {
+                    totalUpdated++;
+                  }
+                }
+              }
+            } else if (hasBeforeStartDateData && existing.first_performance_cso_id !== null) {
+              // 프로모션 시작일 이전 데이터가 있는데 CSO ID가 null이 아니면 null로 수정
+              const { error: updateError } = await supabase
+                .from('promotion_product_hospital_performance')
+                .update({ 
+                  first_performance_cso_id: null,
+                  updated_by: user.id
+                })
+                .eq('promotion_product_id', promotionProduct.id)
+                .eq('hospital_id', hospitalId);
+              
+              if (updateError) {
+                console.error(`프로모션 시작일 이전 데이터 존재로 CSO ID null 처리 오류 (제품 ${promotionProduct.product_name}, 병원 ${hospitalId}):`, updateError);
+                totalErrors++;
+              } else {
+                totalUpdated++;
+                console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - 병원 ${hospitalId} 프로모션 시작일 이전 데이터 존재로 CSO ID null 처리 (first_performance_month: ${existing.first_performance_month})`);
               }
             }
           }
