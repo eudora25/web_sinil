@@ -1583,6 +1583,7 @@ const calculateAbsorptionRates = async () => {
     // 반영 흡수율은 applied_absorption_rates 테이블에 별도로 보존되므로 삭제하지 않음
 
     // 필터 조건에 맞는 performance_records 데이터 조회
+    // 삭제된 레코드는 제외 (review_action != '삭제')
     let sourceQuery = supabase
       .from('performance_records')
       .select(`
@@ -1602,7 +1603,8 @@ const calculateAbsorptionRates = async () => {
         updated_at
       `)
       .eq('settlement_month', selectedSettlementMonth.value)
-      .eq('review_status', '완료');
+      .eq('review_status', '완료')
+      .or('review_action.is.null,review_action.neq.삭제');  // 삭제된 레코드 제외
     
     if (selectedCompanyId.value !== 'ALL') {
       sourceQuery = sourceQuery.eq('company_id', selectedCompanyId.value);

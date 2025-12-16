@@ -1586,13 +1586,39 @@ async function checkStatistics() {
             }
           } else {
             // 기준일 이전 데이터가 없는 경우에만 새로 추가
+            // 하지만 프로모션 시작일 이전 데이터가 있는지 확인 필요
             const productPrice = Number(record.products?.price) || 0;
             const prescriptionQty = Number(record.prescription_qty) || 0;
             const prescriptionAmount = prescriptionQty * productPrice;
 
+            // 프로모션 시작일 이전 데이터 확인
+            // 1. 현재 레코드의 prescription_month가 프로모션 시작일 이전인지 확인
+            let hasBeforeStartDateData = false;
+            if (promotionStartDate && record.prescription_month) {
+              const prescriptionDate = new Date(record.prescription_month + '-01');
+              hasBeforeStartDateData = prescriptionDate < promotionStartDate;
+            } else if (!promotionStartDate && record.prescription_month) {
+              hasBeforeStartDateData = record.prescription_month < baseMonth;
+            }
+            
+            // 2. beforeBaseMonthRecords에 해당 병원의 프로모션 시작일 이전 데이터가 있는지 확인
+            if (!hasBeforeStartDateData) {
+              hasBeforeStartDateData = beforeBaseMonthRecords.some(r => {
+                if (!r.client_id || r.review_action === '삭제') return false;
+                if (r.client_id !== hospitalId) return false;
+                if (promotionStartDate && r.prescription_month) {
+                  const prescriptionDate = new Date(r.prescription_month + '-01');
+                  return prescriptionDate < promotionStartDate;
+                } else if (!promotionStartDate && r.prescription_month) {
+                  return r.prescription_month < baseMonth;
+                }
+                return false;
+              });
+            }
+
             hospitalDataMap.set(hospitalId, {
               hospital_id: hospitalId,
-              first_performance_cso_id: record.company_id,
+              first_performance_cso_id: hasBeforeStartDateData ? null : record.company_id, // 프로모션 시작일 이전이면 null
               first_performance_month: record.prescription_month || null,
               total_performance_amount: prescriptionAmount,
               before_promotion_amount: 0,
