@@ -1393,6 +1393,20 @@ async function loadPerformanceData() {
         }
       });
     }
+    
+    // promotion_product_excluded_hospitals 조회 (제외 병원 목록)
+    const { data: excludedHospitals, error: excludedError } = await supabase
+      .from('promotion_product_excluded_hospitals')
+      .select('insurance_code, hospital_id');
+    
+    // 제외 병원 매핑: insurance_code_hospital_id 형식으로 저장
+    const excludedHospitalsMap = new Set();
+    if (!excludedError && excludedHospitals) {
+      excludedHospitals.forEach(eh => {
+        const key = `${String(eh.insurance_code)}_${eh.hospital_id}`;
+        excludedHospitalsMap.add(key);
+      });
+    }
 
     if (shouldFetchByIds) {
       if (!idsToFetch || idsToFetch.length === 0) {
@@ -1507,9 +1521,14 @@ async function loadPerformanceData() {
         // 프로모션 제품 정보 확인
         const promotionProduct = promotionProductMap[insuranceCode];
         
+        // 제외 병원 확인
+        const excludedKey = `${insuranceCode}_${hospitalId}`;
+        const isExcluded = excludedHospitalsMap.has(excludedKey);
+        
         if (promotionProduct && 
             hospitalPerformanceMap.has(performanceKey) &&
-            hospitalPerformanceMap.get(performanceKey).has(companyId)) {
+            hospitalPerformanceMap.get(performanceKey).has(companyId) &&
+            !isExcluded) { // 제외 병원이 아닌 경우에만 프로모션 적용
           
           // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
           let isWithinPromotionPeriod = true;
@@ -2027,6 +2046,9 @@ async function confirmStatusChange() {
         throw new Error(`다음 항목들의 상태 변경에 실패했습니다: ${errors.map(e=>e.error.message).join(', ')}`);
       }
 
+      // 프로모션 관리 데이터 업데이트: 변경된 레코드 중 프로모션 제품이 있는지 확인
+      await updatePromotionDataForChangedRecords(selectedRows.value);
+
       alert(`${selectedRows.value.length}개 항목의 상태를 '${selectedNewStatus.value}'로 성공적으로 변경했습니다.`);
       await loadPerformanceData(); // 데이터 새로고침
       
@@ -2052,6 +2074,265 @@ function cancelStatusChange() {
   selectedNewStatus.value = '';
 }
 
+// 프로모션 관리 데이터 업데이트: 변경된 레코드 중 프로모션 제품이 있는 경우 업데이트
+async function updatePromotionDataForChangedRecords(changedRecords) {
+  try {
+    if (!changedRecords || changedRecords.length === 0) return;
+
+    // 1. 변경된 레코드들의 제품 ID 수집
+    const productIds = [...new Set(changedRecords.map(record => record.product_id).filter(id => id))];
+    if (productIds.length === 0) return;
+
+    // 2. 제품 정보 조회 (insurance_code 포함)
+    const { data: products, error: productsError } = await supabase
+      .from('products')
+      .select('id, insurance_code')
+      .in('id', productIds);
+
+    if (productsError || !products || products.length === 0) {
+      console.log('프로모션 데이터 업데이트: 제품 정보 조회 실패 또는 제품 없음');
+      return;
+    }
+
+    // 3. 프로모션 제품 확인 (promotion_product_list에서 insurance_code로 확인)
+    const insuranceCodes = [...new Set(products.map(p => p.insurance_code).filter(code => code))];
+    if (insuranceCodes.length === 0) {
+      console.log('프로모션 데이터 업데이트: 보험코드 없음');
+      return;
+    }
+
+    const { data: promotionProducts, error: promotionError } = await supabase
+      .from('promotion_product_list')
+      .select('id, insurance_code, product_name, promotion_start_date, promotion_end_date')
+      .in('insurance_code', insuranceCodes);
+
+    if (promotionError || !promotionProducts || promotionProducts.length === 0) {
+      console.log('프로모션 데이터 업데이트: 프로모션 제품 없음');
+      return;
+    }
+
+    console.log(`프로모션 데이터 업데이트: ${promotionProducts.length}개 프로모션 제품 발견`);
+
+    // 4. 프로모션 제품이 있으면 해당 제품들에 대해 프로모션 관리 데이터 업데이트
+    // 각 프로모션 제품에 대해 해당 제품의 실적 데이터를 기반으로 promotion_product_hospital_performance 업데이트
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('프로모션 데이터 업데이트: 로그인 정보 없음');
+      return;
+    }
+
+    for (const promotionProduct of promotionProducts) {
+      try {
+        const insuranceCode = String(promotionProduct.insurance_code);
+        
+        // 프로모션 시작일 확인
+        const promotionStartDate = promotionProduct.promotion_start_date ? new Date(promotionProduct.promotion_start_date) : null;
+        const promotionEndDate = promotionProduct.promotion_end_date ? new Date(promotionProduct.promotion_end_date) : null;
+        
+        // 프로모션 시작일이 없으면 스킵
+        if (!promotionStartDate) {
+          console.log(`프로모션 데이터 업데이트: ${promotionProduct.product_name} - 프로모션 시작일 없음`);
+          continue;
+        }
+        
+        // 해당 보험코드를 가진 제품들의 실적 데이터 조회 (완료 상태, 삭제 제외)
+        const { data: performanceRecords, error: recordsError } = await supabase
+          .from('performance_records')
+          .select(`
+            id,
+            company_id,
+            client_id,
+            product_id,
+            prescription_qty,
+            prescription_month,
+            settlement_month,
+            review_status,
+            review_action,
+            products!inner(insurance_code, price),
+            companies!inner(company_group)
+          `)
+          .eq('products.insurance_code', insuranceCode)
+          .eq('companies.company_group', 'NEWCSO')
+          .eq('review_status', '완료')
+          .or('review_action.is.null,review_action.neq.삭제');
+
+        if (recordsError || !performanceRecords || performanceRecords.length === 0) {
+          console.log(`프로모션 데이터 업데이트: ${promotionProduct.product_name} - 실적 데이터 없음`);
+          continue;
+        }
+
+        // 프로모션 시작일을 기준으로 baseMonth 계산 (프로모션 관리 페이지와 동일한 로직)
+        let baseMonth = null;
+        if (promotionProduct.promotion_start_date) {
+          const dateStr = promotionProduct.promotion_start_date;
+          if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}/)) {
+            baseMonth = dateStr.substring(0, 7);
+          } else {
+            const startDate = new Date(promotionProduct.promotion_start_date);
+            const year = startDate.getFullYear();
+            const month = String(startDate.getMonth() + 1).padStart(2, '0');
+            baseMonth = `${year}-${month}`;
+          }
+        }
+
+        // 병원별로 그룹화하여 promotion_product_hospital_performance 업데이트
+        // 프로모션 관리 페이지의 checkStatistics 함수와 동일한 로직 사용
+        const hospitalMap = new Map();
+        
+        // 처방월을 기준으로 before/after 분류
+        performanceRecords.forEach(record => {
+          const hospitalId = record.client_id;
+          if (!hospitalId || record.review_action === '삭제') return;
+
+          const productPrice = Number(record.products?.price) || 0;
+          const prescriptionQty = Number(record.prescription_qty) || 0;
+          const prescriptionAmount = productPrice * prescriptionQty;
+          
+          // 처방월이 프로모션 시작일 이전인지 확인
+          let isBeforeStartDate = false;
+          if (record.prescription_month && promotionStartDate) {
+            const prescriptionDate = new Date(record.prescription_month + '-01');
+            isBeforeStartDate = prescriptionDate < promotionStartDate;
+          } else if (record.prescription_month && baseMonth) {
+            isBeforeStartDate = record.prescription_month < baseMonth;
+          }
+
+          // 처방월이 프로모션 종료일 이후인지 확인
+          let isAfterEndDate = false;
+          if (record.prescription_month && promotionEndDate) {
+            const prescriptionDate = new Date(record.prescription_month + '-01');
+            const lastDayOfPrescriptionMonth = new Date(prescriptionDate.getFullYear(), prescriptionDate.getMonth() + 1, 0);
+            isAfterEndDate = lastDayOfPrescriptionMonth > promotionEndDate;
+          }
+
+          if (!hospitalMap.has(hospitalId)) {
+            hospitalMap.set(hospitalId, {
+              hospital_id: hospitalId,
+              total_performance_amount: 0,
+              before_promotion_amount: 0,
+              after_promotion_amount: 0,
+              first_performance_cso_id: null,
+              first_performance_month: null,
+              has_before_start_date: false
+            });
+          }
+
+          const hospitalData = hospitalMap.get(hospitalId);
+          
+          // 종료일 이후 데이터는 total에만 포함 (프로모션 금액에는 포함하지 않음)
+          if (isAfterEndDate) {
+            hospitalData.total_performance_amount += prescriptionAmount;
+            return;
+          }
+
+          // 프로모션 시작일 이전 데이터 처리
+          if (isBeforeStartDate) {
+            hospitalData.has_before_start_date = true;
+            hospitalData.total_performance_amount += prescriptionAmount;
+            hospitalData.before_promotion_amount += prescriptionAmount;
+            
+            // first_performance_month는 가장 이른 처방월로 설정
+            if (!hospitalData.first_performance_month || 
+                record.prescription_month < hospitalData.first_performance_month) {
+              hospitalData.first_performance_month = record.prescription_month;
+              hospitalData.first_performance_cso_id = null; // 프로모션 시작일 이전이므로 null
+            }
+          } else {
+            // 프로모션 시작일 이후 데이터 처리
+            hospitalData.total_performance_amount += prescriptionAmount;
+            hospitalData.after_promotion_amount += prescriptionAmount;
+            
+            // first_performance_cso_id 설정 (프로모션 시작일 이전 데이터가 없을 때만)
+            if (prescriptionQty > 0) {
+              if (!hospitalData.first_performance_month || 
+                  record.prescription_month < hospitalData.first_performance_month) {
+                hospitalData.first_performance_month = record.prescription_month;
+                // 프로모션 시작일 이전 데이터가 없을 때만 CSO ID 설정
+                if (!hospitalData.has_before_start_date) {
+                  hospitalData.first_performance_cso_id = record.company_id;
+                } else {
+                  hospitalData.first_performance_cso_id = null; // 이전 데이터가 있으면 null
+                }
+              }
+            }
+          }
+        });
+
+        // 각 병원에 대해 promotion_product_hospital_performance 업데이트
+        for (const [hospitalId, hospitalData] of hospitalMap.entries()) {
+          // 기존 데이터 확인
+          const { data: existingData, error: existingError } = await supabase
+            .from('promotion_product_hospital_performance')
+            .select('*')
+            .eq('promotion_product_id', promotionProduct.id)
+            .eq('hospital_id', hospitalId)
+            .single();
+
+          if (existingError && existingError.code === 'PGRST116') {
+            // 기존 데이터가 없으면 INSERT
+            // 프로모션 시작일 이전 데이터가 있으면 first_performance_cso_id는 null이어야 함
+            const finalCSOId = hospitalData.has_before_start_date ? null : hospitalData.first_performance_cso_id;
+            
+            const { error: insertError } = await supabase
+              .from('promotion_product_hospital_performance')
+              .insert({
+                promotion_product_id: promotionProduct.id,
+                hospital_id: hospitalId,
+                has_performance: true,
+                first_performance_cso_id: finalCSOId,
+                first_performance_month: hospitalData.first_performance_month,
+                total_performance_amount: hospitalData.total_performance_amount,
+                before_promotion_amount: hospitalData.before_promotion_amount,
+                after_promotion_amount: hospitalData.after_promotion_amount,
+                created_by: user.id,
+                updated_by: user.id
+              });
+
+            if (insertError) {
+              console.error(`프로모션 데이터 INSERT 오류 (제품 ${promotionProduct.product_name}, 병원 ${hospitalId}):`, insertError);
+            }
+          } else if (existingData) {
+            // 기존 데이터가 있으면 UPDATE
+            // 프로모션 시작일 이전 데이터가 있으면 first_performance_cso_id는 null이어야 함
+            const finalCSOId = hospitalData.has_before_start_date ? null : hospitalData.first_performance_cso_id;
+            
+            // 기존 데이터의 before/after 금액을 누적 (프로모션 관리 페이지와 동일한 로직)
+            const existingBefore = existingData.before_promotion_amount || 0;
+            const existingAfter = existingData.after_promotion_amount || 0;
+            const newBeforeAmount = existingBefore + hospitalData.before_promotion_amount;
+            const newAfterAmount = existingAfter + hospitalData.after_promotion_amount;
+            const newTotalAmount = newBeforeAmount + newAfterAmount;
+            
+            const { error: updateError } = await supabase
+              .from('promotion_product_hospital_performance')
+              .update({
+                has_performance: true,
+                total_performance_amount: newTotalAmount,
+                before_promotion_amount: newBeforeAmount,
+                after_promotion_amount: newAfterAmount,
+                first_performance_cso_id: finalCSOId,
+                first_performance_month: hospitalData.first_performance_month,
+                updated_by: user.id,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingData.id);
+
+            if (updateError) {
+              console.error(`프로모션 데이터 UPDATE 오류 (제품 ${promotionProduct.product_name}, 병원 ${hospitalId}):`, updateError);
+            }
+          }
+        }
+
+        console.log(`프로모션 데이터 업데이트 완료: ${promotionProduct.product_name} (${hospitalMap.size}개 병원)`);
+      } catch (error) {
+        console.error(`프로모션 데이터 업데이트 오류 (제품 ${promotionProduct.product_name}):`, error);
+      }
+    }
+  } catch (error) {
+    console.error('프로모션 데이터 업데이트 전체 오류:', error);
+    // 오류가 발생해도 상태 변경은 계속 진행되도록 함
+  }
+}
 
 // --- 유틸리티 함수 ---
 // 회사-거래처 매핑에서 수수료율 등급 조회 함수

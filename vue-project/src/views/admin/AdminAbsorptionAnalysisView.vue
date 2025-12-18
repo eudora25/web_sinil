@@ -1711,6 +1711,19 @@ const calculateAbsorptionRates = async () => {
         });
       }
     }
+    
+    // 제외 병원 목록 조회
+    const { data: excludedHospitals, error: excludedError } = await supabase
+      .from('promotion_product_excluded_hospitals')
+      .select('insurance_code, hospital_id');
+    
+    const excludedHospitalsMap = new Set();
+    if (!excludedError && excludedHospitals) {
+      excludedHospitals.forEach(eh => {
+        const key = `${String(eh.insurance_code)}_${eh.hospital_id}`;
+        excludedHospitalsMap.add(key);
+      });
+    }
 
     // performance_records_absorption에 데이터 복사 (배치 처리 최적화)
     const insertBatchSize = 500; // 배치 크기를 줄여서 메모리 사용량 감소
@@ -1741,7 +1754,11 @@ const calculateAbsorptionRates = async () => {
             const key = `${hospitalId}_${insuranceCode}_${companyId}`;
             const promotionInfo = hospitalPerformanceMap.get(key);
             
-            if (promotionInfo) {
+            // 제외 병원 확인
+            const excludedKey = `${insuranceCode}_${hospitalId}`;
+            const isExcluded = excludedHospitalsMap.has(excludedKey);
+            
+            if (promotionInfo && !isExcluded) {
               // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
               let isWithinPromotionPeriod = true;
               

@@ -490,6 +490,7 @@ async function fetchAllDataForMonth() {
   const insuranceCodes = Array.from(productInsuranceCodeMap.values());
   let hospitalPerformanceMap = new Map();
   let promotionProductsMap = new Map();
+  let excludedHospitalsMap = new Set();
   
   if (hospitalIds.length > 0 && companyId.value) {
     // 1. promotion_product_hospital_performance에서 조회 (조인 없이, RLS 정책 수정 후 조회 가능)
@@ -546,6 +547,20 @@ async function fetchAllDataForMonth() {
     }
   }
   
+  // 제외 병원 목록 조회
+  if (hospitalIds.length > 0) {
+    const { data: excludedHospitals, error: excludedError } = await supabase
+      .from('promotion_product_excluded_hospitals')
+      .select('insurance_code, hospital_id');
+    
+    if (!excludedError && excludedHospitals) {
+      excludedHospitals.forEach(eh => {
+        const key = `${String(eh.insurance_code)}_${eh.hospital_id}`;
+        excludedHospitalsMap.add(key);
+      });
+    }
+  }
+  
   allDataForMonth.value = data.map(row => {
     const price = row.products?.price || 0;
     const qty = row.prescription_qty || 0;
@@ -571,7 +586,11 @@ async function fetchAllDataForMonth() {
         const key = `${hospitalId}_${insuranceCode}_${companyId.value}`;
         const promotionInfo = hospitalPerformanceMap.get(key);
         
-        if (promotionInfo) {
+        // 제외 병원 확인
+        const excludedKey = `${insuranceCode}_${hospitalId}`;
+        const isExcluded = excludedHospitalsMap.has(excludedKey);
+        
+        if (promotionInfo && !isExcluded) {
           // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
           let isWithinPromotionPeriod = true;
           

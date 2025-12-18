@@ -53,9 +53,14 @@
             </router-link>
           </template>
         </Column>
-        <Column field="hospital_count" header="적용 병의원" :headerStyle="{ width: '12%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+        <Column field="hospital_count" header="적용 병의원" :headerStyle="{ width: '10%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
             <div style="text-align: center;">{{ slotProps.data.hospital_count !== undefined ? slotProps.data.hospital_count : 0 }}</div>
+          </template>
+        </Column>
+        <Column field="excluded_hospital_count" header="제외 병의원" :headerStyle="{ width: '10%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+          <template #body="slotProps">
+            <div style="text-align: center;">{{ slotProps.data.excluded_hospital_count !== undefined ? slotProps.data.excluded_hospital_count : 0 }}</div>
           </template>
         </Column>
         <Column field="commission_rate_b" header="기존 수수료율" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
@@ -307,11 +312,12 @@ async function fetchBaseMonths() {
 // 기준년월 변경 시 제품의 commission_rate_b 조회
 async function fetchProductCommissionRateB() {
   if (!selectedBaseMonth.value) {
-    // 기준년월이 선택되지 않으면 commission_rate_b 제거 (hospital_count 유지)
+    // 기준년월이 선택되지 않으면 commission_rate_b 제거 (hospital_count, excluded_hospital_count 유지)
     promotionProducts.value = promotionProducts.value.map(p => ({
       ...p,
       commission_rate_b: null,
-      hospital_count: p.hospital_count !== undefined ? p.hospital_count : 0
+      hospital_count: p.hospital_count !== undefined ? p.hospital_count : 0,
+      excluded_hospital_count: p.excluded_hospital_count !== undefined ? p.excluded_hospital_count : 0
     }));
     return;
   }
@@ -350,13 +356,14 @@ async function fetchProductCommissionRateB() {
 
     console.log('수수료율 B 매핑:', commissionRateMap);
 
-    // promotionProducts에 commission_rate_b 추가 (hospital_count 유지)
+    // promotionProducts에 commission_rate_b 추가 (hospital_count, excluded_hospital_count 유지)
     promotionProducts.value = promotionProducts.value.map(p => {
       const key = String(p.insurance_code);
       return {
         ...p,
         commission_rate_b: commissionRateMap[key] || null,
-        hospital_count: p.hospital_count !== undefined ? p.hospital_count : 0
+        hospital_count: p.hospital_count !== undefined ? p.hospital_count : 0,
+        excluded_hospital_count: p.excluded_hospital_count !== undefined ? p.excluded_hospital_count : 0
       };
     });
 
@@ -403,6 +410,56 @@ async function fetchHospitalCounts() {
     promotionProducts.value = promotionProducts.value.map(p => ({
       ...p,
       hospital_count: 0
+    }));
+  }
+}
+
+// 제외 병원 개수 조회
+async function fetchExcludedHospitalCounts() {
+  if (promotionProducts.value.length === 0) return;
+
+  try {
+    const insuranceCodes = promotionProducts.value
+      .map(p => p.insurance_code)
+      .filter(code => code)
+      .map(code => String(code));
+    
+    if (insuranceCodes.length === 0) {
+      promotionProducts.value = promotionProducts.value.map(p => ({
+        ...p,
+        excluded_hospital_count: 0
+      }));
+      return;
+    }
+
+    // 각 보험코드별로 제외 병원 개수 조회
+    const { data, error } = await supabase
+      .from('promotion_product_excluded_hospitals')
+      .select('insurance_code')
+      .in('insurance_code', insuranceCodes);
+
+    if (error) throw error;
+
+    // 보험코드별 개수 계산
+    const excludedCountMap = {};
+    if (data) {
+      data.forEach(item => {
+        const code = String(item.insurance_code);
+        excludedCountMap[code] = (excludedCountMap[code] || 0) + 1;
+      });
+    }
+
+    // promotionProducts에 excluded_hospital_count 추가
+    promotionProducts.value = promotionProducts.value.map(p => ({
+      ...p,
+      excluded_hospital_count: excludedCountMap[String(p.insurance_code)] || 0
+    }));
+  } catch (error) {
+    console.error('제외 병원 개수 조회 오류:', error);
+    // 오류가 발생해도 기본값 0으로 설정
+    promotionProducts.value = promotionProducts.value.map(p => ({
+      ...p,
+      excluded_hospital_count: 0
     }));
   }
 }
@@ -527,6 +584,9 @@ async function fetchPromotionProducts() {
     // 병원 실적 개수 조회
     await fetchHospitalCounts();
     
+    // 제외 병원 개수 조회
+    await fetchExcludedHospitalCounts();
+    
     // 기존 수수료율 조회 (기준년월이 있으면 조회, 없으면 null)
     if (selectedBaseMonth.value) {
       await fetchProductCommissionRateB();
@@ -553,11 +613,12 @@ async function onBaseMonthChange() {
   if (selectedBaseMonth.value) {
     await fetchProductCommissionRateB();
   } else {
-    // 기준년월이 선택 해제되면 commission_rate_b 제거 (hospital_count 유지)
+    // 기준년월이 선택 해제되면 commission_rate_b 제거 (hospital_count, excluded_hospital_count 유지)
     promotionProducts.value = promotionProducts.value.map(p => ({
       ...p,
       commission_rate_b: null,
-      hospital_count: p.hospital_count !== undefined ? p.hospital_count : 0
+      hospital_count: p.hospital_count !== undefined ? p.hospital_count : 0,
+      excluded_hospital_count: p.excluded_hospital_count !== undefined ? p.excluded_hospital_count : 0
     }));
   }
 }
@@ -745,6 +806,9 @@ async function resetStatistics() {
     
     // 병원 실적 개수도 초기화
     await fetchHospitalCounts();
+    
+    // 제외 병원 개수도 다시 조회
+    await fetchExcludedHospitalCounts();
   } catch (error) {
     console.error('데이터 초기화 오류:', error);
     alert('데이터 초기화 중 오류가 발생했습니다: ' + (error.message || error));
@@ -1924,6 +1988,7 @@ async function checkStatistics() {
     // 통계 확인 후 병원 실적 개수 다시 조회
     statisticsStatus.value = '병원 실적 개수 갱신 중...';
     await fetchHospitalCounts();
+    await fetchExcludedHospitalCounts();
     statisticsStatus.value = `완료! 처리된 제품: ${totalProcessed}개, 신규 입력: ${totalUpdated}개, 기존 데이터 스킵: ${totalSkipped}개, 오류: ${totalErrors}개`;
     
     // 마지막 업데이트 시간을 DB에 저장
@@ -2195,6 +2260,7 @@ onMounted(async () => {
     transform: rotate(360deg);
   }
 }
+
 
 </style>
 
