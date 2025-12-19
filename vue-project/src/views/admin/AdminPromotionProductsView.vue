@@ -2566,6 +2566,42 @@ function closeAddExcludedHospitalModalForProduct() {
   searchResults.value = [];
 }
 
+// 병원 검색 (제품별용)
+async function searchHospitalsForProduct() {
+  const searchText = hospitalSearchText.value.trim();
+  if (!searchText || searchText.length < 2) {
+    searchResults.value = [];
+    return;
+  }
+  
+  searchingHospitals.value = true;
+  try {
+    // 병의원명 또는 사업자등록번호로 검색
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, name, business_registration_number, address')
+      .or(`name.ilike.%${searchText}%,business_registration_number.ilike.%${searchText}%`)
+      .eq('status', 'active')
+      .limit(20);
+    
+    if (error) throw error;
+    
+    // 이미 제외된 병원은 제외
+    if (selectedProductForExcludedList.value && selectedProductForExcludedList.value.id) {
+      const excludedHospitalIds = new Set(excludedHospitalsListForModal.value.map(eh => eh.hospital_id));
+      searchResults.value = (data || []).filter(h => !excludedHospitalIds.has(h.id));
+    } else {
+      searchResults.value = data || [];
+    }
+  } catch (error) {
+    console.error('병원 검색 오류:', error);
+    alert('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
+    searchResults.value = [];
+  } finally {
+    searchingHospitals.value = false;
+  }
+}
+
 // 제품별 제외 병원 추가
 async function addExcludedHospitalToProduct(hospitalId) {
   if (!selectedProductForExcludedList.value || !selectedProductForExcludedList.value.id) {
@@ -3536,6 +3572,31 @@ onMounted(async () => {
   background: white;
   border-bottom: 1px solid #e9ecef;
   flex-shrink: 0;
+}
+
+.btn-add-exclude-enhanced {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+}
+
+.btn-add-exclude-enhanced:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.btn-add-exclude-enhanced i {
+  font-size: 16px;
 }
 
 .excluded-hospitals-list-container {

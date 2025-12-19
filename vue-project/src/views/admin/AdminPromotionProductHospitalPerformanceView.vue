@@ -14,9 +14,9 @@
           전체 {{ hospitalPerformanceList.length }} 건
         </div>
         <div class="action-buttons-group">
-          <button class="btn-exclude" @click="openExcludedHospitalsModal">
+          <!-- <button class="btn-exclude" @click="openExcludedHospitalsModal">
             제외 병원 관리
-          </button>
+          </button> -->
         </div>
       </div>
 
