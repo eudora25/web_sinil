@@ -13,11 +13,11 @@
           <div v-if="lastUpdateTime" class="last-update-time">
             마지막 업데이트: {{ formatLastUpdateTime(lastUpdateTime) }}
           </div>
-          <button class="btn-exclude-all" @click="openAddExcludedHospitalModal">
-            제외 병원 추가
-          </button>
           <button class="btn-check" @click="checkStatistics" :disabled="checkingStatistics || resettingStatistics">
             {{ checkingStatistics ? '업데이트 중...' : '데이터 업데이트' }}
+          </button>
+          <button class="btn-exclude-all" @click="openAddExcludedHospitalModal">
+            제외 병원 추가
           </button>
         </div>
       </div>
