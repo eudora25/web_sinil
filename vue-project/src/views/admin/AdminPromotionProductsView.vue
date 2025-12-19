@@ -13,6 +13,9 @@
           <div v-if="lastUpdateTime" class="last-update-time">
             마지막 업데이트: {{ formatLastUpdateTime(lastUpdateTime) }}
           </div>
+          <button class="btn-exclude-all" @click="openAddExcludedHospitalModal">
+            제외 병원 추가
+          </button>
           <button class="btn-check" @click="checkStatistics" :disabled="checkingStatistics || resettingStatistics">
             {{ checkingStatistics ? '업데이트 중...' : '데이터 업데이트' }}
           </button>
@@ -62,7 +65,20 @@
         </Column>
         <Column field="excluded_hospital_count" header="제외 병의원" :headerStyle="{ width: '10%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
-            <div style="text-align: center;">{{ slotProps.data.excluded_hospital_count !== undefined ? slotProps.data.excluded_hospital_count : 0 }}</div>
+            <div 
+              v-if="slotProps.data.excluded_hospital_count && slotProps.data.excluded_hospital_count > 0"
+              style="text-align: center; cursor: pointer; color: #dc3545; font-weight: 600; text-decoration: underline;"
+              @click="openExcludedHospitalsListModal(slotProps.data)"
+              :title="`제외 병원 ${slotProps.data.excluded_hospital_count}건 보기`"
+            >
+              {{ slotProps.data.excluded_hospital_count }}
+            </div>
+            <div 
+              v-else
+              style="text-align: center; color: #6c757d;"
+            >
+              0
+            </div>
           </template>
         </Column>
         <Column field="commission_rate_b" header="기존 수수료율" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
@@ -237,6 +253,313 @@
         />
       </template>
     </Dialog>
+
+    <!-- 제외 병원 추가 모달 -->
+    <Dialog 
+      v-model:visible="showAddExcludedHospitalModal" 
+      header="제외 병원 추가 (전체 제품)" 
+      :modal="true"
+      :style="{ width: '800px', height: '700px' }"
+      @hide="closeAddExcludedHospitalModal"
+      class="excluded-hospital-modal"
+    >
+      <div class="excluded-hospital-modal-content">
+        <!-- 검색 섹션 -->
+        <div class="search-section">
+          <div class="search-header">
+            <div class="search-header-icon">
+              <i class="pi pi-search"></i>
+            </div>
+            <div class="search-header-text">
+              <h3 class="search-title">병의원 검색</h3>
+              <p class="search-subtitle">병의원명 또는 사업자등록번호로 검색하세요</p>
+            </div>
+          </div>
+          <div class="search-input-wrapper">
+            <i class="pi pi-search search-input-icon"></i>
+            <InputText 
+              v-model="hospitalSearchText" 
+              placeholder="예: 서울대학교병원 또는 123-45-67890"
+              class="search-input-enhanced"
+              @input="searchHospitals"
+            />
+            <div v-if="hospitalSearchText" class="search-clear" @click="hospitalSearchText = ''; searchResults = []">
+              <i class="pi pi-times"></i>
+            </div>
+          </div>
+          <div v-if="searchingHospitals" class="search-loading-enhanced">
+            <div class="loading-spinner"></div>
+            <span>검색 중...</span>
+          </div>
+        </div>
+        
+        <!-- 검색 결과 -->
+        <div v-if="searchResults.length > 0" class="search-results-enhanced">
+          <div class="search-results-header-enhanced">
+            <div class="results-count">
+              <i class="pi pi-list"></i>
+              <span>검색 결과 <strong>{{ searchResults.length }}</strong>건</span>
+            </div>
+          </div>
+          <div class="search-results-list-enhanced">
+            <div 
+              v-for="(hospital, index) in searchResults" 
+              :key="hospital.id"
+              class="hospital-card"
+              :style="{ animationDelay: `${index * 0.05}s` }"
+              @click="addExcludedHospital(hospital.id)"
+            >
+              <div class="hospital-card-content">
+                <div class="hospital-card-icon">
+                  <i class="pi pi-building"></i>
+                </div>
+                <div class="hospital-card-info">
+                  <div class="hospital-card-name">{{ hospital.name }}</div>
+                  <div class="hospital-card-details">
+                    <div class="detail-item">
+                      <i class="pi pi-id-card"></i>
+                      <span class="detail-label">사업자등록번호</span>
+                      <span class="detail-value">{{ hospital.business_registration_number || '미등록' }}</span>
+                    </div>
+                    <div class="detail-item" v-if="hospital.address">
+                      <i class="pi pi-map-marker"></i>
+                      <span class="detail-label">주소</span>
+                      <span class="detail-value address-value">{{ hospital.address }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="hospital-card-action">
+                <div class="action-button">
+                  <i class="pi pi-plus"></i>
+                  <span>추가</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 검색 결과 없음 -->
+        <div v-else-if="hospitalSearchText && !searchingHospitals" class="empty-state no-results">
+          <div class="empty-state-icon">
+            <i class="pi pi-inbox"></i>
+          </div>
+          <div class="empty-state-text">검색 결과가 없습니다</div>
+          <div class="empty-state-hint">다른 검색어로 시도해보세요</div>
+        </div>
+        
+        <!-- 초기 상태 -->
+        <div v-else class="empty-state initial">
+          <div class="empty-state-icon">
+            <i class="pi pi-search"></i>
+          </div>
+          <div class="empty-state-text">병의원을 검색하세요</div>
+          <div class="empty-state-hint">병의원명 또는 사업자등록번호를 입력하여 검색하세요</div>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 제외 병원 관리 모달 -->
+    <Dialog 
+      v-model:visible="showExcludedHospitalsListModal" 
+      header="제외 병원 관리" 
+      :modal="true"
+      :style="{ width: '800px', height: '650px' }"
+      @hide="closeExcludedHospitalsListModal"
+      class="excluded-hospitals-management-modal"
+    >
+      <div class="excluded-hospitals-modal-content">
+        <!-- 헤더 섹션 -->
+        <div class="management-header">
+          <div class="management-header-info">
+            <div class="management-header-icon">
+              <i class="pi pi-ban"></i>
+            </div>
+            <div class="management-header-text">
+              <h3 class="management-title">제외 병원 목록</h3>
+              <p class="management-subtitle">프로모션에서 제외된 병원을 관리합니다</p>
+            </div>
+          </div>
+          <div class="product-info-badge">
+            <i class="pi pi-box"></i>
+            <span class="product-name-text">{{ selectedProductForExcludedList?.product_name || '-' }}</span>
+            <span class="product-code-text">({{ selectedProductForExcludedList?.insurance_code || '-' }})</span>
+          </div>
+          <div class="management-count-badge">
+            <span class="count-number">{{ excludedHospitalsListForModal.length }}</span>
+            <span class="count-label">건</span>
+          </div>
+        </div>
+
+        <!-- 액션 버튼 -->
+        <div class="management-actions">
+          <button class="btn-add-exclude-enhanced" @click="openAddExcludedHospitalModalForProduct">
+            <i class="pi pi-plus-circle"></i>
+            <span>제외 병원 추가</span>
+          </button>
+        </div>
+
+        <!-- 제외 병원 목록 -->
+        <div class="excluded-hospitals-list-container">
+          <DataTable
+            :value="excludedHospitalsListForModal"
+            :loading="loadingExcludedList"
+            paginator
+            :rows="10"
+            scrollable
+            scrollHeight="400px"
+            class="excluded-hospitals-table"
+          >
+            <template #empty>
+              <div class="empty-excluded-list">
+                <div class="empty-icon">
+                  <i class="pi pi-inbox"></i>
+                </div>
+                <div class="empty-text">제외된 병원이 없습니다</div>
+                <div class="empty-hint">위의 "제외 병원 추가" 버튼을 클릭하여 병원을 추가하세요</div>
+              </div>
+            </template>
+            <Column header="No" :headerStyle="{ width: '8%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                <span class="row-number">{{ slotProps.index + 1 }}</span>
+              </template>
+            </Column>
+            <Column field="hospital_name" header="병의원명" :headerStyle="{ width: '45%' }">
+              <template #body="slotProps">
+                <div class="hospital-name-cell">
+                  <i class="pi pi-building"></i>
+                  <span>{{ slotProps.data.hospital_name }}</span>
+                </div>
+              </template>
+            </Column>
+            <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: '30%' }" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                <span class="business-number">{{ slotProps.data.business_registration_number || '-' }}</span>
+              </template>
+            </Column>
+            <Column header="작업" :headerStyle="{ width: '17%' }" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                <div style="display: flex; justify-content: center; align-items: center;">
+                  <button 
+                    class="btn-delete-exclude-enhanced" 
+                    @click="removeExcludedHospitalFromProduct(slotProps.data.hospital_id)"
+                    :disabled="removingExcluded"
+                  >
+                    <i class="pi pi-trash"></i>
+                    <span>삭제</span>
+                  </button>
+                </div>
+              </template>
+            </Column>
+          </DataTable>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 제품별 제외 병원 추가 모달 -->
+    <Dialog 
+      v-model:visible="showAddExcludedHospitalModalForProduct" 
+      header="제외 병원 추가" 
+      :modal="true"
+      :style="{ width: '800px', height: '700px' }"
+      @hide="closeAddExcludedHospitalModalForProduct"
+      class="excluded-hospital-modal"
+    >
+      <div class="excluded-hospital-modal-content">
+        <!-- 검색 섹션 -->
+        <div class="search-section">
+          <div class="search-header">
+            <div class="search-header-icon">
+              <i class="pi pi-search"></i>
+            </div>
+            <div class="search-header-text">
+              <h3 class="search-title">병의원 검색</h3>
+              <p class="search-subtitle">병의원명 또는 사업자등록번호로 검색하세요</p>
+            </div>
+          </div>
+          <div class="search-input-wrapper">
+            <i class="pi pi-search search-input-icon"></i>
+            <InputText 
+              v-model="hospitalSearchText" 
+              placeholder="예: 서울대학교병원 또는 123-45-67890"
+              class="search-input-enhanced"
+              @input="searchHospitalsForProduct"
+            />
+            <div v-if="hospitalSearchText" class="search-clear" @click="hospitalSearchText = ''; searchResults = []">
+              <i class="pi pi-times"></i>
+            </div>
+          </div>
+          <div v-if="searchingHospitals" class="search-loading-enhanced">
+            <div class="loading-spinner"></div>
+            <span>검색 중...</span>
+          </div>
+        </div>
+        
+        <!-- 검색 결과 -->
+        <div v-if="searchResults.length > 0" class="search-results-enhanced">
+          <div class="search-results-header-enhanced">
+            <div class="results-count">
+              <i class="pi pi-list"></i>
+              <span>검색 결과 <strong>{{ searchResults.length }}</strong>건</span>
+            </div>
+          </div>
+          <div class="search-results-list-enhanced">
+            <div 
+              v-for="(hospital, index) in searchResults" 
+              :key="hospital.id"
+              class="hospital-card"
+              :style="{ animationDelay: `${index * 0.05}s` }"
+              @click="addExcludedHospitalToProduct(hospital.id)"
+            >
+              <div class="hospital-card-content">
+                <div class="hospital-card-icon">
+                  <i class="pi pi-building"></i>
+                </div>
+                <div class="hospital-card-info">
+                  <div class="hospital-card-name">{{ hospital.name }}</div>
+                  <div class="hospital-card-details">
+                    <div class="detail-item">
+                      <i class="pi pi-id-card"></i>
+                      <span class="detail-label">사업자등록번호</span>
+                      <span class="detail-value">{{ hospital.business_registration_number || '미등록' }}</span>
+                    </div>
+                    <div class="detail-item" v-if="hospital.address">
+                      <i class="pi pi-map-marker"></i>
+                      <span class="detail-label">주소</span>
+                      <span class="detail-value address-value">{{ hospital.address }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="hospital-card-action">
+                <div class="action-button">
+                  <i class="pi pi-plus"></i>
+                  <span>추가</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 검색 결과 없음 -->
+        <div v-else-if="hospitalSearchText && !searchingHospitals" class="empty-state no-results">
+          <div class="empty-state-icon">
+            <i class="pi pi-inbox"></i>
+          </div>
+          <div class="empty-state-text">검색 결과가 없습니다</div>
+          <div class="empty-state-hint">다른 검색어로 시도해보세요</div>
+        </div>
+        
+        <!-- 초기 상태 -->
+        <div v-else class="empty-state initial">
+          <div class="empty-state-icon">
+            <i class="pi pi-search"></i>
+          </div>
+          <div class="empty-state-text">병의원을 검색하세요</div>
+          <div class="empty-state-hint">병의원명 또는 사업자등록번호를 입력하여 검색하세요</div>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -272,6 +595,21 @@ const statisticsCompleted = ref(false);
 // 기준년월 관련
 const selectedBaseMonth = ref('');
 const availableBaseMonths = ref([]);
+
+// 제외 병원 추가 관련
+const showAddExcludedHospitalModal = ref(false);
+const hospitalSearchText = ref('');
+const searchResults = ref([]);
+const searchingHospitals = ref(false);
+const addingExcluded = ref(false);
+
+// 제외 병원 목록 모달 관련
+const showExcludedHospitalsListModal = ref(false);
+const selectedProductForExcludedList = ref(null);
+const excludedHospitalsListForModal = ref([]);
+const loadingExcludedList = ref(false);
+const removingExcluded = ref(false);
+const showAddExcludedHospitalModalForProduct = ref(false);
 
     const formData = ref({
       insurance_code: '',
@@ -2053,6 +2391,256 @@ async function checkStatistics() {
   }
 }
 
+// 제외 병원 추가 모달 열기
+function openAddExcludedHospitalModal() {
+  showAddExcludedHospitalModal.value = true;
+  hospitalSearchText.value = '';
+  searchResults.value = [];
+}
+
+// 제외 병원 추가 모달 닫기
+function closeAddExcludedHospitalModal() {
+  showAddExcludedHospitalModal.value = false;
+  hospitalSearchText.value = '';
+  searchResults.value = [];
+}
+
+// 병원 검색
+async function searchHospitals() {
+  const searchText = hospitalSearchText.value.trim();
+  if (!searchText || searchText.length < 2) {
+    searchResults.value = [];
+    return;
+  }
+  
+  searchingHospitals.value = true;
+  try {
+    // 병의원명 또는 사업자등록번호로 검색
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, name, business_registration_number, address')
+      .or(`name.ilike.%${searchText}%,business_registration_number.ilike.%${searchText}%`)
+      .eq('status', 'active')
+      .limit(20);
+    
+    if (error) throw error;
+    
+    searchResults.value = data || [];
+  } catch (error) {
+    console.error('병원 검색 오류:', error);
+    alert('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
+    searchResults.value = [];
+  } finally {
+    searchingHospitals.value = false;
+  }
+}
+
+// 제외 병원 추가 (전체 제품에 적용)
+async function addExcludedHospital(hospitalId) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('로그인 정보가 유효하지 않습니다.');
+    
+    addingExcluded.value = true;
+    
+    // 모든 프로모션 제품의 ID 조회
+    const { data: allProducts, error: productsError } = await supabase
+      .from('promotion_product_list')
+      .select('id');
+    
+    if (productsError) throw productsError;
+    
+    if (!allProducts || allProducts.length === 0) {
+      alert('프로모션 제품이 없습니다.');
+      return;
+    }
+    
+    // 모든 제품 ID에 대해 제외 병원 추가
+    const productIds = allProducts
+      .map(p => p.id)
+      .filter(id => id);
+    
+    const insertData = productIds.map(productId => ({
+      promotion_product_id: productId,
+      hospital_id: hospitalId,
+      created_by: user.id,
+      updated_by: user.id
+    }));
+    
+    const { error } = await supabase
+      .from('promotion_product_excluded_hospitals')
+      .insert(insertData);
+    
+    if (error) {
+      // 일부는 이미 존재할 수 있으므로 무시하고 계속 진행
+      if (error.code !== '23505') {
+        throw error;
+      }
+    }
+    
+    alert(`제외 병원이 전체 ${productIds.length}개 제품에 추가되었습니다.`);
+    
+    // 제외 병원 개수 다시 조회
+    await fetchExcludedHospitalCounts();
+    
+    closeAddExcludedHospitalModal();
+  } catch (error) {
+    console.error('제외 병원 추가 오류:', error);
+    if (error.code === '23505') {
+      alert('이미 제외된 병원입니다.');
+    } else {
+      alert('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
+    }
+  } finally {
+    addingExcluded.value = false;
+  }
+}
+
+// 제외 병원 목록 모달 열기
+async function openExcludedHospitalsListModal(product) {
+  if (!product || !product.id) {
+    console.error('제품 정보가 없습니다.');
+    return;
+  }
+  
+  selectedProductForExcludedList.value = product;
+  showExcludedHospitalsListModal.value = true;
+  await fetchExcludedHospitalsListForModal(product.id);
+}
+
+// 제외 병원 목록 모달 닫기
+function closeExcludedHospitalsListModal() {
+  showExcludedHospitalsListModal.value = false;
+  selectedProductForExcludedList.value = null;
+  excludedHospitalsListForModal.value = [];
+}
+
+// 제외 병원 목록 조회 (모달용)
+async function fetchExcludedHospitalsListForModal(productId) {
+  if (!productId) return;
+  
+  loadingExcludedList.value = true;
+  try {
+    const { data, error } = await supabase
+      .from('promotion_product_excluded_hospitals')
+      .select(`
+        hospital_id,
+        clients:hospital_id (
+          id,
+          name,
+          business_registration_number
+        )
+      `)
+      .eq('promotion_product_id', productId);
+    
+    if (error) {
+      console.error('제외 병원 조회 오류:', error);
+      excludedHospitalsListForModal.value = [];
+      return;
+    }
+    
+    excludedHospitalsListForModal.value = (data || []).map(item => ({
+      hospital_id: item.hospital_id,
+      hospital_name: item.clients?.name || '-',
+      business_registration_number: item.clients?.business_registration_number || null
+    }));
+  } catch (error) {
+    console.error('제외 병원 조회 오류:', error);
+    excludedHospitalsListForModal.value = [];
+  } finally {
+    loadingExcludedList.value = false;
+  }
+}
+
+// 제품별 제외 병원 추가 모달 열기
+function openAddExcludedHospitalModalForProduct() {
+  showAddExcludedHospitalModalForProduct.value = true;
+  hospitalSearchText.value = '';
+  searchResults.value = [];
+}
+
+// 제품별 제외 병원 추가 모달 닫기
+function closeAddExcludedHospitalModalForProduct() {
+  showAddExcludedHospitalModalForProduct.value = false;
+  hospitalSearchText.value = '';
+  searchResults.value = [];
+}
+
+// 제품별 제외 병원 추가
+async function addExcludedHospitalToProduct(hospitalId) {
+  if (!selectedProductForExcludedList.value || !selectedProductForExcludedList.value.id) {
+    alert('제품 정보가 없습니다.');
+    return;
+  }
+  
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('로그인 정보가 유효하지 않습니다.');
+    
+    addingExcluded.value = true;
+    
+    const { error } = await supabase
+      .from('promotion_product_excluded_hospitals')
+      .insert({
+        promotion_product_id: selectedProductForExcludedList.value.id,
+        hospital_id: hospitalId,
+        created_by: user.id,
+        updated_by: user.id
+      });
+    
+    if (error) {
+      if (error.code === '23505') {
+        alert('이미 제외된 병원입니다.');
+      } else {
+        throw error;
+      }
+    } else {
+      alert('제외 병원이 추가되었습니다.');
+      await fetchExcludedHospitalsListForModal(selectedProductForExcludedList.value.id);
+      await fetchExcludedHospitalCounts();
+    }
+    
+    closeAddExcludedHospitalModalForProduct();
+  } catch (error) {
+    console.error('제외 병원 추가 오류:', error);
+    alert('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
+  } finally {
+    addingExcluded.value = false;
+  }
+}
+
+// 제품별 제외 병원 삭제
+async function removeExcludedHospitalFromProduct(hospitalId) {
+  if (!confirm('이 병원을 제외 목록에서 제거하시겠습니까?')) {
+    return;
+  }
+  
+  if (!selectedProductForExcludedList.value || !selectedProductForExcludedList.value.id) {
+    alert('제품 정보가 없습니다.');
+    return;
+  }
+  
+  removingExcluded.value = true;
+  try {
+    const { error } = await supabase
+      .from('promotion_product_excluded_hospitals')
+      .delete()
+      .eq('promotion_product_id', selectedProductForExcludedList.value.id)
+      .eq('hospital_id', hospitalId);
+    
+    if (error) throw error;
+    
+    alert('제외 병원이 제거되었습니다.');
+    await fetchExcludedHospitalsListForModal(selectedProductForExcludedList.value.id);
+    await fetchExcludedHospitalCounts();
+  } catch (error) {
+    console.error('제외 병원 삭제 오류:', error);
+    alert('제외 병원 삭제 중 오류가 발생했습니다: ' + (error.message || error));
+  } finally {
+    removingExcluded.value = false;
+  }
+}
+
 onMounted(async () => {
   await fetchBaseMonths();
   await fetchPromotionProducts();
@@ -2127,6 +2715,21 @@ onMounted(async () => {
   background-color: #6c757d;
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.btn-exclude-all {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.btn-exclude-all:hover {
+  background-color: #c82333;
 }
 
 .btn-save {
@@ -2311,6 +2914,754 @@ onMounted(async () => {
   }
 }
 
+/* 제외 병원 추가 모달 스타일 */
+.excluded-hospital-modal :deep(.p-dialog) {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.excluded-hospital-modal :deep(.p-dialog-content) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.excluded-hospital-modal :deep(.p-dialog-header) {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 50%, #bd2130 100%);
+  color: white;
+  padding: 24px 28px;
+  border-bottom: none;
+  position: relative;
+}
+
+.excluded-hospital-modal :deep(.p-dialog-header)::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 100%);
+}
+
+.excluded-hospital-modal :deep(.p-dialog-header .p-dialog-title) {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.excluded-hospital-modal :deep(.p-dialog-header-icon) {
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.excluded-hospital-modal :deep(.p-dialog-header-icon:hover) {
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+}
+
+.excluded-hospital-modal-content {
+  padding: 0;
+  background: #f8f9fa;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 검색 섹션 */
+.search-section {
+  background: white;
+  padding: 28px;
+  border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0;
+}
+
+.search-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.search-header-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+  flex-shrink: 0;
+}
+
+.search-header-text {
+  flex: 1;
+}
+
+.search-title {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #212529;
+  letter-spacing: -0.3px;
+}
+
+.search-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: #6c757d;
+  line-height: 1.5;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input-icon {
+  position: absolute;
+  left: 16px;
+  color: #6c757d;
+  font-size: 16px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.search-input-enhanced {
+  width: 100%;
+  padding: 14px 16px 14px 44px;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  font-size: 15px;
+  transition: all 0.3s ease;
+  background: #f8f9fa;
+}
+
+.search-input-enhanced:focus {
+  outline: none;
+  border-color: #dc3545;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.1);
+}
+
+.search-clear {
+  position: absolute;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #e9ecef;
+  color: #6c757d;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.search-clear:hover {
+  background: #dc3545;
+  color: white;
+  transform: rotate(90deg);
+}
+
+.search-loading-enhanced {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #007bff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #e3f2fd;
+  border-top-color: #007bff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* 검색 결과 */
+.search-results-enhanced {
+  padding: 24px 28px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.search-results-header-enhanced {
+  margin-bottom: 16px;
+}
+
+.results-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #495057;
+  font-weight: 600;
+}
+
+.results-count i {
+  color: #dc3545;
+  font-size: 16px;
+}
+
+.results-count strong {
+  color: #dc3545;
+  font-size: 16px;
+}
+
+.search-results-list-enhanced {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 8px;
+  min-height: 0;
+}
+
+.search-results-list-enhanced::-webkit-scrollbar {
+  width: 10px;
+}
+
+.search-results-list-enhanced::-webkit-scrollbar-track {
+  background: #f1f3f5;
+  border-radius: 5px;
+}
+
+.search-results-list-enhanced::-webkit-scrollbar-thumb {
+  background: #ced4da;
+  border-radius: 5px;
+}
+
+.search-results-list-enhanced::-webkit-scrollbar-thumb:hover {
+  background: #adb5bd;
+}
+
+.hospital-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  animation: slideIn 0.3s ease-out backwards;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hospital-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #dc3545 0%, #c82333 100%);
+  transform: scaleY(0);
+  transition: transform 0.3s ease;
+}
+
+.hospital-card:hover {
+  border-color: #dc3545;
+  transform: translateX(4px);
+  box-shadow: 0 8px 24px rgba(220, 53, 69, 0.15);
+}
+
+.hospital-card:hover::before {
+  transform: scaleY(1);
+}
+
+.hospital-card-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.hospital-card-icon {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1976d2;
+  font-size: 24px;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.hospital-card:hover .hospital-card-icon {
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  color: #dc3545;
+  transform: scale(1.1);
+}
+
+.hospital-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.hospital-card-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #212529;
+  margin-bottom: 8px;
+  line-height: 1.4;
+  letter-spacing: -0.3px;
+}
+
+.hospital-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.detail-item i {
+  color: #6c757d;
+  font-size: 12px;
+}
+
+.detail-label {
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.detail-value {
+  color: #495057;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+}
+
+.detail-value.address-value {
+  font-family: inherit;
+  color: #6c757d;
+  font-weight: 500;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.hospital-card-action {
+  margin-left: 16px;
+  flex-shrink: 0;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+}
+
+.hospital-card:hover .action-button {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.action-button i {
+  font-size: 14px;
+}
+
+/* 빈 상태 */
+.empty-state {
+  padding: 60px 28px;
+  text-align: center;
+  background: white;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.empty-state-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #adb5bd;
+  font-size: 36px;
+}
+
+.empty-state.initial .empty-state-icon {
+  background: linear-gradient(135deg, #fff5f5 0%, #ffe5e5 100%);
+  color: #dc3545;
+}
+
+.empty-state-text {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #212529;
+}
+
+.empty-state-hint {
+  margin: 0;
+  font-size: 14px;
+  color: #6c757d;
+  line-height: 1.5;
+}
+
+.empty-state.no-results .empty-state-icon {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  color: #adb5bd;
+}
+
+/* 제외 병원 관리 모달 스타일 */
+.excluded-hospitals-management-modal :deep(.p-dialog) {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.excluded-hospitals-management-modal :deep(.p-dialog-content) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.excluded-hospitals-management-modal :deep(.p-dialog-header) {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 50%, #bd2130 100%);
+  color: white;
+  padding: 24px 28px;
+  border-bottom: none;
+  position: relative;
+}
+
+.excluded-hospitals-management-modal :deep(.p-dialog-header)::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 100%);
+}
+
+.excluded-hospitals-management-modal :deep(.p-dialog-header .p-dialog-title) {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.excluded-hospitals-management-modal :deep(.p-dialog-header-icon) {
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.excluded-hospitals-management-modal :deep(.p-dialog-header-icon:hover) {
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+}
+
+.excluded-hospitals-modal-content {
+  padding: 0;
+  background: #f8f9fa;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.management-header {
+  background: white;
+  padding: 24px 28px;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 20px;
+}
+
+.management-header-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.management-header-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+  flex-shrink: 0;
+}
+
+.management-header-text {
+  flex: 1;
+}
+
+.management-title {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #212529;
+  letter-spacing: -0.3px;
+}
+
+.management-subtitle {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #6c757d;
+  line-height: 1.5;
+}
+
+.product-info-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  border-radius: 8px;
+  font-size: 12px;
+  flex: 1;
+  white-space: nowrap;
+}
+
+.product-info-badge i {
+  color: #1976d2;
+  font-size: 14px;
+}
+
+.product-name-text {
+  font-weight: 700;
+  color: #1976d2;
+}
+
+.product-code-text {
+  color: #6c757d;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+}
+
+.management-count-badge {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.2);
+  flex-shrink: 0;
+}
+
+.count-number {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.count-label {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.management-actions {
+  padding: 20px 28px;
+  background: white;
+  border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0;
+}
+
+.excluded-hospitals-list-container {
+  flex: 1;
+  padding: 20px 28px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.excluded-hospitals-table :deep(.p-datatable-wrapper) {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e9ecef;
+  background: white;
+}
+
+.excluded-hospitals-table :deep(.p-datatable-thead > tr > th) {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  color: #495057;
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 14px 16px;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.excluded-hospitals-table :deep(.p-datatable-tbody > tr) {
+  transition: all 0.2s ease;
+}
+
+.excluded-hospitals-table :deep(.p-datatable-tbody > tr:hover) {
+  background: #fff5f5;
+}
+
+.row-number {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  background: #f8f9fa;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #495057;
+  font-size: 13px;
+}
+
+.hospital-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hospital-name-cell i {
+  color: #dc3545;
+  font-size: 16px;
+}
+
+.business-number {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #495057;
+}
+
+.empty-excluded-list {
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.empty-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #adb5bd;
+  font-size: 36px;
+}
+
+.empty-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 8px;
+}
+
+.empty-hint {
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.btn-delete-exclude-enhanced {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(220, 53, 69, 0.2);
+}
+
+.btn-delete-exclude-enhanced:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+  background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+}
+
+.btn-delete-exclude-enhanced:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-delete-exclude-enhanced i {
+  font-size: 14px;
+}
 
 </style>
 
