@@ -302,12 +302,22 @@
             </div>
           </div>
           <div class="search-results-list-enhanced">
+            <!-- 처리 중 알림 -->
+            <div v-if="addingExcluded" class="adding-process-indicator">
+              <div class="process-indicator-content">
+                <div class="loading-spinner"></div>
+                <span>제외 병원 추가 중...</span>
+                <span class="process-hint">전체 제품에 병원을 추가하고 있습니다. 잠시만 기다려주세요.</span>
+              </div>
+            </div>
+            
             <div 
               v-for="(hospital, index) in searchResults" 
               :key="hospital.id"
               class="hospital-card"
+              :class="{ 'disabled': addingExcluded }"
               :style="{ animationDelay: `${index * 0.05}s` }"
-              @click="addExcludedHospital(hospital.id)"
+              @click="!addingExcluded && addExcludedHospital(hospital.id)"
             >
               <div class="hospital-card-content">
                 <div class="hospital-card-icon">
@@ -330,9 +340,10 @@
                 </div>
               </div>
               <div class="hospital-card-action">
-                <div class="action-button">
-                  <i class="pi pi-plus"></i>
-                  <span>추가</span>
+                <div class="action-button" :class="{ 'processing': addingExcluded }">
+                  <i v-if="!addingExcluded" class="pi pi-plus"></i>
+                  <i v-else class="pi pi-spin pi-spinner"></i>
+                  <span>{{ addingExcluded ? '처리 중...' : '추가' }}</span>
                 </div>
               </div>
             </div>
@@ -3360,13 +3371,70 @@ onMounted(async () => {
   box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
 }
 
-.hospital-card:hover .action-button {
+.hospital-card:hover .action-button:not(.processing) {
   transform: scale(1.05);
   box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
 }
 
+.hospital-card.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.hospital-card.disabled:hover {
+  transform: none;
+  border-color: #e9ecef;
+  box-shadow: none;
+}
+
+.action-button.processing {
+  background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+  cursor: wait;
+}
+
 .action-button i {
   font-size: 14px;
+}
+
+/* 처리 중 알림 */
+.adding-process-indicator {
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+  border: 2px solid #ffc107;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
+}
+
+.process-indicator-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.process-indicator-content .loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ffc107;
+  border-top-color: #ff9800;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.process-indicator-content span:first-of-type {
+  font-weight: 600;
+  color: #856404;
+  font-size: 15px;
+}
+
+.process-hint {
+  font-size: 13px;
+  color: #856404;
+  opacity: 0.8;
+  margin-left: auto;
 }
 
 /* 빈 상태 */
