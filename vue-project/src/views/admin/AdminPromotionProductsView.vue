@@ -53,9 +53,11 @@
             </router-link>
           </template>
         </Column>
-        <Column field="hospital_count" header="적용 병의원" :headerStyle="{ width: '10%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+        <Column field="hospital_count" header="적용 병의원" :headerStyle="{ width: '12%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
-            <div style="text-align: center;">{{ slotProps.data.hospital_count !== undefined ? slotProps.data.hospital_count : 0 }}</div>
+            <div style="text-align: center;">
+              {{ slotProps.data.cso_hospital_count !== undefined ? slotProps.data.cso_hospital_count : 0 }} / {{ slotProps.data.total_hospital_count !== undefined ? slotProps.data.total_hospital_count : 0 }}
+            </div>
           </template>
         </Column>
         <Column field="excluded_hospital_count" header="제외 병의원" :headerStyle="{ width: '10%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
@@ -381,35 +383,58 @@ async function fetchHospitalCounts() {
   try {
     const productIds = promotionProducts.value.map(p => p.id);
     
-    // 각 제품별로 병원 실적 개수 조회 (first_performance_cso_id가 null이 아닌 것만)
-    const { data, error } = await supabase
+    // 각 제품별로 전체 병원 실적 개수 조회 (has_performance가 true인 것)
+    const { data: totalData, error: totalError } = await supabase
       .from('promotion_product_hospital_performance')
       .select('promotion_product_id')
       .in('promotion_product_id', productIds)
-      .not('first_performance_cso_id', 'is', null);
+      .eq('has_performance', true);
 
-    if (error) throw error;
+    if (totalError) throw totalError;
 
-    // 제품별 개수 계산
-    const countMap = {};
-    if (data) {
-      data.forEach(item => {
+    // 각 제품별로 CSO 적용된 병원 실적 개수 조회 (first_performance_cso_id가 null이 아닌 것)
+    const { data: csoData, error: csoError } = await supabase
+      .from('promotion_product_hospital_performance')
+      .select('promotion_product_id')
+      .in('promotion_product_id', productIds)
+      .not('first_performance_cso_id', 'is', null)
+      .eq('has_performance', true);
+
+    if (csoError) throw csoError;
+
+    // 제품별 전체 개수 계산
+    const totalCountMap = {};
+    if (totalData) {
+      totalData.forEach(item => {
         const productId = item.promotion_product_id;
-        countMap[productId] = (countMap[productId] || 0) + 1;
+        totalCountMap[productId] = (totalCountMap[productId] || 0) + 1;
       });
     }
 
-    // promotionProducts에 hospital_count 추가
+    // 제품별 CSO 적용 개수 계산
+    const csoCountMap = {};
+    if (csoData) {
+      csoData.forEach(item => {
+        const productId = item.promotion_product_id;
+        csoCountMap[productId] = (csoCountMap[productId] || 0) + 1;
+      });
+    }
+
+    // promotionProducts에 hospital_count, cso_hospital_count, total_hospital_count 추가
     promotionProducts.value = promotionProducts.value.map(p => ({
       ...p,
-      hospital_count: countMap[p.id] || 0
+      hospital_count: csoCountMap[p.id] || 0, // 기존 호환성을 위해 유지
+      cso_hospital_count: csoCountMap[p.id] || 0,
+      total_hospital_count: totalCountMap[p.id] || 0
     }));
   } catch (error) {
     console.error('병원 실적 개수 조회 오류:', error);
     // 오류가 발생해도 기본값 0으로 설정
     promotionProducts.value = promotionProducts.value.map(p => ({
       ...p,
-      hospital_count: 0
+      hospital_count: 0,
+      cso_hospital_count: 0,
+      total_hospital_count: 0
     }));
   }
 }
@@ -433,10 +458,33 @@ async function fetchExcludedHospitalCounts() {
     }
 
     // 각 보험코드별로 제외 병원 개수 조회
+    // 먼저 보험코드에 해당하는 product_id 조회
+    const { data: productIdsData, error: productIdsError } = await supabase
+      .from('promotion_product_list')
+      .select('id, insurance_code')
+      .in('insurance_code', insuranceCodes);
+    
+    if (productIdsError) throw productIdsError;
+    
+    if (!productIdsData || productIdsData.length === 0) {
+      promotionProducts.value = promotionProducts.value.map(p => ({
+        ...p,
+        excluded_hospital_count: 0
+      }));
+      return;
+    }
+    
+    const productIds = productIdsData.map(p => p.id);
+    const productIdToInsuranceCode = new Map();
+    productIdsData.forEach(p => {
+      productIdToInsuranceCode.set(p.id, String(p.insurance_code));
+    });
+    
+    // 제외 병원 개수 조회
     const { data, error } = await supabase
       .from('promotion_product_excluded_hospitals')
-      .select('insurance_code')
-      .in('insurance_code', insuranceCodes);
+      .select('promotion_product_id')
+      .in('promotion_product_id', productIds);
 
     if (error) throw error;
 
@@ -444,8 +492,10 @@ async function fetchExcludedHospitalCounts() {
     const excludedCountMap = {};
     if (data) {
       data.forEach(item => {
-        const code = String(item.insurance_code);
-        excludedCountMap[code] = (excludedCountMap[code] || 0) + 1;
+        const insuranceCode = productIdToInsuranceCode.get(item.promotion_product_id);
+        if (insuranceCode) {
+          excludedCountMap[insuranceCode] = (excludedCountMap[insuranceCode] || 0) + 1;
+        }
       });
     }
 

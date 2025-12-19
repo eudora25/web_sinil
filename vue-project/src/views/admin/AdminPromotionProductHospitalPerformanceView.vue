@@ -105,12 +105,12 @@
             <div class="management-header-text">
               <h3 class="management-title">제외 병원 목록</h3>
               <p class="management-subtitle">프로모션에서 제외된 병원을 관리합니다</p>
-              <div class="product-info-badge">
-                <i class="pi pi-box"></i>
-                <span class="product-name-text">{{ productName }}</span>
-                <span class="product-code-text">({{ insuranceCode }})</span>
-              </div>
             </div>
+          </div>
+          <div class="product-info-badge">
+            <i class="pi pi-box"></i>
+            <span class="product-name-text">{{ productName }}</span>
+            <span class="product-code-text">({{ insuranceCode }})</span>
           </div>
           <div class="management-count-badge">
             <span class="count-number">{{ excludedHospitalsList.length }}</span>
@@ -167,14 +167,16 @@
             </Column>
             <Column header="작업" :headerStyle="{ width: '17%' }" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
-                <button 
-                  class="btn-delete-exclude-enhanced" 
-                  @click="removeExcludedHospital(slotProps.data.hospital_id)"
-                  :disabled="removingExcluded"
-                >
-                  <i class="pi pi-trash"></i>
-                  <span>삭제</span>
-                </button>
+                <div style="display: flex; justify-content: center; align-items: center;">
+                  <button 
+                    class="btn-delete-exclude-enhanced" 
+                    @click="removeExcludedHospital(slotProps.data.hospital_id)"
+                    :disabled="removingExcluded"
+                  >
+                    <i class="pi pi-trash"></i>
+                    <span>삭제</span>
+                  </button>
+                </div>
               </template>
             </Column>
           </DataTable>
@@ -339,7 +341,8 @@ const loading = ref(false);
 const hospitalPerformanceList = ref([]);
 const productName = ref('');
 const currentPageFirstIndex = ref(0);
-const insuranceCode = ref('');
+const insuranceCode = ref(''); // 표시용으로만 사용
+const promotionProductId = ref(null);
 const excludedHospitalIds = ref(new Set());
 
 // 제외 병원 관리 관련
@@ -368,31 +371,44 @@ const totalPromotionAmount = computed(() => {
 async function fetchHospitalPerformance() {
   loading.value = true;
   try {
-    const promotionProductId = route.params.id;
+    const productIdFromRoute = route.params.id;
 
     // 먼저 제품 정보 조회
     const { data: productData, error: productError } = await supabase
       .from('promotion_product_list')
       .select('product_name, insurance_code')
-      .eq('id', promotionProductId)
+      .eq('id', productIdFromRoute)
       .single();
 
     if (productError) throw productError;
     if (productData) {
       productName.value = productData.product_name;
-      insuranceCode.value = productData.insurance_code;
+      insuranceCode.value = productData.insurance_code; // 표시용
+      promotionProductId.value = Number(productIdFromRoute);
     }
 
-    // 제외 병원 목록 조회
-    if (insuranceCode.value) {
-      const { data: excludedData, error: excludedError } = await supabase
-        .from('promotion_product_excluded_hospitals')
-        .select('hospital_id')
-        .eq('insurance_code', insuranceCode.value);
-      
-      if (!excludedError && excludedData) {
-        excludedHospitalIds.value = new Set(excludedData.map(eh => eh.hospital_id));
+    // 제외 병원 목록 조회 (데이터가 없어도 에러가 나지 않도록 처리)
+    if (promotionProductId.value) {
+      try {
+        const { data: excludedData, error: excludedError } = await supabase
+          .from('promotion_product_excluded_hospitals')
+          .select('hospital_id')
+          .eq('promotion_product_id', promotionProductId.value);
+        
+        if (excludedError) {
+          // 컬럼이 없거나 다른 에러가 발생해도 빈 Set으로 초기화하여 계속 진행
+          console.warn('제외 병원 조회 오류 (무시):', excludedError);
+          excludedHospitalIds.value = new Set();
+        } else {
+          excludedHospitalIds.value = new Set((excludedData || []).map(eh => eh.hospital_id));
+        }
+      } catch (err) {
+        // 예외가 발생해도 빈 Set으로 초기화하여 계속 진행
+        console.warn('제외 병원 조회 예외 (무시):', err);
+        excludedHospitalIds.value = new Set();
       }
+    } else {
+      excludedHospitalIds.value = new Set();
     }
 
     // 병원 실적 데이터 조회
@@ -419,7 +435,7 @@ async function fetchHospitalPerformance() {
           company_name
         )
       `)
-      .eq('promotion_product_id', promotionProductId)
+      .eq('promotion_product_id', promotionProductId.value)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -497,7 +513,10 @@ function closeExcludedHospitalsModal() {
 
 // 제외 병원 목록 조회
 async function fetchExcludedHospitals() {
-  if (!insuranceCode.value) return;
+  if (!promotionProductId.value) {
+    excludedHospitalsList.value = [];
+    return;
+  }
   
   loadingExcluded.value = true;
   try {
@@ -511,9 +530,14 @@ async function fetchExcludedHospitals() {
           business_registration_number
         )
       `)
-      .eq('insurance_code', insuranceCode.value);
+      .eq('promotion_product_id', promotionProductId.value);
     
-    if (error) throw error;
+    if (error) {
+      console.error('제외 병원 조회 오류:', error);
+      // 에러가 발생해도 빈 배열로 설정하여 계속 진행
+      excludedHospitalsList.value = [];
+      return;
+    }
     
     excludedHospitalsList.value = (data || []).map(item => ({
       hospital_id: item.hospital_id,
@@ -522,7 +546,8 @@ async function fetchExcludedHospitals() {
     }));
   } catch (error) {
     console.error('제외 병원 조회 오류:', error);
-    alert('제외 병원 조회 중 오류가 발생했습니다: ' + (error.message || error));
+    // 에러가 발생해도 빈 배열로 설정
+    excludedHospitalsList.value = [];
   } finally {
     loadingExcluded.value = false;
   }
@@ -582,10 +607,10 @@ async function addExcludedHospital(hospitalId) {
     
     if (applyToAllProducts.value) {
       // 전체 제품에 적용
-      // 모든 프로모션 제품의 보험코드 조회
+      // 모든 프로모션 제품의 ID 조회
       const { data: allProducts, error: productsError } = await supabase
         .from('promotion_product_list')
-        .select('insurance_code');
+        .select('id');
       
       if (productsError) throw productsError;
       
@@ -594,14 +619,13 @@ async function addExcludedHospital(hospitalId) {
         return;
       }
       
-      // 모든 보험코드에 대해 제외 병원 추가
-      const insuranceCodes = allProducts
-        .map(p => p.insurance_code)
-        .filter(code => code)
-        .map(code => String(code));
+      // 모든 제품 ID에 대해 제외 병원 추가
+      const productIds = allProducts
+        .map(p => p.id)
+        .filter(id => id);
       
-      const insertData = insuranceCodes.map(code => ({
-        insurance_code: code,
+      const insertData = productIds.map(productId => ({
+        promotion_product_id: productId,
         hospital_id: hospitalId,
         created_by: user.id,
         updated_by: user.id
@@ -618,18 +642,18 @@ async function addExcludedHospital(hospitalId) {
         }
       }
       
-      alert(`제외 병원이 전체 ${insuranceCodes.length}개 제품에 추가되었습니다.`);
+      alert(`제외 병원이 전체 ${productIds.length}개 제품에 추가되었습니다.`);
     } else {
       // 현재 제품에만 적용
-      if (!insuranceCode.value) {
-        alert('보험코드 정보가 없습니다.');
+      if (!promotionProductId.value) {
+        alert('제품 정보가 없습니다.');
         return;
       }
       
       const { error } = await supabase
         .from('promotion_product_excluded_hospitals')
         .insert({
-          insurance_code: insuranceCode.value,
+          promotion_product_id: promotionProductId.value,
           hospital_id: hospitalId,
           created_by: user.id,
           updated_by: user.id
@@ -661,8 +685,8 @@ async function removeExcludedHospital(hospitalId) {
     return;
   }
   
-  if (!insuranceCode.value) {
-    alert('보험코드 정보가 없습니다.');
+  if (!promotionProductId.value) {
+    alert('제품 정보가 없습니다.');
     return;
   }
   
@@ -671,7 +695,7 @@ async function removeExcludedHospital(hospitalId) {
     const { error } = await supabase
       .from('promotion_product_excluded_hospitals')
       .delete()
-      .eq('insurance_code', insuranceCode.value)
+      .eq('promotion_product_id', promotionProductId.value)
       .eq('hospital_id', hospitalId);
     
     if (error) throw error;
@@ -1396,9 +1420,9 @@ onMounted(() => {
   padding: 24px 28px;
   border-bottom: 1px solid #e9ecef;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
+  gap: 20px;
 }
 
 .management-header-info {
@@ -1406,6 +1430,7 @@ onMounted(() => {
   align-items: flex-start;
   gap: 16px;
   flex: 1;
+  min-width: 0;
 }
 
 .management-header-icon {
@@ -1442,14 +1467,16 @@ onMounted(() => {
 }
 
 .product-info-badge {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 8px 16px;
   background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
   border-radius: 8px;
-  margin-top: 8px;
   font-size: 12px;
+  flex: 1;
+  white-space: nowrap;
 }
 
 .product-info-badge i {

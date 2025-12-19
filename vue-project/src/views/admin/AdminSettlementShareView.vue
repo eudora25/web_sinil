@@ -572,13 +572,19 @@ async function loadSettlementData() {
     // 제외 병원 목록 조회
     const { data: excludedHospitals, error: excludedError } = await supabase
       .from('promotion_product_excluded_hospitals')
-      .select('insurance_code, hospital_id');
+      .select(`
+        hospital_id,
+        promotion_product_list!inner(insurance_code)
+      `);
     
     const excludedHospitalsMap = new Set();
     if (!excludedError && excludedHospitals) {
       excludedHospitals.forEach(eh => {
-        const key = `${String(eh.insurance_code)}_${eh.hospital_id}`;
-        excludedHospitalsMap.add(key);
+        const insuranceCode = eh.promotion_product_list?.insurance_code;
+        if (insuranceCode) {
+          const key = `${String(insuranceCode)}_${eh.hospital_id}`;
+          excludedHospitalsMap.add(key);
+        }
       });
     }
 

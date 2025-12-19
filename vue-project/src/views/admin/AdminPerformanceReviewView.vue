@@ -1397,14 +1397,20 @@ async function loadPerformanceData() {
     // promotion_product_excluded_hospitals 조회 (제외 병원 목록)
     const { data: excludedHospitals, error: excludedError } = await supabase
       .from('promotion_product_excluded_hospitals')
-      .select('insurance_code, hospital_id');
+      .select(`
+        hospital_id,
+        promotion_product_list!inner(insurance_code)
+      `);
     
     // 제외 병원 매핑: insurance_code_hospital_id 형식으로 저장
     const excludedHospitalsMap = new Set();
     if (!excludedError && excludedHospitals) {
       excludedHospitals.forEach(eh => {
-        const key = `${String(eh.insurance_code)}_${eh.hospital_id}`;
-        excludedHospitalsMap.add(key);
+        const insuranceCode = eh.promotion_product_list?.insurance_code;
+        if (insuranceCode) {
+          const key = `${String(insuranceCode)}_${eh.hospital_id}`;
+          excludedHospitalsMap.add(key);
+        }
       });
     }
 
