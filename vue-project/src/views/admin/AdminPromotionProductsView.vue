@@ -466,6 +466,15 @@
       class="excluded-hospital-modal"
     >
       <div class="excluded-hospital-modal-content">
+        <!-- 제품 정보 표시 -->
+        <div v-if="selectedProductForExcludedList" class="product-info-section">
+          <div class="product-info-badge">
+            <i class="pi pi-box"></i>
+            <span class="product-name-text">{{ selectedProductForExcludedList.product_name || '-' }}</span>
+            <span class="product-code-text">({{ selectedProductForExcludedList.insurance_code || '-' }})</span>
+          </div>
+        </div>
+        
         <!-- 검색 섹션 -->
         <div class="search-section">
           <div class="search-header">
@@ -3011,6 +3020,16 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* 제품 정보 섹션 */
+.product-info-section {
+  padding: 20px 28px;
+  background: white;
+  border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
 }
 
 /* 검색 섹션 */
