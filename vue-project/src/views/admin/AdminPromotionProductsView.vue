@@ -2175,20 +2175,18 @@ async function checkStatistics() {
         console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - hospitalDataMap 최종 크기:`, hospitalDataMap.size);
         console.log(`[통계 확인] 제품 ${promotionProduct.product_name} - hospitalDataMap 내용:`, Array.from(hospitalDataMap.entries()));
 
-        // 기존 데이터의 프로모션 전/후 금액 업데이트
+        // 기존 데이터의 프로모션 전/후 금액 업데이트 (덮어쓰기 방식으로 변경 - 중복 계산 방지)
         for (const [hospitalId, beforeAmount] of existingBeforeAmountMap.entries()) {
           const existing = existingDataMap.get(hospitalId);
           const afterAmount = existingAfterAmountMap.get(hospitalId) || 0;
-          const existingBefore = existing?.before_promotion_amount || 0;
-          const existingAfter = existing?.after_promotion_amount || 0;
           
-          const newBeforeAmount = existingBefore + beforeAmount;
-          const newAfterAmount = existingAfter + afterAmount;
-          const newTotalAmount = newBeforeAmount + newAfterAmount;
+          // 기존 값에 누적하지 않고, 새로 계산한 값으로 덮어쓰기
+          // total_performance_amount는 before + after로 계산
+          const newTotalAmount = beforeAmount + afterAmount;
           
           const updateData = {
-            before_promotion_amount: newBeforeAmount,
-            after_promotion_amount: newAfterAmount,
+            before_promotion_amount: beforeAmount,
+            after_promotion_amount: afterAmount,
             total_performance_amount: newTotalAmount,
             updated_by: user.id
           };

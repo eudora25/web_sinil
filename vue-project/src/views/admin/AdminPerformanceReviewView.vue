@@ -138,6 +138,9 @@
           {{ selectedHospitalRemarks }}
         </div>
         <div class="data-card-buttons" style="margin-left: auto;">
+           <button class="btn-check" @click="checkPromotionStatistics" :disabled="checkingStatistics || isAnyEditing" style="margin-right: 1rem;">
+             {{ checkingStatistics ? '업데이트 중...' : '프로모션 데이터 업데이트' }}
+           </button>
            <button class="btn-primary" @click="changeReviewStatus" :disabled="!selectedRows || selectedRows.length === 0 || isAnyEditing" style="margin-right: 1rem;">
              검수 상태 변경 ({{ selectedRows.length }}건)
            </button>
@@ -459,6 +462,84 @@
       <div class="loading-text">목록을 불러오는 중입니다...</div>
     </div>
   </div>
+
+  <!-- 데이터 업데이트 진행 모달 -->
+  <Dialog 
+    v-model:visible="showStatisticsModal" 
+    header="프로모션 데이터 업데이트 진행 중" 
+    :modal="true"
+    :closable="false"
+    :style="{ width: '550px' }"
+  >
+    <div style="display: flex; flex-direction: column; gap: 20px; padding: 8px;">
+      <!-- 진행 상황 섹션 -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="font-weight: 600; font-size: 1.1em; color: #333;">진행 상황</div>
+          <div style="font-weight: 600; font-size: 1.2em; color: #007bff;">
+            {{ statisticsProgress }}%
+          </div>
+        </div>
+        
+        <!-- 그래픽 프로그레스 바 -->
+        <div class="progress-container">
+          <div class="progress-bar-wrapper">
+            <div 
+              class="progress-bar-fill" 
+              :style="{ width: statisticsProgress + '%' }"
+            >
+              <div class="progress-bar-shine"></div>
+            </div>
+          </div>
+          <div class="progress-steps">
+            <div 
+              v-for="step in 10" 
+              :key="step"
+              class="progress-step"
+              :class="{ 'active': (step * 10) <= statisticsProgress }"
+            ></div>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 12px; color: #6c757d; font-size: 0.95em; font-weight: 500;">
+          {{ statisticsCurrentIndex }} / {{ statisticsTotalCount }} 제품 처리 중
+        </div>
+      </div>
+
+      <!-- 현재 처리 중인 제품 -->
+      <div v-if="statisticsCurrentProduct" class="info-card product-card">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <i class="pi pi-box" style="color: #007bff; font-size: 1.2em;"></i>
+          <div style="font-weight: 600; color: #333;">현재 처리 중인 제품</div>
+        </div>
+        <div style="color: #495057; font-size: 1.05em; padding-left: 28px;">{{ statisticsCurrentProduct }}</div>
+      </div>
+
+      <!-- 상태 정보 -->
+      <div v-if="statisticsStatus" class="info-card status-card">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <i class="pi pi-info-circle" style="color: #17a2b8; font-size: 1.2em;"></i>
+          <div style="font-weight: 600; color: #333;">상태</div>
+        </div>
+        <div style="color: #495057; padding-left: 28px;">{{ statisticsStatus }}</div>
+      </div>
+
+      <!-- 진행 애니메이션 -->
+      <div v-if="!statisticsCompleted" class="loading-indicator">
+        <div class="spinner"></div>
+        <span style="margin-left: 12px; color: #6c757d;">처리 중...</span>
+      </div>
+    </div>
+    <template #footer>
+      <Button 
+        v-if="statisticsCompleted" 
+        label="확인" 
+        icon="pi pi-check" 
+        @click="closeStatisticsModal"
+        class="p-button-success"
+      />
+    </template>
+  </Dialog>
 </template>
 
 <script setup>
@@ -472,6 +553,9 @@ import ColumnGroup from 'primevue/columngroup';
 import Row from 'primevue/row';
 import Checkbox from 'primevue/checkbox';
 import Tag from 'primevue/tag';
+import Dialog from 'primevue/dialog';
+import Button from 'primevue/button';
+import ProgressBar from 'primevue/progressbar';
 import { v4 as uuidv4 } from 'uuid';
 import { useToast } from "primevue/usetoast";
 import Toast from 'primevue/toast';
@@ -615,6 +699,17 @@ const statusChangeOptions = ref([
   { value: '검수중', label: '검수중' },
   { value: '완료', label: '완료' }
 ]);
+
+// --- 프로모션 데이터 업데이트 관련 변수 ---
+const checkingStatistics = ref(false);
+const showStatisticsModal = ref(false);
+const statisticsProgress = ref(0);
+const statisticsCurrentIndex = ref(0);
+const statisticsTotalCount = ref(0);
+const statisticsCurrentProduct = ref('');
+const statisticsStatus = ref('');
+const statisticsCompleted = ref(false);
+const promotionProducts = ref([]);
 
 // --- Computed 속성 ---
 const isAnyEditing = computed(() => activeEditingRowId.value !== null);
@@ -2080,6 +2175,274 @@ function cancelStatusChange() {
   selectedNewStatus.value = '';
 }
 
+// 프로모션 데이터 업데이트 함수 (프로모션 관리 페이지의 checkStatistics와 동일)
+async function checkPromotionStatistics() {
+  if (!confirm('제품별 병원 실적을 확인하고 데이터를 업데이트하시겠습니까?')) {
+    return;
+  }
+
+  checkingStatistics.value = true;
+  showStatisticsModal.value = true;
+  statisticsCompleted.value = false;
+  statisticsProgress.value = 0;
+  statisticsCurrentIndex.value = 0;
+  statisticsStatus.value = '프로모션 제품 목록 조회 중...';
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('로그인 정보가 유효하지 않습니다.');
+
+    // 프로모션 제품 목록 조회
+    const { data: products, error: productsError } = await supabase
+      .from('promotion_product_list')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (productsError) throw productsError;
+    promotionProducts.value = products || [];
+    statisticsTotalCount.value = promotionProducts.value.length;
+
+    if (promotionProducts.value.length === 0) {
+      statisticsStatus.value = '프로모션 제품이 없습니다.';
+      statisticsCompleted.value = true;
+      return;
+    }
+
+    let totalProcessed = 0;
+    let totalUpdated = 0;
+    let totalSkipped = 0;
+    let totalErrors = 0;
+
+    // 각 프로모션 제품에 대해 처리 (프로모션 관리 페이지의 checkStatistics 로직과 동일)
+    for (let i = 0; i < promotionProducts.value.length; i++) {
+      const promotionProduct = promotionProducts.value[i];
+      statisticsCurrentIndex.value = i + 1;
+      statisticsProgress.value = Math.round(((i + 1) / promotionProducts.value.length) * 100);
+      statisticsCurrentProduct.value = promotionProduct.product_name;
+      statisticsStatus.value = `제품 처리 중... (${i + 1}/${promotionProducts.value.length})`;
+      
+      try {
+        const insuranceCode = String(promotionProduct.insurance_code);
+        
+        // 각 제품의 promotion_start_date를 기준일로 사용
+        let baseMonth = null;
+        if (promotionProduct.promotion_start_date) {
+          const dateStr = promotionProduct.promotion_start_date;
+          if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}/)) {
+            baseMonth = dateStr.substring(0, 7);
+          } else {
+            const startDate = new Date(promotionProduct.promotion_start_date);
+            const year = startDate.getFullYear();
+            const month = String(startDate.getMonth() + 1).padStart(2, '0');
+            baseMonth = `${year}-${month}`;
+          }
+        }
+        
+        if (!baseMonth) {
+          console.log(`제품 ${promotionProduct.product_name}의 프로모션 시작일이 없어 스킵합니다.`);
+          totalSkipped++;
+          continue;
+        }
+        
+        statisticsStatus.value = `제품 정보 조회 중... (기준일: ${baseMonth}) (${i + 1}/${promotionProducts.value.length})`;
+        
+        // 프로모션 시작일과 종료일을 Date 객체로 변환
+        const promotionStartDate = promotionProduct.promotion_start_date ? new Date(promotionProduct.promotion_start_date) : null;
+        const promotionEndDate = promotionProduct.promotion_end_date ? new Date(promotionProduct.promotion_end_date) : null;
+        
+        // 해당 보험코드를 가진 제품들의 실적 데이터 조회 (완료 상태, 삭제 제외)
+        const { data: performanceRecords, error: recordsError } = await supabase
+          .from('performance_records')
+          .select(`
+            id,
+            company_id,
+            client_id,
+            product_id,
+            prescription_qty,
+            prescription_month,
+            settlement_month,
+            review_status,
+            review_action,
+            products!inner(insurance_code, price),
+            companies!inner(company_group)
+          `)
+          .eq('products.insurance_code', insuranceCode)
+          .eq('companies.company_group', 'NEWCSO')
+          .eq('review_status', '완료')
+          .or('review_action.is.null,review_action.neq.삭제');
+
+        if (recordsError || !performanceRecords || performanceRecords.length === 0) {
+          console.log(`제품 ${promotionProduct.product_name} (보험코드: ${insuranceCode})에 해당하는 실적 데이터가 없습니다.`);
+          totalSkipped++;
+          continue;
+        }
+
+        statisticsStatus.value = `데이터 처리 중... (${i + 1}/${promotionProducts.value.length})`;
+
+        // 병원별로 데이터 정리
+        const hospitalDataMap = new Map();
+        
+        for (const record of performanceRecords) {
+          if (!record.client_id || record.review_action === '삭제') continue;
+
+          const hospitalId = record.client_id;
+          const productPrice = Number(record.products?.price) || 0;
+          const prescriptionQty = Number(record.prescription_qty) || 0;
+          const prescriptionAmount = prescriptionQty * productPrice;
+          const prescriptionMonth = record.prescription_month;
+
+          // 프로모션 시작일 이전 데이터인지 확인
+          let isBeforeStartDate = false;
+          if (promotionStartDate && prescriptionMonth) {
+            const prescriptionDate = new Date(prescriptionMonth + '-01');
+            isBeforeStartDate = prescriptionDate < promotionStartDate;
+          } else if (!promotionStartDate && prescriptionMonth) {
+            isBeforeStartDate = prescriptionMonth < baseMonth;
+          }
+
+          // 프로모션 종료일 이후 데이터인지 확인
+          let isAfterEndDate = false;
+          if (promotionEndDate && prescriptionMonth) {
+            const prescriptionDate = new Date(prescriptionMonth + '-01');
+            isAfterEndDate = prescriptionDate > promotionEndDate;
+          }
+
+          if (!hospitalDataMap.has(hospitalId)) {
+            hospitalDataMap.set(hospitalId, {
+              hospital_id: hospitalId,
+              first_performance_cso_id: isBeforeStartDate ? null : record.company_id,
+              first_performance_month: prescriptionMonth || null,
+              total_performance_amount: prescriptionAmount,
+              before_promotion_amount: isBeforeStartDate ? prescriptionAmount : 0,
+              after_promotion_amount: (!isBeforeStartDate && !isAfterEndDate) ? prescriptionAmount : 0
+            });
+          } else {
+            const existing = hospitalDataMap.get(hospitalId);
+            
+            // first_performance_month 업데이트 (더 이른 날짜로)
+            if (prescriptionMonth && (!existing.first_performance_month || prescriptionMonth < existing.first_performance_month)) {
+              existing.first_performance_month = prescriptionMonth;
+              // 프로모션 시작일 이전이면 CSO ID는 null
+              if (isBeforeStartDate) {
+                existing.first_performance_cso_id = null;
+              } else if (existing.first_performance_cso_id === null) {
+                existing.first_performance_cso_id = record.company_id;
+              }
+            }
+            
+            existing.total_performance_amount = (existing.total_performance_amount || 0) + prescriptionAmount;
+            if (isBeforeStartDate) {
+              existing.before_promotion_amount = (existing.before_promotion_amount || 0) + prescriptionAmount;
+            } else if (!isAfterEndDate) {
+              existing.after_promotion_amount = (existing.after_promotion_amount || 0) + prescriptionAmount;
+            }
+          }
+        }
+
+        statisticsStatus.value = `데이터 저장 중... (${i + 1}/${promotionProducts.value.length})`;
+
+        // promotion_product_hospital_performance 테이블에 데이터 삽입/업데이트
+        const performanceData = Array.from(hospitalDataMap.values()).map(item => ({
+          promotion_product_id: promotionProduct.id,
+          hospital_id: item.hospital_id,
+          has_performance: true,
+          first_performance_cso_id: item.first_performance_cso_id,
+          first_performance_month: item.first_performance_month || null,
+          total_performance_amount: item.total_performance_amount || 0,
+          before_promotion_amount: item.before_promotion_amount || 0,
+          after_promotion_amount: item.after_promotion_amount || 0,
+          created_by: user.id,
+          updated_by: user.id
+        }));
+
+        if (performanceData.length > 0) {
+          // 기존 데이터 확인 및 업데이트 또는 삽입
+          for (const item of performanceData) {
+            const { data: existing, error: checkError } = await supabase
+              .from('promotion_product_hospital_performance')
+              .select('id, before_promotion_amount, after_promotion_amount, total_performance_amount')
+              .eq('promotion_product_id', item.promotion_product_id)
+              .eq('hospital_id', item.hospital_id)
+              .single();
+
+            if (checkError && checkError.code !== 'PGRST116') { // PGRST116은 데이터 없음 오류
+              console.error(`기존 데이터 확인 오류 (제품 ${promotionProduct.product_name}, 병원 ${item.hospital_id}):`, checkError);
+              continue;
+            }
+
+            if (existing) {
+              // 기존 데이터 업데이트 (덮어쓰기 방식으로 변경 - 중복 계산 방지)
+              // 기존 값에 누적하지 않고, 새로 계산한 값으로 덮어쓰기
+              const newTotalAmount = item.before_promotion_amount + item.after_promotion_amount;
+
+              const { error: updateError } = await supabase
+                .from('promotion_product_hospital_performance')
+                .update({
+                  has_performance: true,
+                  first_performance_cso_id: item.first_performance_cso_id,
+                  first_performance_month: item.first_performance_month,
+                  total_performance_amount: newTotalAmount,
+                  before_promotion_amount: item.before_promotion_amount,
+                  after_promotion_amount: item.after_promotion_amount,
+                  updated_by: user.id,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existing.id);
+
+              if (updateError) {
+                console.error(`데이터 업데이트 오류 (제품 ${promotionProduct.product_name}, 병원 ${item.hospital_id}):`, updateError);
+                totalErrors++;
+              } else {
+                totalUpdated++;
+              }
+            } else {
+              // 신규 데이터 삽입
+              const { error: insertError } = await supabase
+                .from('promotion_product_hospital_performance')
+                .insert(item);
+
+              if (insertError) {
+                console.error(`데이터 삽입 오류 (제품 ${promotionProduct.product_name}, 병원 ${item.hospital_id}):`, insertError);
+                totalErrors++;
+              } else {
+                totalUpdated++;
+              }
+            }
+          }
+        }
+
+        totalProcessed++;
+        console.log(`제품 ${promotionProduct.product_name}: 처리 완료`);
+      } catch (error) {
+        console.error(`제품 ${promotionProduct.product_name} 처리 오류:`, error);
+        totalErrors++;
+      }
+    }
+
+    statisticsProgress.value = 100;
+    statisticsStatus.value = `완료! 처리된 제품: ${totalProcessed}개, 업데이트: ${totalUpdated}개, 스킵: ${totalSkipped}개, 오류: ${totalErrors}개`;
+    statisticsCurrentProduct.value = '';
+    statisticsCompleted.value = true;
+  } catch (error) {
+    console.error('프로모션 데이터 업데이트 오류:', error);
+    statisticsStatus.value = `오류 발생: ${error.message || error}`;
+    statisticsCompleted.value = true;
+    alert('데이터 업데이트 중 오류가 발생했습니다: ' + (error.message || error));
+  } finally {
+    checkingStatistics.value = false;
+  }
+}
+
+function closeStatisticsModal() {
+  showStatisticsModal.value = false;
+  statisticsCompleted.value = false;
+  statisticsProgress.value = 0;
+  statisticsCurrentIndex.value = 0;
+  statisticsTotalCount.value = 0;
+  statisticsCurrentProduct.value = '';
+  statisticsStatus.value = '';
+}
+
 // 프로모션 관리 데이터 업데이트: 변경된 레코드 중 프로모션 제품이 있는 경우 업데이트
 async function updatePromotionDataForChangedRecords(changedRecords) {
   try {
@@ -2302,20 +2665,17 @@ async function updatePromotionDataForChangedRecords(changedRecords) {
             // 프로모션 시작일 이전 데이터가 있으면 first_performance_cso_id는 null이어야 함
             const finalCSOId = hospitalData.has_before_start_date ? null : hospitalData.first_performance_cso_id;
             
-            // 기존 데이터의 before/after 금액을 누적 (프로모션 관리 페이지와 동일한 로직)
-            const existingBefore = existingData.before_promotion_amount || 0;
-            const existingAfter = existingData.after_promotion_amount || 0;
-            const newBeforeAmount = existingBefore + hospitalData.before_promotion_amount;
-            const newAfterAmount = existingAfter + hospitalData.after_promotion_amount;
-            const newTotalAmount = newBeforeAmount + newAfterAmount;
+            // 기존 데이터의 before/after 금액을 덮어쓰기 (중복 계산 방지)
+            // 기존 값에 누적하지 않고, 새로 계산한 값으로 덮어쓰기
+            const newTotalAmount = hospitalData.before_promotion_amount + hospitalData.after_promotion_amount;
             
             const { error: updateError } = await supabase
               .from('promotion_product_hospital_performance')
               .update({
                 has_performance: true,
                 total_performance_amount: newTotalAmount,
-                before_promotion_amount: newBeforeAmount,
-                after_promotion_amount: newAfterAmount,
+                before_promotion_amount: hospitalData.before_promotion_amount,
+                after_promotion_amount: hospitalData.after_promotion_amount,
                 first_performance_cso_id: finalCSOId,
                 first_performance_month: hospitalData.first_performance_month,
                 updated_by: user.id,
@@ -3169,5 +3529,169 @@ async function handleBulkChange() {
 :deep(.p-datatable-tbody > tr > td:nth-child(12)),
 :deep(.p-datatable-tbody > tr > td:nth-child(15)) {
   text-align: right !important;
+}
+
+/* 프로모션 데이터 업데이트 버튼 스타일 */
+.btn-check {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 8px;
+  font-weight: 500;
+}
+
+.btn-check:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.btn-check:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* 데이터 업데이트 진행 모달 스타일 */
+.progress-container {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.progress-bar-wrapper {
+  width: 100%;
+  height: 28px;
+  background: linear-gradient(135deg, #e9ecef 0%, #f8f9fa 100%);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #007bff 0%, #0056b3 50%, #004085 100%);
+  border-radius: 14px;
+  position: relative;
+  transition: width 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.4);
+  overflow: hidden;
+}
+
+.progress-bar-fill::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  animation: shimmer 2s infinite;
+}
+
+.progress-bar-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  animation: shine 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes shine {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.progress-steps {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  justify-content: space-between;
+}
+
+.progress-step {
+  flex: 1;
+  height: 4px;
+  background: #e9ecef;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.progress-step.active {
+  background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+  box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+  transform: scaleY(1.5);
+}
+
+.info-card {
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid;
+  transition: all 0.3s ease;
+}
+
+.info-card:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.product-card {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-left-color: #007bff;
+}
+
+.status-card {
+  background: linear-gradient(135deg, #e7f3ff 0%, #d1ecf1 100%);
+  border-left-color: #17a2b8;
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #e9ecef;
+  border-top-color: #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
