@@ -66,18 +66,12 @@
         <Column field="excluded_hospital_count" header="제외 병의원" :headerStyle="{ width: '10%', textAlign: 'center' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
             <div 
-              v-if="slotProps.data.excluded_hospital_count && slotProps.data.excluded_hospital_count > 0"
-              style="text-align: center; cursor: pointer; color: #dc3545; font-weight: 600; text-decoration: underline;"
+              style="text-align: center; cursor: pointer; font-weight: 600; text-decoration: underline;"
+              :style="slotProps.data.excluded_hospital_count && slotProps.data.excluded_hospital_count > 0 ? 'color: #dc3545;' : 'color: #6c757d;'"
               @click="openExcludedHospitalsListModal(slotProps.data)"
-              :title="`제외 병원 ${slotProps.data.excluded_hospital_count}건 보기`"
+              :title="slotProps.data.excluded_hospital_count && slotProps.data.excluded_hospital_count > 0 ? `제외 병원 ${slotProps.data.excluded_hospital_count}건 보기` : '제외 병원 관리'"
             >
-              {{ slotProps.data.excluded_hospital_count }}
-            </div>
-            <div 
-              v-else
-              style="text-align: center; color: #6c757d;"
-            >
-              0
+              {{ slotProps.data.excluded_hospital_count || 0 }}
             </div>
           </template>
         </Column>
