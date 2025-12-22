@@ -2423,6 +2423,9 @@ async function checkPromotionStatistics() {
     statisticsStatus.value = `완료! 처리된 제품: ${totalProcessed}개, 업데이트: ${totalUpdated}개, 스킵: ${totalSkipped}개, 오류: ${totalErrors}개`;
     statisticsCurrentProduct.value = '';
     statisticsCompleted.value = true;
+    
+    // 마지막 업데이트 시간을 DB에 저장
+    await saveLastUpdateTime();
   } catch (error) {
     console.error('프로모션 데이터 업데이트 오류:', error);
     statisticsStatus.value = `오류 발생: ${error.message || error}`;
@@ -2441,6 +2444,62 @@ function closeStatisticsModal() {
   statisticsTotalCount.value = 0;
   statisticsCurrentProduct.value = '';
   statisticsStatus.value = '';
+}
+
+// 마지막 업데이트 시간을 DB에 저장 (로그 테이블 사용)
+async function saveLastUpdateTime() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    
+    // promotion_statistics_log 테이블에 로그 저장
+    // 먼저 기존 로그가 있는지 확인
+    const { data: existingLogs, error: checkError } = await supabase
+      .from('promotion_statistics_log')
+      .select('id')
+      .limit(1);
+
+    if (checkError) {
+      // 테이블이 없거나 오류가 발생하면 무시
+      console.warn('promotion_statistics_log 테이블 조회 오류:', checkError);
+      return;
+    }
+
+    if (existingLogs && existingLogs.length > 0) {
+      // 기존 로그가 있으면 UPDATE
+      const { error: updateError } = await supabase
+        .from('promotion_statistics_log')
+        .update({
+          last_update_time: now,
+          updated_by: user.id
+        })
+        .eq('id', existingLogs[0].id);
+      
+      if (updateError) {
+        console.error('마지막 업데이트 시간 저장 오류:', updateError);
+        return;
+      }
+    } else {
+      // 기존 로그가 없으면 INSERT
+      const { error: insertError } = await supabase
+        .from('promotion_statistics_log')
+        .insert({
+          last_update_time: now,
+          updated_by: user.id
+        });
+      
+      if (insertError) {
+        console.error('마지막 업데이트 시간 저장 오류:', insertError);
+        return;
+      }
+    }
+  } catch (error) {
+    console.error('마지막 업데이트 시간 저장 오류:', error);
+  }
 }
 
 // 프로모션 관리 데이터 업데이트: 변경된 레코드 중 프로모션 제품이 있는 경우 업데이트

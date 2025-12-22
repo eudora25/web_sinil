@@ -2472,7 +2472,32 @@ async function addExcludedHospital(hospitalId) {
       .map(p => p.id)
       .filter(id => id);
     
-    const insertData = productIds.map(productId => ({
+    // 이미 존재하는 제품 확인
+    const { data: existingData, error: existingError } = await supabase
+      .from('promotion_product_excluded_hospitals')
+      .select('promotion_product_id')
+      .eq('hospital_id', hospitalId)
+      .in('promotion_product_id', productIds);
+    
+    if (existingError) {
+      console.error('기존 제외 병원 조회 오류:', existingError);
+      // 조회 오류가 발생해도 계속 진행
+    }
+    
+    // 이미 존재하는 제품 ID Set 생성
+    const existingProductIds = new Set((existingData || []).map(item => item.promotion_product_id));
+    
+    // 존재하지 않는 제품만 필터링
+    const newProductIds = productIds.filter(productId => !existingProductIds.has(productId));
+    
+    if (newProductIds.length === 0) {
+      alert('이미 모든 제품에 제외된 병원입니다.');
+      closeAddExcludedHospitalModal();
+      return;
+    }
+    
+    // 존재하지 않는 제품에만 추가
+    const insertData = newProductIds.map(productId => ({
       promotion_product_id: productId,
       hospital_id: hospitalId,
       created_by: user.id,
@@ -2484,13 +2509,14 @@ async function addExcludedHospital(hospitalId) {
       .insert(insertData);
     
     if (error) {
-      // 일부는 이미 존재할 수 있으므로 무시하고 계속 진행
-      if (error.code !== '23505') {
-        throw error;
-      }
+      throw error;
     }
     
-    alert(`제외 병원이 전체 ${productIds.length}개 제품에 추가되었습니다.`);
+    if (existingProductIds.size > 0) {
+      alert(`제외 병원이 ${newProductIds.length}개 제품에 추가되었습니다. (${existingProductIds.size}개 제품에는 이미 제외되어 있었습니다.)`);
+    } else {
+      alert(`제외 병원이 전체 ${newProductIds.length}개 제품에 추가되었습니다.`);
+    }
     
     // 제외 병원 개수 다시 조회
     await fetchExcludedHospitalCounts();
