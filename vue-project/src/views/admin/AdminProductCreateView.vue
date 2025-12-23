@@ -20,23 +20,23 @@
       </div>
       <div class="form-group">
         <label>수수료율 A등급(%)</label>
-        <input v-model="commissionA" type="number" step="0.001" />
+        <input v-model="commissionA" type="text" placeholder="예: 36, 36%, 0.36" />
       </div>
       <div class="form-group">
         <label>수수료율 B등급(%)</label>
-        <input v-model="commissionB" type="number" step="0.001" />
+        <input v-model="commissionB" type="text" placeholder="예: 36, 36%, 0.36" />
       </div>
       <div class="form-group">
         <label>수수료율 C등급(%)</label>
-        <input v-model="commissionC" type="number" step="0.001" />
+        <input v-model="commissionC" type="text" placeholder="예: 36, 36%, 0.36" />
       </div>
       <div class="form-group">
         <label>수수료율 D등급(%)</label>
-        <input v-model="commissionD" type="number" step="0.001" />
+        <input v-model="commissionD" type="text" placeholder="예: 36, 36%, 0.36" />
       </div>
       <div class="form-group">
         <label>수수료율 E등급(%)</label>
-        <input v-model="commissionE" type="number" step="0.001" />
+        <input v-model="commissionE" type="text" placeholder="예: 36, 36%, 0.36" />
       </div>
 
       <div class="form-group">
@@ -93,6 +93,35 @@ const allowOnlyNumbers = (event) => {
   }
 };
 
+// 수수료율을 소수점으로 변환하는 헬퍼 함수
+// 입력값이 퍼센트(예: 5, 5%, 5.5%)이면 소수점(0.05)으로 변환
+// 입력값이 이미 소수점(예: 0.05)이면 그대로 사용
+function convertCommissionRateToDecimal(input) {
+  if (input === null || input === undefined || input === '') {
+    return 0;
+  }
+  
+  // 문자열로 변환하고 공백 제거
+  const str = String(input).trim();
+  if (!str) return 0;
+  
+  // 퍼센트 기호 제거
+  const hasPercent = str.includes('%');
+  const cleanedStr = str.replace(/%/g, '').replace(/,/g, '');
+  
+  // 숫자로 변환
+  const num = parseFloat(cleanedStr);
+  if (isNaN(num)) return 0;
+  
+  // 퍼센트 기호가 있거나 값이 1보다 크면 100으로 나누어 소수점으로 변환
+  if (hasPercent || num > 1) {
+    return num / 100;
+  }
+  
+  // 이미 소수점으로 입력된 경우 그대로 사용
+  return num;
+}
+
 const handleSubmit = async () => {
   // 필수 필드 검증
   if (!baseMonth.value || !productName.value || !insuranceCode.value || !price.value) {
@@ -142,11 +171,12 @@ const handleSubmit = async () => {
     return;
   }
 
-  // 수수료율 A 검증 (0~1, 소수점 3자리)
+  // 수수료율 A 변환 및 검증
+  let commissionRateA = null;
   if (commissionA.value && commissionA.value.toString().trim() !== '') {
-    const commissionAValue = Number(commissionA.value);
-    if (isNaN(commissionAValue) || commissionAValue < 0 || commissionAValue > 1) {
-      alert('수수료율 A는 0~1 사이의 숫자여야 합니다.');
+    commissionRateA = convertCommissionRateToDecimal(commissionA.value);
+    if (commissionRateA < 0 || commissionRateA > 1) {
+      alert('수수료율 A는 0~100% 사이의 숫자여야 합니다.');
       setTimeout(() => {
         const commissionAInput = document.querySelector('input[v-model="commissionA"]');
         if (commissionAInput) {
@@ -157,14 +187,15 @@ const handleSubmit = async () => {
       return;
     }
     // 소수점 3자리로 반올림
-    commissionA.value = Math.round(commissionAValue * 1000) / 1000;
+    commissionRateA = Math.round(commissionRateA * 1000) / 1000;
   }
 
-  // 수수료율 B 검증 (0~1, 소수점 3자리)
+  // 수수료율 B 변환 및 검증
+  let commissionRateB = null;
   if (commissionB.value && commissionB.value.toString().trim() !== '') {
-    const commissionBValue = Number(commissionB.value);
-    if (isNaN(commissionBValue) || commissionBValue < 0 || commissionBValue > 1) {
-      alert('수수료율 B는 0~1 사이의 숫자여야 합니다.');
+    commissionRateB = convertCommissionRateToDecimal(commissionB.value);
+    if (commissionRateB < 0 || commissionRateB > 1) {
+      alert('수수료율 B는 0~100% 사이의 숫자여야 합니다.');
       setTimeout(() => {
         const commissionBInput = document.querySelector('input[v-model="commissionB"]');
         if (commissionBInput) {
@@ -175,14 +206,15 @@ const handleSubmit = async () => {
       return;
     }
     // 소수점 3자리로 반올림
-    commissionB.value = Math.round(commissionBValue * 1000) / 1000;
+    commissionRateB = Math.round(commissionRateB * 1000) / 1000;
   }
 
-  // 수수료율 C 검증 (0~1, 소수점 3자리)
+  // 수수료율 C 변환 및 검증
+  let commissionRateC = null;
   if (commissionC.value && commissionC.value.toString().trim() !== '') {
-    const commissionCValue = Number(commissionC.value);
-    if (isNaN(commissionCValue) || commissionCValue < 0 || commissionCValue > 1) {
-      alert('수수료율 C는 0~1 사이의 숫자여야 합니다.');
+    commissionRateC = convertCommissionRateToDecimal(commissionC.value);
+    if (commissionRateC < 0 || commissionRateC > 1) {
+      alert('수수료율 C는 0~100% 사이의 숫자여야 합니다.');
       setTimeout(() => {
         const commissionCInput = document.querySelector('input[v-model="commissionC"]');
         if (commissionCInput) {
@@ -193,7 +225,45 @@ const handleSubmit = async () => {
       return;
     }
     // 소수점 3자리로 반올림
-    commissionC.value = Math.round(commissionCValue * 1000) / 1000;
+    commissionRateC = Math.round(commissionRateC * 1000) / 1000;
+  }
+
+  // 수수료율 D 변환 및 검증
+  let commissionRateD = null;
+  if (commissionD.value && commissionD.value.toString().trim() !== '') {
+    commissionRateD = convertCommissionRateToDecimal(commissionD.value);
+    if (commissionRateD < 0 || commissionRateD > 1) {
+      alert('수수료율 D는 0~100% 사이의 숫자여야 합니다.');
+      setTimeout(() => {
+        const commissionDInput = document.querySelector('input[v-model="commissionD"]');
+        if (commissionDInput) {
+          commissionDInput.focus();
+          commissionDInput.select();
+        }
+      }, 100);
+      return;
+    }
+    // 소수점 3자리로 반올림
+    commissionRateD = Math.round(commissionRateD * 1000) / 1000;
+  }
+
+  // 수수료율 E 변환 및 검증
+  let commissionRateE = null;
+  if (commissionE.value && commissionE.value.toString().trim() !== '') {
+    commissionRateE = convertCommissionRateToDecimal(commissionE.value);
+    if (commissionRateE < 0 || commissionRateE > 1) {
+      alert('수수료율 E는 0~100% 사이의 숫자여야 합니다.');
+      setTimeout(() => {
+        const commissionEInput = document.querySelector('input[v-model="commissionE"]');
+        if (commissionEInput) {
+          commissionEInput.focus();
+          commissionEInput.select();
+        }
+      }, 100);
+      return;
+    }
+    // 소수점 3자리로 반올림
+    commissionRateE = Math.round(commissionRateE * 1000) / 1000;
   }
   // 현재 사용자 정보 가져오기
   const { data: { user } } = await supabase.auth.getUser();
@@ -207,11 +277,11 @@ const handleSubmit = async () => {
     product_name: productName.value,
     insurance_code: insuranceCode.value === '' ? null : Number(insuranceCode.value),
     price: price.value === '' ? null : Number(price.value),
-    commission_rate_a: commissionA.value === '' ? null : Number(commissionA.value),
-    commission_rate_b: commissionB.value === '' ? null : Number(commissionB.value),
-    commission_rate_c: commissionC.value === '' ? null : Number(commissionC.value),
-    commission_rate_d: commissionD.value === '' ? null : Number(commissionD.value),
-    commission_rate_e: commissionE.value === '' ? null : Number(commissionE.value),
+    commission_rate_a: commissionRateA,
+    commission_rate_b: commissionRateB,
+    commission_rate_c: commissionRateC,
+    commission_rate_d: commissionRateD,
+    commission_rate_e: commissionRateE,
     status: status.value,
     remarks: remarks.value,
     created_by: user.id

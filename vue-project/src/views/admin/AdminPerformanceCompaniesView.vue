@@ -477,22 +477,56 @@ const fetchCompanyList = async () => {
     }
 
     if (!companiesData || companiesData.length === 0) {
-      // 전체 업체 상태 확인
-      const { data: allCompanies, error: allError } = await supabase
-        .from('companies')
-        .select('id, company_name, status')
-        .order('company_name', { ascending: true })
-
       loading.value = false
       return
     }
 
-    // 2-1. 실적 데이터 조회 (배치 크기 최적화)
+    // 2. 모든 업체의 총 병의원 수를 한 번에 조회 (Map으로 변환)
+    const companyIds = companiesData.map(c => c.id)
+    const totalClientsMap = new Map()
+    
+    try {
+      const { data: clientAssignments, error: clientAssignmentsError } = await supabase
+        .from('client_company_assignments')
+        .select('company_id')
+        .in('company_id', companyIds)
+
+      if (!clientAssignmentsError && clientAssignments) {
+        // 업체별로 카운트
+        clientAssignments.forEach(assignment => {
+          const count = totalClientsMap.get(assignment.company_id) || 0
+          totalClientsMap.set(assignment.company_id, count + 1)
+        })
+      }
+    } catch (err) {
+      // 오류 발생 시 빈 Map 사용
+    }
+
+    // 3. 모든 업체의 증빙 파일 개수를 한 번에 조회 (Map으로 변환)
+    const evidenceFilesMap = new Map()
+    
+    try {
+      const { data: evidenceFiles, error: evidenceFilesError } = await supabase
+        .from('performance_evidence_files')
+        .select('company_id')
+        .in('company_id', companyIds)
+        .eq('settlement_month', selectedSettlementMonth.value)
+
+      if (!evidenceFilesError && evidenceFiles) {
+        // 업체별로 카운트
+        evidenceFiles.forEach(file => {
+          const count = evidenceFilesMap.get(file.company_id) || 0
+          evidenceFilesMap.set(file.company_id, count + 1)
+        })
+      }
+    } catch (err) {
+      // 오류 발생 시 빈 Map 사용
+    }
+
+    // 4. 실적 데이터 조회 (배치 크기 최적화)
     let allPerformanceData = []
     let from = 0
     const batchSize = 1000 // Supabase 기본 제한에 맞춤
-    
-    // console.log('실적 데이터 조회 시작:', selectedSettlementMonth.value)
     
     while (true) {
       const { data: performanceData, error: performanceError } = await supabase
@@ -516,8 +550,6 @@ const fetchCompanyList = async () => {
         return
       }
 
-      // console.log(`배치 ${Math.floor(from/batchSize) + 1}: ${performanceData?.length || 0}건 조회`)
-
       if (!performanceData || performanceData.length === 0) {
         break
       }
@@ -530,23 +562,12 @@ const fetchCompanyList = async () => {
 
       from += batchSize
     }
-    
-    // console.log('전체 실적 데이터:', allPerformanceData.length, '건')
 
-
-    // 3. 각 업체별로 데이터 집계
+    // 5. 각 업체별로 데이터 집계 (메모리에서 처리)
     const companyResults = []
 
     for (const company of companiesData) {
-
-      // 총 병의원 수 조회 (client_company_assignments에서) - 두 가지 방법으로 시도
       try {
-        // 방법 1: count로 조회
-        const { count: totalClientCount, error: clientCountError } = await supabase
-          .from('client_company_assignments')
-          .select('*', { count: 'exact', head: true })
-          .eq('company_id', company.id)
-
         // 해당 업체의 실적 데이터 필터링
         const companyPerformances =
           allPerformanceData?.filter((p) => p.company_id === company.id) || []
@@ -576,39 +597,8 @@ const fetchCompanyList = async () => {
           { completed: 0, inProgress: 0, pending: 0 },
         );
 
-        // 증빙 파일 개수 조회
-        let evidenceFileCount = 0
-        try {
-          // 현재 사용자 정보 확인
-          const { data: currentUser } = await supabase.auth.getUser()
-
-          // 테이블 전체 접근 테스트 (RLS 우회 확인)
-          const { data: tableTest, error: tableTestError } = await supabase
-            .from('performance_evidence_files')
-            .select('id, company_id, settlement_month')
-            .limit(3)
-
-          // 실제 문제 진단을 위한 간단한 확인
-          if (tableTestError) {
-            // 테이블 접근 오류 처리
-          }
-          
-          // 특정 업체 파일 조회 시도
-          const { data: companyFiles, error: companyFilesError } = await supabase
-            .from('performance_evidence_files')
-            .select('id')
-            .eq('company_id', company.id)
-            .eq('settlement_month', selectedSettlementMonth.value)
-
-          if (companyFilesError) {
-            evidenceFileCount = 0
-          } else {
-            // 정상 조회 성공
-            evidenceFileCount = companyFiles?.length || 0
-          }
-        } catch (err) {
-          evidenceFileCount = 0
-        }
+        // 증빙 파일 개수 (Map에서 조회)
+        const evidenceFileCount = evidenceFilesMap.get(company.id) || 0
 
         // 최종 등록일시 조회
         let lastRegisteredAt = '-'
@@ -619,8 +609,6 @@ const fetchCompanyList = async () => {
             const dateB = new Date(b.created_at || b.created_date || 0)
             return dateB - dateA
           })
-
-          
 
           const latestRecord = sortedPerformances[0]
           const latestDate = latestRecord?.created_at || latestRecord?.created_date
@@ -644,8 +632,6 @@ const fetchCompanyList = async () => {
           }
         }
 
-
-
         companyResults.push({
           id: company.id,
           company_name: company.company_name,
@@ -653,14 +639,14 @@ const fetchCompanyList = async () => {
           representative_name: company.representative_name,
           company_group: company.company_group,
           assigned_pharmacist_contact: company.assigned_pharmacist_contact,
-          total_clients: totalClientCount || 0,
+          total_clients: totalClientsMap.get(company.id) || 0,
           submitted_clients: submittedClients,
           prescription_count: prescriptionCount,
           review_completed: statusCounts.completed,
           review_in_progress: statusCounts.inProgress,
           review_pending: statusCounts.pending,
           prescription_amount: prescriptionAmount,
-          evidence_files: evidenceFileCount || 0,
+          evidence_files: evidenceFileCount,
           last_registered_at: lastRegisteredAt,
         })
       } catch (err) {
@@ -672,14 +658,14 @@ const fetchCompanyList = async () => {
           representative_name: company.representative_name,
           company_group: company.company_group,
           assigned_pharmacist_contact: company.assigned_pharmacist_contact,
-          total_clients: 0,
+          total_clients: totalClientsMap.get(company.id) || 0,
           submitted_clients: 0,
           prescription_count: 0,
           review_completed: 0,
           review_in_progress: 0,
           review_pending: 0,
           prescription_amount: 0,
-          evidence_files: 0,
+          evidence_files: evidenceFilesMap.get(company.id) || 0,
           last_registered_at: '-',
         })
       }

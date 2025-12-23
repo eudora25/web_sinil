@@ -334,8 +334,9 @@
               <input
                 v-if="slotProps.data.isEditing"
                 v-model="slotProps.data.commission_rate_modify"
-                type="number"
+                type="text"
                 class="edit-mode-input"
+                placeholder="예: 5, 5%, 0.05"
                 @change="handleEditCalculations(slotProps.data, 'rate')"
               />
               <span v-else>{{ (() => {
@@ -633,6 +634,35 @@ const totalActualPayment = computed(() => {
 //     .reduce((sum, row) => sum + (Number(String(row.section_commission || 0).replace(/,/g, '')) || 0), 0);
 //   return total.toLocaleString();
 // });
+
+// 수수료율을 소수점으로 변환하는 헬퍼 함수
+// 입력값이 퍼센트(예: 5, 5%, 5.5%)이면 소수점(0.05)으로 변환
+// 입력값이 이미 소수점(예: 0.05)이면 그대로 사용
+function convertCommissionRateToDecimal(input) {
+  if (input === null || input === undefined || input === '') {
+    return 0;
+  }
+  
+  // 문자열로 변환하고 공백 제거
+  const str = String(input).trim();
+  if (!str) return 0;
+  
+  // 퍼센트 기호 제거
+  const hasPercent = str.includes('%');
+  const cleanedStr = str.replace(/%/g, '').replace(/,/g, '');
+  
+  // 숫자로 변환
+  const num = parseFloat(cleanedStr);
+  if (isNaN(num)) return 0;
+  
+  // 퍼센트 기호가 있거나 값이 1보다 크면 100으로 나누어 소수점으로 변환
+  if (hasPercent || num > 1) {
+    return num / 100;
+  }
+  
+  // 이미 소수점으로 입력된 경우 그대로 사용
+  return num;
+}
 
 
 // --- 기존 데이터 및 필터 변수들 ---
@@ -1739,6 +1769,11 @@ function startEdit(rowData) {
 
   const index = rows.value.findIndex(r => r.id === rowData.id);
   if (index !== -1) {
+    // 수수료율을 퍼센트로 변환 (소수점 0.36 -> 36)
+    const commissionRatePercent = originalRow.commission_rate !== null && originalRow.commission_rate !== undefined
+      ? (originalRow.commission_rate * 100).toFixed(1)
+      : null;
+    
     const editRow = {
       ...JSON.parse(JSON.stringify(originalRow)),
       isEditing: true,
@@ -1747,7 +1782,7 @@ function startEdit(rowData) {
       prescription_month_modify: originalRow.prescription_month,
       prescription_qty_modify: originalRow.prescription_qty,
       prescription_type_modify: originalRow.prescription_type,
-      commission_rate_modify: originalRow.commission_rate,
+      commission_rate_modify: commissionRatePercent,
       remarks_modify: originalRow.remarks,
       price_for_calc: parseFloat(String(originalRow.price || '0').replace(/,/g, '')) || 0,
       // 편집 모드에서도 원본 데이터 보존
@@ -1806,7 +1841,7 @@ async function saveEdit(rowData) {
       prescription_month: rowData.prescription_month_modify,
       prescription_qty: Number(rowData.prescription_qty_modify) || 0,
       prescription_type: rowData.prescription_type_modify,
-      commission_rate: Number(rowData.commission_rate_modify) || 0,
+      commission_rate: convertCommissionRateToDecimal(rowData.commission_rate_modify),
       remarks: rowData.remarks_modify,
       updated_at: new Date().toISOString(),
       updated_by: adminUserId,
@@ -2866,13 +2901,16 @@ async function handleEditCalculations(rowData, field) {
             }
           }
           
-          rowData.commission_rate_modify = commissionRate;
+          // 수수료율을 퍼센트로 변환해서 표시 (소수점 0.36 -> 36)
+          rowData.commission_rate_modify = commissionRate !== null && commissionRate !== undefined
+            ? (commissionRate * 100).toFixed(1)
+            : null;
       }
   }
   // 처방액, 지급 처방액, 지급액 계산
   const qty = Number(rowData.prescription_qty_modify) || 0;
   const price = Number(rowData.price_for_calc) || 0;
-  const rate = Number(rowData.commission_rate_modify) || 0;
+  const rate = convertCommissionRateToDecimal(rowData.commission_rate_modify);
   const prescriptionAmount = Math.round(qty * price);
   // 수수료율이 있고 0보다 클 때만 지급 처방액과 지급액 계산
   let paymentPrescriptionAmount = 0;
@@ -3010,7 +3048,10 @@ async function applySelectedProduct(product, rowData) {
       }
     }
     
-    reactiveRow.commission_rate_modify = commissionRate;
+    // 수수료율을 퍼센트로 변환해서 표시 (소수점 0.36 -> 36)
+    reactiveRow.commission_rate_modify = commissionRate !== null && commissionRate !== undefined
+      ? (commissionRate * 100).toFixed(1)
+      : null;
 
     reactiveRow.showProductSearchList = false;
     handleEditCalculations(reactiveRow, 'product');
@@ -3202,7 +3243,10 @@ async function updateProductInfoForMonthChange(rowData) {
     } else if (grade === 'B') {
       commissionRate = productData.commission_rate_b;
     }
-    reactiveRow.commission_rate_modify = commissionRate;
+    // 수수료율을 퍼센트로 변환해서 표시 (소수점 0.36 -> 36)
+    reactiveRow.commission_rate_modify = commissionRate !== null && commissionRate !== undefined
+      ? (commissionRate * 100).toFixed(1)
+      : null;
 
     // 처방수량이 있으면 처방액 재계산
     if (reactiveRow.prescription_qty_modify) {

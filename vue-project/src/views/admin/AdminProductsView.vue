@@ -133,8 +133,8 @@
             <input
               v-if="slotProps.data.isEditing"
               v-model="slotProps.data.commission_rate_a"
-              type="number"
-              step="0.001"
+              type="text"
+              placeholder="예: 36, 36%, 0.36"
               class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
               :id="`commission_rate_a_${slotProps.data.id}`"
             />
@@ -146,8 +146,8 @@
             <input
               v-if="slotProps.data.isEditing"
               v-model="slotProps.data.commission_rate_b"
-              type="number"
-              step="0.001"
+              type="text"
+              placeholder="예: 36, 36%, 0.36"
               class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
               :id="`commission_rate_b_${slotProps.data.id}`"
             />
@@ -159,8 +159,8 @@
             <input
               v-if="slotProps.data.isEditing"
               v-model="slotProps.data.commission_rate_c"
-              type="number"
-              step="0.001"
+              type="text"
+              placeholder="예: 36, 36%, 0.36"
               class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
               :id="`commission_rate_c_${slotProps.data.id}`"
             />
@@ -172,8 +172,8 @@
             <input
               v-if="slotProps.data.isEditing"
               v-model="slotProps.data.commission_rate_d"
-              type="number"
-              step="0.001"
+              type="text"
+              placeholder="예: 36, 36%, 0.36"
               class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
               :id="`commission_rate_d_${slotProps.data.id}`"
             />
@@ -185,8 +185,8 @@
             <input
               v-if="slotProps.data.isEditing"
               v-model="slotProps.data.commission_rate_e"
-              type="number"
-              step="0.001"
+              type="text"
+              placeholder="예: 36, 36%, 0.36"
               class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
               :id="`commission_rate_e_${slotProps.data.id}`"
             />
@@ -980,59 +980,64 @@ const handleFileUpload = async (event) => {
         return
       }
 
-      // 수수료율 A 검증 (0~1, 소수점 3자리)
+      // 수수료율 A 변환 및 검증
+      let commissionRateA = 0;
       if (row['수수료A'] !== undefined && row['수수료A'] !== null && row['수수료A'] !== '') {
-        const commissionA = Number(row['수수료A'])
-        if (isNaN(commissionA) || commissionA < 0 || commissionA > 1) {
-          errors.push(`${rowNum}행: 수수료율 A는 0~1 사이의 숫자여야 합니다.`)
+        commissionRateA = convertCommissionRateToDecimal(row['수수료A']);
+        if (commissionRateA < 0 || commissionRateA > 1) {
+          errors.push(`${rowNum}행: 수수료율 A는 0~100% 사이의 숫자여야 합니다.`)
           return
         }
         // 소수점 3자리로 반올림
-        row['수수료A'] = Math.round(commissionA * 1000) / 1000
+        commissionRateA = Math.round(commissionRateA * 1000) / 1000
       }
 
-      // 수수료율 B 검증 (0~1, 소수점 3자리)
+      // 수수료율 B 변환 및 검증
+      let commissionRateB = 0;
       if (row['수수료B'] !== undefined && row['수수료B'] !== null && row['수수료B'] !== '') {
-        const commissionB = Number(row['수수료B'])
-        if (isNaN(commissionB) || commissionB < 0 || commissionB > 1) {
-          errors.push(`${rowNum}행: 수수료율 B는 0~1 사이의 숫자여야 합니다.`)
+        commissionRateB = convertCommissionRateToDecimal(row['수수료B']);
+        if (commissionRateB < 0 || commissionRateB > 1) {
+          errors.push(`${rowNum}행: 수수료율 B는 0~100% 사이의 숫자여야 합니다.`)
           return
         }
         // 소수점 3자리로 반올림
-        row['수수료B'] = Math.round(commissionB * 1000) / 1000
+        commissionRateB = Math.round(commissionRateB * 1000) / 1000
       }
 
-      // 수수료율 C 검증 (0~1, 소수점 3자리)
+      // 수수료율 C 변환 및 검증
+      let commissionRateC = 0;
       if (row['수수료C'] !== undefined && row['수수료C'] !== null && row['수수료C'] !== '') {
-        const commissionC = Number(row['수수료C'])
-        if (isNaN(commissionC) || commissionC < 0 || commissionC > 1) {
-          errors.push(`${rowNum}행: 수수료율 C는 0~1 사이의 숫자여야 합니다.`)
+        commissionRateC = convertCommissionRateToDecimal(row['수수료C']);
+        if (commissionRateC < 0 || commissionRateC > 1) {
+          errors.push(`${rowNum}행: 수수료율 C는 0~100% 사이의 숫자여야 합니다.`)
           return
         }
         // 소수점 3자리로 반올림
-        row['수수료C'] = Math.round(commissionC * 1000) / 1000
+        commissionRateC = Math.round(commissionRateC * 1000) / 1000
       }
 
-      // 수수료율 D 검증 (0~1, 소수점 3자리)
+      // 수수료율 D 변환 및 검증
+      let commissionRateD = 0;
       if (row['수수료D'] !== undefined && row['수수료D'] !== null && row['수수료D'] !== '') {
-        const commissionD = Number(row['수수료D'])
-        if (isNaN(commissionD) || commissionD < 0 || commissionD > 1) {
-          errors.push(`${rowNum}행: 수수료율 D는 0~1 사이의 숫자여야 합니다.`)
+        commissionRateD = convertCommissionRateToDecimal(row['수수료D']);
+        if (commissionRateD < 0 || commissionRateD > 1) {
+          errors.push(`${rowNum}행: 수수료율 D는 0~100% 사이의 숫자여야 합니다.`)
           return
         }
         // 소수점 3자리로 반올림
-        row['수수료D'] = Math.round(commissionD * 1000) / 1000
+        commissionRateD = Math.round(commissionRateD * 1000) / 1000
       }
 
-      // 수수료율 E 검증 (0~1, 소수점 3자리)
+      // 수수료율 E 변환 및 검증
+      let commissionRateE = 0;
       if (row['수수료E'] !== undefined && row['수수료E'] !== null && row['수수료E'] !== '') {
-        const commissionE = Number(row['수수료E'])
-        if (isNaN(commissionE) || commissionE < 0 || commissionE > 1) {
-          errors.push(`${rowNum}행: 수수료율 E는 0~1 사이의 숫자여야 합니다.`)
+        commissionRateE = convertCommissionRateToDecimal(row['수수료E']);
+        if (commissionRateE < 0 || commissionRateE > 1) {
+          errors.push(`${rowNum}행: 수수료율 E는 0~100% 사이의 숫자여야 합니다.`)
           return
         }
         // 소수점 3자리로 반올림
-        row['수수료E'] = Math.round(commissionE * 1000) / 1000
+        commissionRateE = Math.round(commissionRateE * 1000) / 1000
       }
 
       const monthRegex = /^\d{4}-\d{2}$/
@@ -1060,11 +1065,11 @@ const handleFileUpload = async (event) => {
         product_name: row['제품명'],
         insurance_code: row['보험코드'],
         price: Number(row['약가']) || 0,
-        commission_rate_a: Number(row['수수료A']) || 0,
-        commission_rate_b: Number(row['수수료B']) || 0,
-        commission_rate_c: Number(row['수수료C']) || 0,
-        commission_rate_d: Number(row['수수료D']) || 0,
-        commission_rate_e: Number(row['수수료E']) || 0,
+        commission_rate_a: commissionRateA,
+        commission_rate_b: commissionRateB,
+        commission_rate_c: commissionRateC,
+        commission_rate_d: commissionRateD,
+        commission_rate_e: commissionRateE,
         remarks: row['비고'] || '',
         status: statusValue,
         created_by: user.id, // 등록자 ID 추가
@@ -1310,6 +1315,35 @@ const downloadExcel = async () => {
   window.URL.revokeObjectURL(url)
 }
 
+// 수수료율을 소수점으로 변환하는 헬퍼 함수
+// 입력값이 퍼센트(예: 5, 5%, 5.5%)이면 소수점(0.05)으로 변환
+// 입력값이 이미 소수점(예: 0.05)이면 그대로 사용
+function convertCommissionRateToDecimal(input) {
+  if (input === null || input === undefined || input === '') {
+    return 0;
+  }
+  
+  // 문자열로 변환하고 공백 제거
+  const str = String(input).trim();
+  if (!str) return 0;
+  
+  // 퍼센트 기호 제거
+  const hasPercent = str.includes('%');
+  const cleanedStr = str.replace(/%/g, '').replace(/,/g, '');
+  
+  // 숫자로 변환
+  const num = parseFloat(cleanedStr);
+  if (isNaN(num)) return 0;
+  
+  // 퍼센트 기호가 있거나 값이 1보다 크면 100으로 나누어 소수점으로 변환
+  if (hasPercent || num > 1) {
+    return num / 100;
+  }
+  
+  // 이미 소수점으로 입력된 경우 그대로 사용
+  return num;
+}
+
 const startEdit = (row) => {
   products.value.forEach((item) => {
     if (item.isEditing && item.id !== row.id) {
@@ -1318,6 +1352,24 @@ const startEdit = (row) => {
   })
 
   row.originalData = { ...row }
+  
+  // 수수료율을 퍼센트로 변환해서 표시 (소수점 0.36 -> 36.0)
+  if (row.commission_rate_a !== null && row.commission_rate_a !== undefined) {
+    row.commission_rate_a = (row.commission_rate_a * 100).toFixed(1);
+  }
+  if (row.commission_rate_b !== null && row.commission_rate_b !== undefined) {
+    row.commission_rate_b = (row.commission_rate_b * 100).toFixed(1);
+  }
+  if (row.commission_rate_c !== null && row.commission_rate_c !== undefined) {
+    row.commission_rate_c = (row.commission_rate_c * 100).toFixed(1);
+  }
+  if (row.commission_rate_d !== null && row.commission_rate_d !== undefined) {
+    row.commission_rate_d = (row.commission_rate_d * 100).toFixed(1);
+  }
+  if (row.commission_rate_e !== null && row.commission_rate_e !== undefined) {
+    row.commission_rate_e = (row.commission_rate_e * 100).toFixed(1);
+  }
+  
   row.isEditing = true
 }
 
@@ -1421,11 +1473,12 @@ const saveEdit = async (row) => {
       return;
     }
 
-    // 수수료율 A 검증 (0~1, 소수점 3자리)
+    // 수수료율 A 변환 및 검증
+    let commissionRateA = 0;
     if (row.commission_rate_a && row.commission_rate_a.toString().trim() !== '') {
-      const commissionAValue = Number(row.commission_rate_a);
-      if (isNaN(commissionAValue) || commissionAValue < 0 || commissionAValue > 1) {
-        alert('수수료율 A는 0~1 사이의 숫자여야 합니다.');
+      commissionRateA = convertCommissionRateToDecimal(row.commission_rate_a);
+      if (commissionRateA < 0 || commissionRateA > 1) {
+        alert('수수료율 A는 0~100% 사이의 숫자여야 합니다.');
         setTimeout(() => {
           const commissionAInput = document.getElementById(`commission_rate_a_${row.id}`);
           if (commissionAInput) {
@@ -1436,14 +1489,15 @@ const saveEdit = async (row) => {
         return;
       }
       // 소수점 3자리로 반올림
-      row.commission_rate_a = Math.round(commissionAValue * 1000) / 1000;
+      commissionRateA = Math.round(commissionRateA * 1000) / 1000;
     }
 
-    // 수수료율 B 검증 (0~1, 소수점 3자리)
+    // 수수료율 B 변환 및 검증
+    let commissionRateB = 0;
     if (row.commission_rate_b && row.commission_rate_b.toString().trim() !== '') {
-      const commissionBValue = Number(row.commission_rate_b);
-      if (isNaN(commissionBValue) || commissionBValue < 0 || commissionBValue > 1) {
-        alert('수수료율 B는 0~1 사이의 숫자여야 합니다.');
+      commissionRateB = convertCommissionRateToDecimal(row.commission_rate_b);
+      if (commissionRateB < 0 || commissionRateB > 1) {
+        alert('수수료율 B는 0~100% 사이의 숫자여야 합니다.');
         setTimeout(() => {
           const commissionBInput = document.getElementById(`commission_rate_b_${row.id}`);
           if (commissionBInput) {
@@ -1454,14 +1508,15 @@ const saveEdit = async (row) => {
         return;
       }
       // 소수점 3자리로 반올림
-      row.commission_rate_b = Math.round(commissionBValue * 1000) / 1000;
+      commissionRateB = Math.round(commissionRateB * 1000) / 1000;
     }
 
-    // 수수료율 C 검증 (0~1, 소수점 3자리)
+    // 수수료율 C 변환 및 검증
+    let commissionRateC = 0;
     if (row.commission_rate_c && row.commission_rate_c.toString().trim() !== '') {
-      const commissionCValue = Number(row.commission_rate_c);
-      if (isNaN(commissionCValue) || commissionCValue < 0 || commissionCValue > 1) {
-        alert('수수료율 C는 0~1 사이의 숫자여야 합니다.');
+      commissionRateC = convertCommissionRateToDecimal(row.commission_rate_c);
+      if (commissionRateC < 0 || commissionRateC > 1) {
+        alert('수수료율 C는 0~100% 사이의 숫자여야 합니다.');
         setTimeout(() => {
           const commissionCInput = document.getElementById(`commission_rate_c_${row.id}`);
           if (commissionCInput) {
@@ -1472,14 +1527,15 @@ const saveEdit = async (row) => {
         return;
       }
       // 소수점 3자리로 반올림
-      row.commission_rate_c = Math.round(commissionCValue * 1000) / 1000;
+      commissionRateC = Math.round(commissionRateC * 1000) / 1000;
     }
 
-    // 수수료율 D 검증 (0~1, 소수점 3자리)
+    // 수수료율 D 변환 및 검증
+    let commissionRateD = 0;
     if (row.commission_rate_d && row.commission_rate_d.toString().trim() !== '') {
-      const commissionDValue = Number(row.commission_rate_d);
-      if (isNaN(commissionDValue) || commissionDValue < 0 || commissionDValue > 1) {
-        alert('수수료율 D는 0~1 사이의 숫자여야 합니다.');
+      commissionRateD = convertCommissionRateToDecimal(row.commission_rate_d);
+      if (commissionRateD < 0 || commissionRateD > 1) {
+        alert('수수료율 D는 0~100% 사이의 숫자여야 합니다.');
         setTimeout(() => {
           const commissionDInput = document.getElementById(`commission_rate_d_${row.id}`);
           if (commissionDInput) {
@@ -1490,14 +1546,15 @@ const saveEdit = async (row) => {
         return;
       }
       // 소수점 3자리로 반올림
-      row.commission_rate_d = Math.round(commissionDValue * 1000) / 1000;
+      commissionRateD = Math.round(commissionRateD * 1000) / 1000;
     }
 
-    // 수수료율 E 검증 (0~1, 소수점 3자리)
+    // 수수료율 E 변환 및 검증
+    let commissionRateE = 0;
     if (row.commission_rate_e && row.commission_rate_e.toString().trim() !== '') {
-      const commissionEValue = Number(row.commission_rate_e);
-      if (isNaN(commissionEValue) || commissionEValue < 0 || commissionEValue > 1) {
-        alert('수수료율 E는 0~1 사이의 숫자여야 합니다.');
+      commissionRateE = convertCommissionRateToDecimal(row.commission_rate_e);
+      if (commissionRateE < 0 || commissionRateE > 1) {
+        alert('수수료율 E는 0~100% 사이의 숫자여야 합니다.');
         setTimeout(() => {
           const commissionEInput = document.getElementById(`commission_rate_e_${row.id}`);
           if (commissionEInput) {
@@ -1508,7 +1565,7 @@ const saveEdit = async (row) => {
         return;
       }
       // 소수점 3자리로 반올림
-      row.commission_rate_e = Math.round(commissionEValue * 1000) / 1000;
+      commissionRateE = Math.round(commissionRateE * 1000) / 1000;
     }
 
     if (!['active', 'inactive'].includes(row.status)) {
@@ -1520,11 +1577,11 @@ const saveEdit = async (row) => {
       product_name: row.product_name,
       insurance_code: row.insurance_code,
       price: Number(row.price) || 0,
-      commission_rate_a: row.commission_rate_a === '' ? 0 : Number(row.commission_rate_a),
-      commission_rate_b: row.commission_rate_b === '' ? 0 : Number(row.commission_rate_b),
-      commission_rate_c: row.commission_rate_c === '' ? 0 : Number(row.commission_rate_c),
-      commission_rate_d: row.commission_rate_d === '' ? 0 : Number(row.commission_rate_d),
-      commission_rate_e: row.commission_rate_e === '' ? 0 : Number(row.commission_rate_e),
+      commission_rate_a: commissionRateA,
+      commission_rate_b: commissionRateB,
+      commission_rate_c: commissionRateC,
+      commission_rate_d: commissionRateD,
+      commission_rate_e: commissionRateE,
       remarks: row.remarks || '',
       status: row.status,
     }

@@ -1100,6 +1100,35 @@ function calculateAmounts(rowIdx) {
   calculatePaymentAmount(rowIdx);
 }
 
+// 수수료율을 소수점으로 변환하는 헬퍼 함수
+// 입력값이 퍼센트(예: 5, 5%, 5.5%)이면 소수점(0.05)으로 변환
+// 입력값이 이미 소수점(예: 0.05)이면 그대로 사용
+function convertCommissionRateToDecimal(input) {
+  if (input === null || input === undefined || input === '') {
+    return 0;
+  }
+  
+  // 문자열로 변환하고 공백 제거
+  const str = String(input).trim();
+  if (!str) return 0;
+  
+  // 퍼센트 기호 제거
+  const hasPercent = str.includes('%');
+  const cleanedStr = str.replace(/%/g, '').replace(/,/g, '');
+  
+  // 숫자로 변환
+  const num = parseFloat(cleanedStr);
+  if (isNaN(num)) return 0;
+  
+  // 퍼센트 기호가 있거나 값이 1보다 크면 100으로 나누어 소수점으로 변환
+  if (hasPercent || num > 1) {
+    return num / 100;
+  }
+  
+  // 이미 소수점으로 입력된 경우 그대로 사용
+  return num;
+}
+
 // 수수료율 입력 시 지급액만 계산 (처방액은 변경하지 않음)
 function onCommissionRateInput(rowIdx) {
   const row = inputRows.value[rowIdx];
@@ -1117,21 +1146,16 @@ function onCommissionRateInput(rowIdx) {
 function calculatePaymentAmount(rowIdx) {
   const row = inputRows.value[rowIdx];
   const prescriptionAmount = Number(row.prescription_amount.toString().replace(/,/g, ''));
-  const commissionRate = Number(row.commission_rate.toString().replace(/,/g, '').replace(/%/g, ''));
-  
-  // console.log(`지급액 계산 - 행 ${rowIdx}:`, { prescriptionAmount, commissionRate, commissionRateRaw: row.commission_rate });
+  // 수수료율을 소수점으로 변환 (퍼센트나 소수점 모두 처리)
+  const commissionRateDecimal = convertCommissionRateToDecimal(row.commission_rate);
   
   // 지급액 계산 (처방액과 수수료율이 모두 있을 때만)
-  if (!isNaN(prescriptionAmount) && prescriptionAmount !== 0 && !isNaN(commissionRate) && commissionRate >= 0) {
-    // commissionRate는 백분율 형태이므로 그대로 사용 (100배 계산)
-    const rateForCalculation = commissionRate;
-    const paymentAmount = (prescriptionAmount * rateForCalculation / 100);
+  if (!isNaN(prescriptionAmount) && prescriptionAmount !== 0 && !isNaN(commissionRateDecimal) && commissionRateDecimal >= 0) {
+    // commissionRateDecimal은 이미 소수점 형태이므로 그대로 사용
+    const paymentAmount = prescriptionAmount * commissionRateDecimal;
     row.payment_amount = paymentAmount.toLocaleString();
-    
-    // console.log(`지급액 계산 결과:`, { rateForCalculation, paymentAmount, formattedPaymentAmount: row.payment_amount });
   } else {
     row.payment_amount = '';
-    // console.log(`지급액 계산 실패:`, { prescriptionAmountValid: !isNaN(prescriptionAmount), commissionRateValid: !isNaN(commissionRate), prescriptionAmountNonZero: prescriptionAmount !== 0 });
   }
 }
 
@@ -1343,8 +1367,10 @@ async function savePerformanceData() {
       registered_by: currentUserUid, // 실제 등록한 사용자 ID (관리자 또는 일반사용자)
         review_status: reviewStatus,
         commission_rate: (() => {
-          const calculatedRate = Number((Number(row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '')) / 100).toFixed(3));
-          return isNaN(calculatedRate) ? commissionRate : calculatedRate;
+          const calculatedRate = convertCommissionRateToDecimal(row.commission_rate);
+          // 소수점 3자리로 반올림
+          const roundedRate = Math.round(calculatedRate * 1000) / 1000;
+          return isNaN(roundedRate) || roundedRate === 0 ? commissionRate : roundedRate;
         })()
       };
     });
