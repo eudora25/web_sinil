@@ -134,7 +134,7 @@
               v-if="slotProps.data.isEditing"
               v-model="slotProps.data.commission_rate_a"
               type="text"
-              placeholder="예: 36, 36%, 0.36"
+              placeholder="예: 36, 36%"
               class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
               :id="`commission_rate_a_${slotProps.data.id}`"
             />
@@ -147,7 +147,7 @@
               v-if="slotProps.data.isEditing"
               v-model="slotProps.data.commission_rate_b"
               type="text"
-              placeholder="예: 36, 36%, 0.36"
+              placeholder="예: 36, 36%"
               class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
               :id="`commission_rate_b_${slotProps.data.id}`"
             />
@@ -160,7 +160,7 @@
               v-if="slotProps.data.isEditing"
               v-model="slotProps.data.commission_rate_c"
               type="text"
-              placeholder="예: 36, 36%, 0.36"
+              placeholder="예: 36, 36%"
               class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
               :id="`commission_rate_c_${slotProps.data.id}`"
             />
@@ -173,7 +173,7 @@
               v-if="slotProps.data.isEditing"
               v-model="slotProps.data.commission_rate_d"
               type="text"
-              placeholder="예: 36, 36%, 0.36"
+              placeholder="예: 36, 36%"
               class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
               :id="`commission_rate_d_${slotProps.data.id}`"
             />
@@ -186,7 +186,7 @@
               v-if="slotProps.data.isEditing"
               v-model="slotProps.data.commission_rate_e"
               type="text"
-              placeholder="예: 36, 36%, 0.36"
+              placeholder="예: 36, 36%"
               class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
               :id="`commission_rate_e_${slotProps.data.id}`"
             />
@@ -321,7 +321,8 @@
         </div>
       </div>
     </div>
-
+    <Toast />
+    <ConfirmDialog />
   </div>
 </template>
 
@@ -336,7 +337,12 @@ import ExcelJS from 'exceljs'
 import * as XLSX from 'xlsx'
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils'
 import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages'
+import { convertCommissionRateToDecimal } from '@/utils/formatUtils'
+import { useNotifications } from '@/utils/notifications'
+import Toast from 'primevue/toast'
+import ConfirmDialog from 'primevue/confirmdialog'
 
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 // 컬럼 너비 한 곳에서 관리
 const columnWidths = {
@@ -482,12 +488,12 @@ const isMonthlyRegisterValid = computed(() => {
 // 월별 등록 실행
 const executeMonthlyRegister = async () => {
   if (!isMonthlyRegisterValid.value) {
-    alert('복사할 기준월과 적용할 월을 모두 선택해주세요.')
+    showWarning('복사할 기준월과 적용할 월을 모두 선택해주세요.')
     return
   }
 
   if (selectedSourceMonth.value === selectedTargetMonth.value) {
-    alert('복사할 기준월과 적용할 월이 같을 수 없습니다.')
+    showWarning('복사할 기준월과 적용할 월이 같을 수 없습니다.')
     return
   }
 
@@ -501,7 +507,7 @@ const executeMonthlyRegister = async () => {
     // 현재 사용자 정보 가져오기
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      alert('로그인 정보가 없습니다.')
+      showError('로그인 정보가 없습니다.')
       return
     }
 
@@ -517,7 +523,7 @@ const executeMonthlyRegister = async () => {
     }
 
     if (!sourceProducts || sourceProducts.length === 0) {
-      alert(`${selectedSourceMonth.value}월에 복사할 제품 데이터가 없습니다.`)
+      showWarning(`${selectedSourceMonth.value}월에 복사할 제품 데이터가 없습니다.`)
       return
     }
 
@@ -592,7 +598,7 @@ const executeMonthlyRegister = async () => {
       }
     }
 
-    alert(`${insertedProducts.length}개의 제품이 ${selectedTargetMonth.value}월로 복사되었습니다.`)
+    showSuccess(`${insertedProducts.length}개의 제품이 ${selectedTargetMonth.value}월로 복사되었습니다.`)
     
     // 6. 모달 닫기 및 데이터 새로고침
     closeMonthlyRegisterModal(true) // 강제로 모달 닫기
@@ -609,7 +615,7 @@ const executeMonthlyRegister = async () => {
   } catch (error) {
     console.error('월별 등록 오류:', error);
     const errorMessage = translateGeneralError(error, '월별 등록');
-    alert(errorMessage);
+    showError(errorMessage);
     monthlyRegisterLoading.value = false // 오류 시에만 로딩 상태 해제
   }
 }
@@ -914,7 +920,7 @@ const handleFileUpload = async (event) => {
     // 현재 사용자 정보 가져오기
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      alert('로그인이 필요합니다.')
+      showError('로그인이 필요합니다.')
       return
     }
 
@@ -924,7 +930,7 @@ const handleFileUpload = async (event) => {
     const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
-      alert('엑셀 파일에 데이터가 없습니다.')
+      showWarning('엑셀 파일에 데이터가 없습니다.')
       return
     }
 
@@ -1078,7 +1084,7 @@ const handleFileUpload = async (event) => {
     })
 
     if (errors.length > 0) {
-      alert('데이터 오류:\n' + errors.join('\n'))
+      showError('데이터 오류:\n' + errors.join('\n'))
       return
     }
 
@@ -1104,7 +1110,8 @@ const handleFileUpload = async (event) => {
 
       if (duplicateErrors.length > 0) {
         // 4단계: 중복 발견 시 계속 진행 여부 확인
-        if (!confirm('중복 오류:\n' + duplicateErrors.join('\n') + '\n\n계속 등록 작업을 진행하시겠습니까?')) {
+        const confirmed = await showConfirm('중복 오류:\n' + duplicateErrors.join('\n') + '\n\n계속 등록 작업을 진행하시겠습니까?', '중복 확인');
+        if (!confirmed) {
           return
         }
 
@@ -1129,7 +1136,7 @@ const handleFileUpload = async (event) => {
     })
 
     if (insertData.length === 0) {
-      alert('등록할 데이터가 없습니다.')
+      showWarning('등록할 데이터가 없습니다.')
       return
     }
 
@@ -1137,15 +1144,15 @@ const handleFileUpload = async (event) => {
 
     if (error) {
       const errorMessage = translateSupabaseError(error, '엑셀 등록');
-      alert(`업로드 실패: ${errorMessage}`);
+      showError(`업로드 실패: ${errorMessage}`);
     } else {
-      alert(`${insertData.length}건의 제품 데이터가 업로드되었습니다.`)
+      showSuccess(`${insertData.length}건의 제품 데이터가 업로드되었습니다.`)
       await fetchProducts()
     }
   } catch (error) {
     console.error('파일 처리 오류:', error);
     const errorMessage = translateGeneralError(error, '파일 처리');
-    alert(errorMessage);
+    showError(errorMessage);
   } finally {
     // 엑셀 등록 로딩 종료
     excelLoading.value = false
@@ -1154,8 +1161,8 @@ const handleFileUpload = async (event) => {
 }
 
 const downloadExcel = async () => {
-  if (filteredProducts.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.')
+    if (filteredProducts.value.length === 0) {
+    showWarning('다운로드할 데이터가 없습니다.')
     return
   }
 
@@ -1315,34 +1322,6 @@ const downloadExcel = async () => {
   window.URL.revokeObjectURL(url)
 }
 
-// 수수료율을 소수점으로 변환하는 헬퍼 함수
-// 입력값이 퍼센트(예: 5, 5%, 5.5%)이면 소수점(0.05)으로 변환
-// 입력값이 이미 소수점(예: 0.05)이면 그대로 사용
-function convertCommissionRateToDecimal(input) {
-  if (input === null || input === undefined || input === '') {
-    return 0;
-  }
-  
-  // 문자열로 변환하고 공백 제거
-  const str = String(input).trim();
-  if (!str) return 0;
-  
-  // 퍼센트 기호 제거
-  const hasPercent = str.includes('%');
-  const cleanedStr = str.replace(/%/g, '').replace(/,/g, '');
-  
-  // 숫자로 변환
-  const num = parseFloat(cleanedStr);
-  if (isNaN(num)) return 0;
-  
-  // 퍼센트 기호가 있거나 값이 1보다 크면 100으로 나누어 소수점으로 변환
-  if (hasPercent || num > 1) {
-    return num / 100;
-  }
-  
-  // 이미 소수점으로 입력된 경우 그대로 사용
-  return num;
-}
 
 const startEdit = (row) => {
   products.value.forEach((item) => {
@@ -1408,7 +1387,7 @@ const saveEdit = async (row) => {
   try {
     // 필수 필드 검증
     if (!row.product_name || row.product_name.trim() === '') {
-      alert('제품명은 필수 입력 항목입니다.');
+      showWarning('제품명은 필수 입력 항목입니다.');
       setTimeout(() => {
         const productNameInput = document.getElementById(`product_name_${row.id}`);
         if (productNameInput) {
@@ -1420,7 +1399,7 @@ const saveEdit = async (row) => {
     }
 
     if (!row.insurance_code || row.insurance_code.toString().trim() === '') {
-      alert('보험코드는 필수 입력 항목입니다.');
+      showWarning('보험코드는 필수 입력 항목입니다.');
       setTimeout(() => {
         const insuranceCodeInput = document.getElementById(`insurance_code_${row.id}`);
         if (insuranceCodeInput) {
@@ -1432,7 +1411,7 @@ const saveEdit = async (row) => {
     }
 
     if (!row.price || row.price.toString().trim() === '') {
-      alert('약가는 필수 입력 항목입니다.');
+      showWarning('약가는 필수 입력 항목입니다.');
       setTimeout(() => {
         const priceInput = document.getElementById(`price_${row.id}`);
         if (priceInput) {
@@ -1447,7 +1426,7 @@ const saveEdit = async (row) => {
 
     // 보험코드 형식 검증 (9자리 숫자)
     if (row.insurance_code.toString().length !== 9 || !/^\d{9}$/.test(row.insurance_code.toString())) {
-      alert('보험코드는 9자리 숫자여야 합니다.');
+      showWarning('보험코드는 9자리 숫자여야 합니다.');
       setTimeout(() => {
         const insuranceCodeInput = document.getElementById(`insurance_code_${row.id}`);
         if (insuranceCodeInput) {
@@ -1462,7 +1441,7 @@ const saveEdit = async (row) => {
 
     // 약가 형식 검증 (0 이상의 숫자)
     if (row.price && (isNaN(Number(row.price)) || Number(row.price) < 0)) {
-      alert('약가는 0 이상의 숫자여야 합니다.');
+      showWarning('약가는 0 이상의 숫자여야 합니다.');
       setTimeout(() => {
         const priceInput = document.getElementById(`price_${row.id}`);
         if (priceInput) {
@@ -1478,7 +1457,7 @@ const saveEdit = async (row) => {
     if (row.commission_rate_a && row.commission_rate_a.toString().trim() !== '') {
       commissionRateA = convertCommissionRateToDecimal(row.commission_rate_a);
       if (commissionRateA < 0 || commissionRateA > 1) {
-        alert('수수료율 A는 0~100% 사이의 숫자여야 합니다.');
+        showWarning('수수료율 A는 0~100% 사이의 숫자여야 합니다.');
         setTimeout(() => {
           const commissionAInput = document.getElementById(`commission_rate_a_${row.id}`);
           if (commissionAInput) {
@@ -1497,7 +1476,7 @@ const saveEdit = async (row) => {
     if (row.commission_rate_b && row.commission_rate_b.toString().trim() !== '') {
       commissionRateB = convertCommissionRateToDecimal(row.commission_rate_b);
       if (commissionRateB < 0 || commissionRateB > 1) {
-        alert('수수료율 B는 0~100% 사이의 숫자여야 합니다.');
+        showWarning('수수료율 B는 0~100% 사이의 숫자여야 합니다.');
         setTimeout(() => {
           const commissionBInput = document.getElementById(`commission_rate_b_${row.id}`);
           if (commissionBInput) {
@@ -1516,7 +1495,7 @@ const saveEdit = async (row) => {
     if (row.commission_rate_c && row.commission_rate_c.toString().trim() !== '') {
       commissionRateC = convertCommissionRateToDecimal(row.commission_rate_c);
       if (commissionRateC < 0 || commissionRateC > 1) {
-        alert('수수료율 C는 0~100% 사이의 숫자여야 합니다.');
+        showWarning('수수료율 C는 0~100% 사이의 숫자여야 합니다.');
         setTimeout(() => {
           const commissionCInput = document.getElementById(`commission_rate_c_${row.id}`);
           if (commissionCInput) {
@@ -1535,7 +1514,7 @@ const saveEdit = async (row) => {
     if (row.commission_rate_d && row.commission_rate_d.toString().trim() !== '') {
       commissionRateD = convertCommissionRateToDecimal(row.commission_rate_d);
       if (commissionRateD < 0 || commissionRateD > 1) {
-        alert('수수료율 D는 0~100% 사이의 숫자여야 합니다.');
+        showWarning('수수료율 D는 0~100% 사이의 숫자여야 합니다.');
         setTimeout(() => {
           const commissionDInput = document.getElementById(`commission_rate_d_${row.id}`);
           if (commissionDInput) {
@@ -1554,7 +1533,7 @@ const saveEdit = async (row) => {
     if (row.commission_rate_e && row.commission_rate_e.toString().trim() !== '') {
       commissionRateE = convertCommissionRateToDecimal(row.commission_rate_e);
       if (commissionRateE < 0 || commissionRateE > 1) {
-        alert('수수료율 E는 0~100% 사이의 숫자여야 합니다.');
+        showWarning('수수료율 E는 0~100% 사이의 숫자여야 합니다.');
         setTimeout(() => {
           const commissionEInput = document.getElementById(`commission_rate_e_${row.id}`);
           if (commissionEInput) {
@@ -1569,7 +1548,7 @@ const saveEdit = async (row) => {
     }
 
     if (!['active', 'inactive'].includes(row.status)) {
-      alert('상태는 active 또는 inactive여야 합니다.')
+      showWarning('상태는 active 또는 inactive여야 합니다.')
       return
     }
 
@@ -1590,23 +1569,31 @@ const saveEdit = async (row) => {
 
     if (error) {
       const errorMessage = translateSupabaseError(error, '제품 수정');
-      alert(`수정 실패: ${errorMessage}`);
+      showError(`수정 실패: ${errorMessage}`);
       return
     }
 
+    // 저장 후 row 객체의 수수료율을 변환된 소수점 값으로 업데이트
+    row.commission_rate_a = commissionRateA
+    row.commission_rate_b = commissionRateB
+    row.commission_rate_c = commissionRateC
+    row.commission_rate_d = commissionRateD
+    row.commission_rate_e = commissionRateE
+    
     row.isEditing = false
     row.originalData = { ...row }
 
-    alert('수정되었습니다.')
+    showSuccess('수정되었습니다.')
   } catch (error) {
     console.error('수정 오류:', error);
     const errorMessage = translateGeneralError(error, '제품 수정');
-    alert(errorMessage);
+    showError(errorMessage);
   }
 }
 
 const deleteProduct = async (row) => {
-  if (!confirm('정말 삭제하시겠습니까?')) {
+  const confirmed = await showConfirm('정말 삭제하시겠습니까?', '삭제 확인');
+  if (!confirmed) {
     return
   }
 
@@ -1619,12 +1606,12 @@ const deleteProduct = async (row) => {
 
     if (rpcError) {
       const errorMessage = translateSupabaseError(rpcError, '제품 참조 확인');
-      alert(`삭제 확인 중 오류: ${errorMessage}`);
+      showError(`삭제 확인 중 오류: ${errorMessage}`);
       return;
     }
 
     if (isReferenceExist != 0) {
-      alert(`이 제품(${row.product_name})은 이미 사용되고 있어 삭제할 수 없습니다.`);
+      showWarning(`이 제품(${row.product_name})은 이미 사용되고 있어 삭제할 수 없습니다.`);
       return;
     }
 
@@ -1632,7 +1619,7 @@ const deleteProduct = async (row) => {
 
     if (error) {
       const errorMessage = translateSupabaseError(error, '제품 삭제');
-      alert(`삭제 실패: ${errorMessage}`);
+      showError(`삭제 실패: ${errorMessage}`);
       return;
     }
 
@@ -1641,11 +1628,11 @@ const deleteProduct = async (row) => {
       products.value.splice(index, 1)
     }
 
-    alert('삭제되었습니다.')
+    showSuccess('삭제되었습니다.')
   } catch (error) {
     console.error('삭제 오류:', error);
     const errorMessage = translateGeneralError(error, '제품 삭제');
-    alert(errorMessage);
+    showError(errorMessage);
   }
 }
 

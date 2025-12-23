@@ -353,10 +353,7 @@
             <label style="display: block; margin-bottom: 8px; font-weight: 600;">반영 흡수율 (%)</label>
             <input
               v-model="editingAbsorptionRate"
-              type="number"
-              step="0.1"
-              min="0"
-              max="100"
+              type="text"
               placeholder="반영 흡수율을 입력하세요 (0-100)"
               style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;"
             />
@@ -371,6 +368,7 @@
         </div>
       </div>
     </div>
+    <Toast />
   </div>
 </template>
 
@@ -386,6 +384,11 @@ import Button from 'primevue/button';
 import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
+import { useNotifications } from '@/utils/notifications';
+import Toast from 'primevue/toast';
+import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const columnWidths = {
   no: '3.5%',
@@ -430,7 +433,7 @@ const isTableSorting = ref(false); // 테이블 헤더 정렬 사용 중인지 �
 
 // 반영 흡수율 수정 모달 관련 변수들
 const showAbsorptionRateModal = ref(false);
-const editingAbsorptionRate = ref(100);
+const editingAbsorptionRate = ref('100');
 const editingRowData = ref(null);
 
 // 병의원 검색 관련 변수들
@@ -1443,7 +1446,7 @@ async function loadAbsorptionAnalysisResults() {
 
   } catch (err) {
     console.error('분석 결과 데이터 로딩 오류:', err);
-    alert(`분석 결과 데이터 로딩 중 오류가 발생했습니다: ${err.message}`);
+    showError(`분석 결과 데이터 로딩 중 오류가 발생했습니다: ${err.message}`);
   } finally {
     clearTimeout(timeoutId); // 타임아웃 제거
     // 로딩 상태는 이미 위에서 해제했으므로 여기서는 제거
@@ -1543,7 +1546,7 @@ const isCalculating = ref(false); // 중복 실행 방지 플래그
 
 const calculateAbsorptionRates = async () => {
   if (!selectedSettlementMonth.value) {
-    alert('정산월을 선택해주세요.');
+    showWarning('정산월을 선택해주세요.');
     return;
   }
 
@@ -1642,7 +1645,7 @@ const calculateAbsorptionRates = async () => {
     }
 
     if (allSourceData.length === 0) {
-      alert('필터 조건에 맞는 완료된 실적 데이터가 없습니다.');
+      showWarning('필터 조건에 맞는 완료된 실적 데이터가 없습니다.');
       return;
     }
 
@@ -1834,13 +1837,13 @@ const calculateAbsorptionRates = async () => {
     }
 
     // 4번 모달: alert (확인만 필요, 취소 없음)
-    alert(`흡수율 분석이 완료되었습니다. (${insertedCount}건 처리)`);
+    showSuccess(`흡수율 분석이 완료되었습니다. (${insertedCount}건 처리)`);
     await checkAnalysisStatus();
     await loadAbsorptionAnalysisResults();
 
   } catch (err) {
     console.error('흡수율 분석 실행 오류:', JSON.stringify(err, null, 2));
-    alert(`흡수율 분석 중 오류가 발생했습니다: ${err.message}`);
+    showError(`흡수율 분석 중 오류가 발생했습니다: ${err.message}`);
   } finally {
     loading.value = false;
     isCalculating.value = false; // 플래그 리셋
@@ -2010,7 +2013,7 @@ function formatDateTime(dateTimeString) {
 
 async function downloadExcel() {
   if (displayRows.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.');
+    showWarning('다운로드할 데이터가 없습니다.');
     return;
   }
 
@@ -2281,13 +2284,13 @@ async function downloadExcel() {
 
   } catch (err) {
     console.error('엑셀 다운로드 오류:', err);
-    alert('엑셀 다운로드 중 오류가 발생했습니다.');
+    showError('엑셀 다운로드 중 오류가 발생했습니다.');
   }
 }
 
 async function deleteFilteredAnalysisData() {
   if (!selectedSettlementMonth.value) {
-    alert('정산월을 선택해주세요.');
+    showWarning('정산월을 선택해주세요.');
     return;
   }
 
@@ -2340,7 +2343,7 @@ async function deleteFilteredAnalysisData() {
      }
 
      if (allIds.length === 0) {
-       alert('삭제할 흡수율 분석 데이터가 없습니다.');
+       showWarning('삭제할 흡수율 분석 데이터가 없습니다.');
        return;
      }
 
@@ -2364,12 +2367,12 @@ async function deleteFilteredAnalysisData() {
        await new Promise(resolve => setTimeout(resolve, 10));
      }
 
-     alert(`흡수율 분석 데이터 ${deletedCount}건이 삭제되었습니다.`);
+     showSuccess(`흡수율 분석 데이터 ${deletedCount}건이 삭제되었습니다.`);
      await loadAbsorptionAnalysisResults();
 
   } catch (err) {
     console.error('흡수율 분석 데이터 삭제 오류:', err);
-    alert(`흡수율 분석 데이터 삭제 중 오류가 발생했습니다: ${err.message}`);
+    showError(`흡수율 분석 데이터 삭제 중 오류가 발생했습니다: ${err.message}`);
   } finally {
     loading.value = false;
   }
@@ -2468,42 +2471,50 @@ async function checkReanalysisNeeded() {
 // --- 반영 흡수율 수정 모달 관련 함수들 ---
 function editAbsorptionRate(rowData) {
   editingRowData.value = rowData;
-  // 현재 반영 흡수율 값을 숫자로 변환 (예: "100.0%" -> 100.0)
+  // 현재 반영 흡수율 값을 퍼센트로 변환 (예: 0.85 -> 85, "85.0%" -> 85)
   let currentRate = 100; // 기본값
   if (rowData.applied_absorption_rate) {
     const rateString = String(rowData.applied_absorption_rate).replace('%', '').trim();
     if (rateString && rateString !== '') {
+      // 소수점으로 저장된 경우 퍼센트로 변환
       const parsedRate = parseFloat(rateString);
-      if (!isNaN(parsedRate) && parsedRate >= 0 && parsedRate <= 100) {
-        currentRate = parsedRate;
+      if (!isNaN(parsedRate)) {
+        // 1보다 작으면 소수점 형식이므로 퍼센트로 변환
+        currentRate = parsedRate > 1 ? parsedRate : parsedRate * 100;
       }
     }
   }
-  editingAbsorptionRate.value = currentRate;
+  editingAbsorptionRate.value = currentRate.toFixed(1);
   showAbsorptionRateModal.value = true;
 }
 
 function cancelAbsorptionRateEdit() {
   showAbsorptionRateModal.value = false;
   editingRowData.value = null;
-  editingAbsorptionRate.value = 100;
+  editingAbsorptionRate.value = '100';
 }
 
 async function saveAbsorptionRate() {
   if (!editingRowData.value) return;
   
-  // 입력값 검증 - 안전한 파싱
+  // 입력값 변환 및 검증
   let newRate = 0;
-  if (editingAbsorptionRate.value !== null && editingAbsorptionRate.value !== undefined && editingAbsorptionRate.value !== '') {
-    const rateString = String(editingAbsorptionRate.value).trim();
-    if (rateString) {
-      newRate = parseFloat(rateString);
-    }
-  }
-  
-  if (isNaN(newRate) || newRate < 0 || newRate > 100) {
-    alert('반영 흡수율은 0% ~ 100% 사이의 값이어야 합니다.');
+  if (editingAbsorptionRate.value !== null && editingAbsorptionRate.value !== undefined && editingAbsorptionRate.value.toString().trim() !== '') {
+    // convertCommissionRateToDecimal을 사용하여 소수점으로 변환 (0~1 범위)
+    const rateDecimal = convertCommissionRateToDecimal(editingAbsorptionRate.value);
+    if (rateDecimal < 0 || rateDecimal > 1) {
+    showWarning('반영 흡수율은 0% ~ 100% 사이의 값이어야 합니다.');
+      setTimeout(() => {
+        const input = document.querySelector('input[v-model="editingAbsorptionRate"]');
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 100);
     return;
+    }
+    // 퍼센트로 변환 (0.85 -> 85)
+    newRate = rateDecimal * 100;
   }
   
   try {
@@ -2551,16 +2562,16 @@ async function saveAbsorptionRate() {
       displayRows.value[rowIndex].final_payment_amount = finalPaymentAmount.toLocaleString();
     }
     
-    alert('반영 흡수율이 저장되었습니다.');
+    showSuccess('반영 흡수율이 저장되었습니다.');
     
     // 모달 닫기
     showAbsorptionRateModal.value = false;
     editingRowData.value = null;
-    editingAbsorptionRate.value = 100;
+    editingAbsorptionRate.value = '100';
     
   } catch (err) {
     console.error('반영 흡수율 저장 오류:', err);
-    alert(`반영 흡수율 저장 중 오류가 발생했습니다: ${err.message}`);
+    showError(`반영 흡수율 저장 중 오류가 발생했습니다: ${err.message}`);
   }
 }
 

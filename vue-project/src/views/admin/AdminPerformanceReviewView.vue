@@ -560,6 +560,10 @@ import ProgressBar from 'primevue/progressbar';
 import { v4 as uuidv4 } from 'uuid';
 import { useToast } from "primevue/usetoast";
 import Toast from 'primevue/toast';
+import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 // --- 초기화 ---
 const toast = useToast();
@@ -635,34 +639,6 @@ const totalActualPayment = computed(() => {
 //   return total.toLocaleString();
 // });
 
-// 수수료율을 소수점으로 변환하는 헬퍼 함수
-// 입력값이 퍼센트(예: 5, 5%, 5.5%)이면 소수점(0.05)으로 변환
-// 입력값이 이미 소수점(예: 0.05)이면 그대로 사용
-function convertCommissionRateToDecimal(input) {
-  if (input === null || input === undefined || input === '') {
-    return 0;
-  }
-  
-  // 문자열로 변환하고 공백 제거
-  const str = String(input).trim();
-  if (!str) return 0;
-  
-  // 퍼센트 기호 제거
-  const hasPercent = str.includes('%');
-  const cleanedStr = str.replace(/%/g, '').replace(/,/g, '');
-  
-  // 숫자로 변환
-  const num = parseFloat(cleanedStr);
-  if (isNaN(num)) return 0;
-  
-  // 퍼센트 기호가 있거나 값이 1보다 크면 100으로 나누어 소수점으로 변환
-  if (hasPercent || num > 1) {
-    return num / 100;
-  }
-  
-  // 이미 소수점으로 입력된 경우 그대로 사용
-  return num;
-}
 
 
 // --- 기존 데이터 및 필터 변수들 ---
@@ -1743,7 +1719,7 @@ async function loadPerformanceData() {
       errorMessage = `데이터 처리 오류: ${err.message}`;
     }
     
-    alert(errorMessage);
+    showError(errorMessage);
     rows.value = [];
   } finally {
     loading.value = false;
@@ -1819,7 +1795,7 @@ function cancelEdit(rowData) {
 async function saveEdit(rowData) {
   // 필수 값 검증
   if (!rowData.product_id_modify || rowData.prescription_qty_modify === null || rowData.prescription_qty_modify === '') {
-    alert('제품명과 수량은 필수 입력 항목입니다.');
+    showWarning('제품명과 수량은 필수 입력 항목입니다.');
     return;
   }
 
@@ -2058,14 +2034,14 @@ const confirmDeleteRow = async (row) => {
         rows.value[index].review_status = '완료';
       }
 
-      alert("해당 항목이 삭제 처리되었습니다. 되돌리기를 하시면 다시 검수 완료가 가능합니다.");
+      showSuccess("해당 항목이 삭제 처리되었습니다. 되돌리기를 하시면 다시 검수 완료가 가능합니다.");
 
       // 데이터 다시 로드하여 화면 업데이트
       await loadPerformanceData();
 
     } catch (error) {
       console.error('삭제 처리 중 오류:', error);
-      alert(`오류가 발생했습니다: ${error.message}`);
+      showError(`오류가 발생했습니다: ${error.message}`);
     }
   }
 };
@@ -2093,13 +2069,13 @@ const restoreRow = async (row) => {
       rows.value[index].review_action = null;
       rows.value[index].review_status = '검수중'; // 복원 시 검수중으로 변경
     }
-    alert('항목이 복원되었습니다.');
+    showSuccess('항목이 복원되었습니다.');
 
     // 데이터 다시 로드하여 화면 업데이트
     await loadPerformanceData();
   } catch(error) {
     console.error('복원 중 오류:', error);
-    alert(`복원 중 오류가 발생했습니다: ${error.message}`);
+    showError(`복원 중 오류가 발생했습니다: ${error.message}`);
   }
 };
 
@@ -2138,7 +2114,7 @@ function toggleRowSelection(row) {
 
 function changeReviewStatus() {
   if (!selectedRows.value || selectedRows.value.length === 0) {
-    alert("상태를 변경할 항목을 선택해주세요.");
+    showWarning("상태를 변경할 항목을 선택해주세요.");
     return;
   }
   
@@ -2149,16 +2125,17 @@ function changeReviewStatus() {
 
 async function confirmStatusChange() {
   if (!selectedNewStatus.value) {
-    alert("변경할 상태를 선택해주세요.");
+    showWarning("변경할 상태를 선택해주세요.");
     return;
   }
 
   if (!selectedRows.value || selectedRows.value.length === 0) {
-    alert("상태를 변경할 항목을 선택해주세요.");
+    showWarning("상태를 변경할 항목을 선택해주세요.");
     return;
   }
 
-  if (window.confirm(`선택된 ${selectedRows.value.length}개 항목의 상태를 '${selectedNewStatus.value}'로 변경하시겠습니까?`)) {
+  const confirmed = await showConfirm(`선택된 ${selectedRows.value.length}개 항목의 상태를 '${selectedNewStatus.value}'로 변경하시겠습니까?`, '상태 변경 확인');
+  if (confirmed) {
     loading.value = true;
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -2185,7 +2162,7 @@ async function confirmStatusChange() {
       // 프로모션 관리 데이터 업데이트: 변경된 레코드 중 프로모션 제품이 있는지 확인
       await updatePromotionDataForChangedRecords(selectedRows.value);
 
-      alert(`${selectedRows.value.length}개 항목의 상태를 '${selectedNewStatus.value}'로 성공적으로 변경했습니다.`);
+      showSuccess(`${selectedRows.value.length}개 항목의 상태를 '${selectedNewStatus.value}'로 성공적으로 변경했습니다.`);
       await loadPerformanceData(); // 데이터 새로고침
       
       // 상태 변경 완료 후 편집 모드 해제 유지
@@ -2196,7 +2173,7 @@ async function confirmStatusChange() {
       selectedNewStatus.value = '';
     } catch (error) {
       console.error('상태 변경 오류:', error);
-      alert(error.message);
+      showError(error.message);
       // 오류 발생 시에도 편집 모드 해제
       activeEditingRowId.value = null;
     } finally {
@@ -2465,7 +2442,7 @@ async function checkPromotionStatistics() {
     console.error('프로모션 데이터 업데이트 오류:', error);
     statisticsStatus.value = `오류 발생: ${error.message || error}`;
     statisticsCompleted.value = true;
-    alert('데이터 업데이트 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('데이터 업데이트 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     checkingStatistics.value = false;
   }
@@ -3406,13 +3383,13 @@ async function handleBulkChange() {
       .in('id', ids);
 
     if (error) {
-      alert(`${getBulkChangeTypeLabel()} 변경 실패: ${error.message}`);
+      showError(`${getBulkChangeTypeLabel()} 변경 실패: ${error.message}`);
     } else {
-      alert(`${getBulkChangeTypeLabel()}이 성공적으로 변경되었습니다.`);
+      showSuccess(`${getBulkChangeTypeLabel()}이 성공적으로 변경되었습니다.`);
       await loadPerformanceData();
     }
   } catch (e) {
-    alert(`${getBulkChangeTypeLabel()} 변경 중 오류 발생: ${e.message}`);
+    showError(`${getBulkChangeTypeLabel()} 변경 중 오류 발생: ${e.message}`);
   } finally {
     closeBulkChangeValueModal();
     closeBulkChangeModal();

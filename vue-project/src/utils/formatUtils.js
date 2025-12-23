@@ -49,3 +49,36 @@ export function formatBusinessNumber(businessNumber) {
   return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
 }
 
+/**
+ * 수수료율을 소수점으로 변환하는 헬퍼 함수
+ * 입력값이 퍼센트(예: 5, 5%, 5.5%)이면 소수점(0.05)으로 변환
+ * 입력값이 이미 소수점(예: 0.05)이면 그대로 사용
+ * @param {string|number} input - 변환할 입력값
+ * @returns {number} 소수점 형태의 수수료율 (예: 0.05)
+ */
+export function convertCommissionRateToDecimal(input) {
+  if (input === null || input === undefined || input === '') {
+    return 0;
+  }
+  
+  // 문자열로 변환하고 공백 제거
+  const str = String(input).trim();
+  if (!str) return 0;
+  
+  // 퍼센트 기호 제거
+  const hasPercent = str.includes('%');
+  const cleanedStr = str.replace(/%/g, '').replace(/,/g, '');
+  
+  // 숫자로 변환
+  const num = parseFloat(cleanedStr);
+  if (isNaN(num)) return 0;
+  
+  // 퍼센트 기호가 있거나 값이 1보다 크면 100으로 나누어 소수점으로 변환
+  if (hasPercent || num > 1) {
+    return num / 100;
+  }
+  
+  // 이미 소수점으로 입력된 경우 그대로 사용
+  return num;
+}
+

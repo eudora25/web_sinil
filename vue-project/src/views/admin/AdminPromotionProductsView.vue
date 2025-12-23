@@ -82,7 +82,24 @@
         </Column>
         <Column field="final_commission_rate" header="최종 수수료율" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
           <template #body="slotProps">
+            <input
+              v-if="slotProps.data.isEditing"
+              v-model="slotProps.data.final_commission_rate_modify"
+              type="text"
+              placeholder="예: 36, 36%"
+              class="p-inputtext p-component p-inputtext-sm text-right inline-edit-input"
+              :id="`final_commission_rate_${slotProps.data.id}`"
+              @blur="saveFinalCommissionRate(slotProps.data)"
+              @keyup.enter="saveFinalCommissionRate(slotProps.data)"
+            />
+            <span 
+              v-else 
+              @dblclick="startEditFinalCommissionRate(slotProps.data)"
+              style="cursor: pointer;"
+              :title="'더블클릭하여 수정'"
+            >
             {{ formatCommissionRate(slotProps.data.final_commission_rate) }}
+            </span>
           </template>
         </Column>
         <Column field="promotion_start_date" header="시작 처방월" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
@@ -124,26 +141,18 @@
           />
         </div>
         <div>
-          <label style="display: block; margin-bottom: 4px; font-weight: 500;">수수료율 (%)</label>
-          <InputNumber 
-            v-model="formData.commission_rate_percent" 
-            :min="0"
-            :max="100"
-            :step="0.1"
-            suffix="%"
-            placeholder="수수료율을 입력하세요"
+          <label style="display: block; margin-bottom: 4px; font-weight: 500;">수수료율</label>
+          <InputText 
+            v-model="formData.commission_rate" 
+            placeholder="예: 36, 36%"
             style="width: 100%;"
           />
         </div>
         <div>
-          <label style="display: block; margin-bottom: 4px; font-weight: 500;">최종수수료율 (%)</label>
-          <InputNumber 
-            v-model="formData.final_commission_rate_percent" 
-            :min="0"
-            :max="100"
-            :step="0.1"
-            suffix="%"
-            placeholder="최종수수료율을 입력하세요"
+          <label style="display: block; margin-bottom: 4px; font-weight: 500;">최종수수료율</label>
+          <InputText 
+            v-model="formData.final_commission_rate" 
+            placeholder="예: 36, 36%"
             style="width: 100%;"
           />
         </div>
@@ -574,6 +583,7 @@
         </div>
       </div>
     </Dialog>
+    <Toast />
   </div>
 </template>
 
@@ -583,10 +593,14 @@ import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
-import InputNumber from 'primevue/inputnumber';
 import Button from 'primevue/button';
 import ProgressBar from 'primevue/progressbar';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+import Toast from 'primevue/toast';
+import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -628,8 +642,8 @@ const showAddExcludedHospitalModalForProduct = ref(false);
     const formData = ref({
       insurance_code: '',
       product_name: '',
-      commission_rate_percent: null,
-      final_commission_rate_percent: null,
+      commission_rate: '',
+      final_commission_rate: '',
       promotion_start_date: null,
       promotion_end_date: null
     });
@@ -724,7 +738,7 @@ async function fetchProductCommissionRateB() {
     console.log('업데이트된 프로모션 제품:', promotionProducts.value);
   } catch (error) {
     console.error('수수료율 B 조회 오류:', error);
-    alert('수수료율 B 조회 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('수수료율 B 조회 중 오류가 발생했습니다: ' + (error.message || error));
   }
 }
 
@@ -1004,7 +1018,7 @@ async function fetchPromotionProducts() {
     await fetchLastUpdateTime();
   } catch (error) {
     console.error('프로모션 제품 조회 오류:', error);
-    alert('프로모션 제품 조회 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('프로모션 제품 조회 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     loading.value = false;
   }
@@ -1030,8 +1044,8 @@ function openAddModal() {
   formData.value = {
     insurance_code: '',
     product_name: '',
-    commission_rate_percent: null,
-    final_commission_rate_percent: null,
+    commission_rate: '',
+    final_commission_rate: '',
     promotion_start_date: null,
     promotion_end_date: null
   };
@@ -1044,8 +1058,8 @@ function closeModal() {
   formData.value = {
     insurance_code: '',
     product_name: '',
-    commission_rate_percent: null,
-    final_commission_rate_percent: null,
+    commission_rate: '',
+    final_commission_rate: '',
     promotion_start_date: null,
     promotion_end_date: null
   };
@@ -1054,8 +1068,32 @@ function closeModal() {
 // 저장
 async function saveProduct() {
   if (!formData.value.insurance_code || !formData.value.product_name) {
-    alert('보험코드와 제품명은 필수 입력 항목입니다.');
+    showWarning('보험코드와 제품명은 필수 입력 항목입니다.');
     return;
+  }
+
+  // 수수료율 변환 및 검증
+  let commissionRate = 0;
+  if (formData.value.commission_rate && formData.value.commission_rate.toString().trim() !== '') {
+    commissionRate = convertCommissionRateToDecimal(formData.value.commission_rate);
+    if (commissionRate < 0 || commissionRate > 1) {
+      showWarning('수수료율은 0~100% 사이의 숫자여야 합니다.');
+      return;
+    }
+    // 소수점 3자리로 반올림
+    commissionRate = Math.round(commissionRate * 1000) / 1000;
+  }
+
+  // 최종 수수료율 변환 및 검증
+  let finalCommissionRate = 0;
+  if (formData.value.final_commission_rate && formData.value.final_commission_rate.toString().trim() !== '') {
+    finalCommissionRate = convertCommissionRateToDecimal(formData.value.final_commission_rate);
+    if (finalCommissionRate < 0 || finalCommissionRate > 1) {
+      showWarning('최종 수수료율은 0~100% 사이의 숫자여야 합니다.');
+      return;
+    }
+    // 소수점 3자리로 반올림
+    finalCommissionRate = Math.round(finalCommissionRate * 1000) / 1000;
   }
 
   saving.value = true;
@@ -1066,8 +1104,8 @@ async function saveProduct() {
     const saveData = {
       insurance_code: formData.value.insurance_code,
       product_name: formData.value.product_name,
-      commission_rate: formData.value.commission_rate_percent ? (formData.value.commission_rate_percent / 100) : 0,
-      final_commission_rate: formData.value.final_commission_rate_percent ? (formData.value.final_commission_rate_percent / 100) : 0,
+      commission_rate: commissionRate,
+      final_commission_rate: finalCommissionRate,
       promotion_start_date: formData.value.promotion_start_date || null,
       promotion_end_date: formData.value.promotion_end_date || null,
       updated_by: user.id
@@ -1080,13 +1118,13 @@ async function saveProduct() {
       .insert(saveData);
 
     if (error) throw error;
-    alert('프로모션 제품이 추가되었습니다.');
+    showSuccess('프로모션 제품이 추가되었습니다.');
 
     closeModal();
     await fetchPromotionProducts();
   } catch (error) {
     console.error('프로모션 제품 저장 오류:', error);
-    alert('프로모션 제품 저장 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('프로모션 제품 저장 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     saving.value = false;
   }
@@ -1096,7 +1134,80 @@ async function saveProduct() {
 // 수수료율 포맷팅
 function formatCommissionRate(rate) {
   if (rate === null || rate === undefined) return '-';
-  return (rate * 100).toFixed(2) + '%';
+  return (rate * 100).toFixed(1) + '%';
+}
+
+// 최종 수수료율 편집 시작
+function startEditFinalCommissionRate(rowData) {
+  if (rowData.isEditing) return;
+  
+  rowData.isEditing = true;
+  // 소수점을 퍼센트로 변환해서 표시 (0.5 -> 50)
+  rowData.final_commission_rate_modify = rowData.final_commission_rate !== null && rowData.final_commission_rate !== undefined
+    ? (rowData.final_commission_rate * 100).toFixed(1)
+    : '';
+  
+  // 다음 틱에서 포커스 설정
+  setTimeout(() => {
+    const input = document.getElementById(`final_commission_rate_${rowData.id}`);
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }, 0);
+}
+
+// 최종 수수료율 저장
+async function saveFinalCommissionRate(rowData) {
+  if (!rowData.isEditing) return;
+  
+  // 수수료율 변환 및 검증
+  let finalCommissionRate = 0;
+  if (rowData.final_commission_rate_modify && rowData.final_commission_rate_modify.toString().trim() !== '') {
+    finalCommissionRate = convertCommissionRateToDecimal(rowData.final_commission_rate_modify);
+    if (finalCommissionRate < 0 || finalCommissionRate > 1) {
+      showWarning('최종 수수료율은 0~100% 사이의 숫자여야 합니다.');
+      // 편집 모드 유지
+      setTimeout(() => {
+        const input = document.getElementById(`final_commission_rate_${rowData.id}`);
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 100);
+      return;
+    }
+    // 소수점 3자리로 반올림
+    finalCommissionRate = Math.round(finalCommissionRate * 1000) / 1000;
+  }
+  
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('로그인 정보가 유효하지 않습니다.');
+    
+    const { error } = await supabase
+      .from('promotion_product_list')
+      .update({
+        final_commission_rate: finalCommissionRate,
+        updated_by: user.id,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', rowData.id);
+    
+    if (error) throw error;
+    
+    // 로컬 데이터 업데이트
+    rowData.final_commission_rate = finalCommissionRate;
+    rowData.isEditing = false;
+    rowData.final_commission_rate_modify = null;
+    
+    showSuccess('최종 수수료율이 저장되었습니다.');
+    await fetchPromotionProducts();
+  } catch (error) {
+    console.error('최종 수수료율 저장 오류:', error);
+    showError('최종 수수료율 저장 중 오류가 발생했습니다: ' + (error.message || error));
+    // 에러 발생 시 편집 모드 유지
+  }
 }
 
 // 날짜 포맷팅 (시간 포함)
@@ -1204,7 +1315,7 @@ async function resetStatistics() {
       }
     }
 
-    alert(`데이터 초기화가 완료되었습니다. (삭제된 레코드: ${deletedCount}개)`);
+    showSuccess(`데이터 초기화가 완료되었습니다. (삭제된 레코드: ${deletedCount}개)`);
     
     // 병원 실적 개수도 초기화
     await fetchHospitalCounts();
@@ -1213,7 +1324,7 @@ async function resetStatistics() {
     await fetchExcludedHospitalCounts();
   } catch (error) {
     console.error('데이터 초기화 오류:', error);
-    alert('데이터 초기화 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('데이터 초기화 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     resettingStatistics.value = false;
   }
@@ -2397,7 +2508,7 @@ async function checkStatistics() {
     console.error('통계 확인 오류:', error);
     statisticsStatus.value = `오류 발생: ${error.message || error}`;
     statisticsCompleted.value = true;
-    alert('데이터 업데이트 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('데이터 업데이트 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     checkingStatistics.value = false;
   }
@@ -2440,7 +2551,7 @@ async function searchHospitals() {
     searchResults.value = data || [];
   } catch (error) {
     console.error('병원 검색 오류:', error);
-    alert('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
     searchResults.value = [];
   } finally {
     searchingHospitals.value = false;
@@ -2463,7 +2574,7 @@ async function addExcludedHospital(hospitalId) {
     if (productsError) throw productsError;
     
     if (!allProducts || allProducts.length === 0) {
-      alert('프로모션 제품이 없습니다.');
+      showWarning('프로모션 제품이 없습니다.');
       return;
     }
     
@@ -2491,7 +2602,7 @@ async function addExcludedHospital(hospitalId) {
     const newProductIds = productIds.filter(productId => !existingProductIds.has(productId));
     
     if (newProductIds.length === 0) {
-      alert('이미 모든 제품에 제외된 병원입니다.');
+      showWarning('이미 모든 제품에 제외된 병원입니다.');
       closeAddExcludedHospitalModal();
       return;
     }
@@ -2513,9 +2624,9 @@ async function addExcludedHospital(hospitalId) {
     }
     
     if (existingProductIds.size > 0) {
-      alert(`제외 병원이 ${newProductIds.length}개 제품에 추가되었습니다. (${existingProductIds.size}개 제품에는 이미 제외되어 있었습니다.)`);
+      showSuccess(`제외 병원이 ${newProductIds.length}개 제품에 추가되었습니다. (${existingProductIds.size}개 제품에는 이미 제외되어 있었습니다.)`);
     } else {
-      alert(`제외 병원이 전체 ${newProductIds.length}개 제품에 추가되었습니다.`);
+      showSuccess(`제외 병원이 전체 ${newProductIds.length}개 제품에 추가되었습니다.`);
     }
     
     // 제외 병원 개수 다시 조회
@@ -2525,9 +2636,9 @@ async function addExcludedHospital(hospitalId) {
   } catch (error) {
     console.error('제외 병원 추가 오류:', error);
     if (error.code === '23505') {
-      alert('이미 제외된 병원입니다.');
+      showWarning('이미 제외된 병원입니다.');
     } else {
-      alert('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
+      showError('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
     }
   } finally {
     addingExcluded.value = false;
@@ -2633,7 +2744,7 @@ async function searchHospitalsForProduct() {
     }
   } catch (error) {
     console.error('병원 검색 오류:', error);
-    alert('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
     searchResults.value = [];
   } finally {
     searchingHospitals.value = false;
@@ -2643,7 +2754,7 @@ async function searchHospitalsForProduct() {
 // 제품별 제외 병원 추가
 async function addExcludedHospitalToProduct(hospitalId) {
   if (!selectedProductForExcludedList.value || !selectedProductForExcludedList.value.id) {
-    alert('제품 정보가 없습니다.');
+    showWarning('제품 정보가 없습니다.');
     return;
   }
   
@@ -2664,12 +2775,12 @@ async function addExcludedHospitalToProduct(hospitalId) {
     
     if (error) {
       if (error.code === '23505') {
-        alert('이미 제외된 병원입니다.');
+        showWarning('이미 제외된 병원입니다.');
       } else {
         throw error;
       }
     } else {
-      alert('제외 병원이 추가되었습니다.');
+      showSuccess('제외 병원이 추가되었습니다.');
       await fetchExcludedHospitalsListForModal(selectedProductForExcludedList.value.id);
       await fetchExcludedHospitalCounts();
     }
@@ -2677,7 +2788,7 @@ async function addExcludedHospitalToProduct(hospitalId) {
     closeAddExcludedHospitalModalForProduct();
   } catch (error) {
     console.error('제외 병원 추가 오류:', error);
-    alert('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     addingExcluded.value = false;
   }
@@ -2690,7 +2801,7 @@ async function removeExcludedHospitalFromProduct(hospitalId) {
   }
   
   if (!selectedProductForExcludedList.value || !selectedProductForExcludedList.value.id) {
-    alert('제품 정보가 없습니다.');
+    showWarning('제품 정보가 없습니다.');
     return;
   }
   
@@ -2704,12 +2815,12 @@ async function removeExcludedHospitalFromProduct(hospitalId) {
     
     if (error) throw error;
     
-    alert('제외 병원이 제거되었습니다.');
+    showSuccess('제외 병원이 제거되었습니다.');
     await fetchExcludedHospitalsListForModal(selectedProductForExcludedList.value.id);
     await fetchExcludedHospitalCounts();
   } catch (error) {
     console.error('제외 병원 삭제 오류:', error);
-    alert('제외 병원 삭제 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('제외 병원 삭제 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     removingExcluded.value = false;
   }

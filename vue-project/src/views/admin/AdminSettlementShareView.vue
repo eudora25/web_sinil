@@ -230,10 +230,7 @@
             <label style="display: block; margin-bottom: 8px; font-weight: 600;">구간 수수료율 (%)</label>
             <input
               v-model="commissionRate"
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
+              type="text"
               placeholder="수수료율을 입력하세요"
               style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;"
             />
@@ -245,6 +242,7 @@
         </div>
       </div>
     </div>
+    <Toast />
   </div>
 </template>
 
@@ -256,6 +254,11 @@ import ColumnGroup from 'primevue/columngroup';
 import Row from 'primevue/row';
 import { useRouter, onBeforeRouteLeave } from 'vue-router';
 import { supabase } from '@/supabase';
+import { formatBusinessNumber, convertCommissionRateToDecimal } from '@/utils/formatUtils';
+import { useNotifications } from '@/utils/notifications';
+import Toast from 'primevue/toast';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const columnWidths = {
   no: '3%',
@@ -280,15 +283,6 @@ const columnWidths = {
 const loading = ref(true);
 const router = useRouter();
 
-// 사업자등록번호 포맷팅 함수
-function formatBusinessNumber(number) {
-  if (!number) return '';
-  const cleanNumber = number.toString().replace(/\D/g, ''); // 숫자만 추출
-  if (cleanNumber.length === 10) {
-    return `${cleanNumber.slice(0, 3)}-${cleanNumber.slice(3, 5)}-${cleanNumber.slice(5)}`;
-  }
-  return number; // 10자리가 아니면 원본 반환
-}
 
 // 필터
 const selectedMonth = ref('');
@@ -402,7 +396,7 @@ async function fetchAvailableMonths() {
         }
     } catch (err) {
         console.error('정산월 조회 오류', err);
-        alert('정산월 목록을 불러오는 중 오류가 발생했습니다.');
+        showError('정산월 목록을 불러오는 중 오류가 발생했습니다.');
         loading.value = false; // 에러 발생 시에도 로딩 상태 해제
     }
 }
@@ -751,7 +745,7 @@ async function loadSettlementData() {
 
   } catch (err) {
       console.error('정산 공유 데이터 로드 오류:', err);
-      alert('데이터를 불러오는 중 오류가 발생했습니다.');
+      showError('데이터를 불러오는 중 오류가 발생했습니다.');
   } finally {
       loading.value = false;
   }
@@ -783,7 +777,7 @@ function toggleAllShares() {
 
 async function saveShareStatus() {
   if (Object.keys(shareChanges.value).length === 0) {
-    alert('변경사항이 없습니다.');
+    showWarning('변경사항이 없습니다.');
     return;
   }
   loading.value = true;
@@ -861,13 +855,13 @@ async function saveShareStatus() {
     if (error) throw error;
     
     shareChanges.value = {};
-    alert('공유 상태가 성공적으로 저장되었습니다.');
+    showSuccess('공유 상태가 성공적으로 저장되었습니다.');
     // 데이터를 다시 불러와 화면을 최신 상태로 유지합니다.
     await loadSettlementData();
 
   } catch (err) {
     console.error('공유 상태 저장 오류:', err);
-    alert(`공유 상태 저장 중 오류가 발생했습니다: ${err.message}`);
+    showError(`공유 상태 저장 중 오류가 발생했습니다: ${err.message}`);
   } finally {
     loading.value = false;
   }
@@ -911,11 +905,11 @@ async function saveNotice() {
       company.notice_individual = noticeContent.value;
     }
     
-    alert('전달사항이 저장되었습니다.');
+    showSuccess('전달사항이 저장되었습니다.');
     closeNoticeModal();
   } catch (err) {
     console.error('전달사항 저장 오류:', err);
-    alert(`전달사항 저장 중 오류가 발생했습니다: ${err.message}`);
+    showError(`전달사항 저장 중 오류가 발생했습니다: ${err.message}`);
   }
 }
 
@@ -929,7 +923,7 @@ function openCommissionModal(companyData) {
 function openCommissionEditModal(companyData) {
   selectedCompany.value = companyData;
   const rate = (companyData.section_commission_rate || 0) * 100;
-  commissionRate.value = rate === 0 ? '' : Number(rate).toFixed(2);
+  commissionRate.value = rate === 0 ? '' : Number(rate).toFixed(1);
   showCommissionModal.value = true;
 }
 
@@ -941,32 +935,40 @@ function closeCommissionModal() {
 
 async function saveCommission() {
   if (!selectedCompany.value) {
-    alert('업체 정보가 없습니다.');
+    showWarning('업체 정보가 없습니다.');
     return;
   }
   
   // 빈 문자열이면 경고 메시지 표시
   if (commissionRate.value === '' || commissionRate.value === null || commissionRate.value === undefined) {
-    alert('구간 수수료율을 입력해주세요.');
+    showWarning('구간 수수료율을 입력해주세요.');
     return;
   }
   
-  try {
-    const rate = parseFloat(commissionRate.value);
-    // 0~100, 소수점 둘째 자리까지 허용
-    const twoDecimalPattern = /^\d{1,3}(\.\d{1,2})?$/;
-    if (isNaN(rate) || rate < 0 || rate > 100 || !twoDecimalPattern.test(String(commissionRate.value))) {
-      alert('구간 수수료율은 0~100 사이의 숫자이며 소수점 둘째 자리까지 입력 가능합니다.');
+  // 입력값 변환 및 검증
+  const rateDecimal = convertCommissionRateToDecimal(commissionRate.value);
+  if (rateDecimal < 0 || rateDecimal > 1) {
+    showWarning('구간 수수료율은 0~100% 사이의 숫자여야 합니다.');
+    setTimeout(() => {
+      const input = document.querySelector('input[v-model="commissionRate"]');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 100);
       return;
     }
+  // 소수점 3자리로 반올림
+  const finalRateDecimal = Math.round(rateDecimal * 1000) / 1000;
     
+  try {
     // settlement_share 테이블에 구간 수수료율 저장 (기존 공유 상태 유지)
     const { error } = await supabase
       .from('settlement_share')
       .upsert({
         settlement_month: selectedMonth.value,
         company_id: selectedCompany.value.company_id,
-        section_commission_rate: rate / 100, // 퍼센트를 소수점으로 변환 (예: 1.25% -> 0.0125)
+        section_commission_rate: finalRateDecimal, // 소수점 형식으로 저장 (예: 0.0125)
         share_enabled: selectedCompany.value.is_shared || false,
         notice_individual: selectedCompany.value.notice_individual || null
       }, {
@@ -978,18 +980,18 @@ async function saveCommission() {
     // 로컬 데이터 업데이트
     const company = companySummary.value.find(c => c.company_id === selectedCompany.value.company_id);
     if (company) {
-      company.section_commission_rate = rate / 100;
+      company.section_commission_rate = finalRateDecimal;
       // 구간 수수료 계산: (지급 처방액) * 구간 수수료율
-      company.section_commission_amount = Math.round((company.payment_prescription_amount || 0) * (rate / 100));
+      company.section_commission_amount = Math.round((company.payment_prescription_amount || 0) * finalRateDecimal);
       // 총 지급액 재계산: 구간 수수료 + 지급액
       company.total_payment_amount = (company.section_commission_amount || 0) + (company.payment_amount || 0);
     }
     
-    alert('구간 수수료율이 저장되었습니다.');
+    showSuccess('구간 수수료율이 저장되었습니다.');
     closeCommissionModal();
   } catch (err) {
     console.error('구간 수수료율 저장 오류:', err);
-    alert(`구간 수수료율 저장 중 오류가 발생했습니다: ${err.message}`);
+    showError(`구간 수수료율 저장 중 오류가 발생했습니다: ${err.message}`);
   }
 }
 

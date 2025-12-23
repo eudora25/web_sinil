@@ -280,6 +280,7 @@
         </table>
       </div>
     </div>
+    <Toast />
   </div>
 </template>
 
@@ -290,6 +291,11 @@ import { supabase } from '@/supabase';
 // 주석: updatePromotionProductHospitalPerformance는 트리거가 자동 처리하므로 불필요
 import Button from 'primevue/button';
 import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages';
+import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
+import { useNotifications } from '@/utils/notifications';
+import Toast from 'primevue/toast';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -1100,34 +1106,6 @@ function calculateAmounts(rowIdx) {
   calculatePaymentAmount(rowIdx);
 }
 
-// 수수료율을 소수점으로 변환하는 헬퍼 함수
-// 입력값이 퍼센트(예: 5, 5%, 5.5%)이면 소수점(0.05)으로 변환
-// 입력값이 이미 소수점(예: 0.05)이면 그대로 사용
-function convertCommissionRateToDecimal(input) {
-  if (input === null || input === undefined || input === '') {
-    return 0;
-  }
-  
-  // 문자열로 변환하고 공백 제거
-  const str = String(input).trim();
-  if (!str) return 0;
-  
-  // 퍼센트 기호 제거
-  const hasPercent = str.includes('%');
-  const cleanedStr = str.replace(/%/g, '').replace(/,/g, '');
-  
-  // 숫자로 변환
-  const num = parseFloat(cleanedStr);
-  if (isNaN(num)) return 0;
-  
-  // 퍼센트 기호가 있거나 값이 1보다 크면 100으로 나누어 소수점으로 변환
-  if (hasPercent || num > 1) {
-    return num / 100;
-  }
-  
-  // 이미 소수점으로 입력된 경우 그대로 사용
-  return num;
-}
 
 // 수수료율 입력 시 지급액만 계산 (처방액은 변경하지 않음)
 function onCommissionRateInput(rowIdx) {
@@ -1159,29 +1137,16 @@ function calculatePaymentAmount(rowIdx) {
   }
 }
 
-// 수수료율 포맷팅 함수 (백분율로 표시, 소수점 유지)
+// 수수료율 포맷팅 함수 (백분율로 표시, 소수점 1자리로 통일)
 function formatCommissionRate(rowIdx) {
   const row = inputRows.value[rowIdx];
   if (row.commission_rate) {
     const rateStr = row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '');
     const rate = Number(rateStr);
     if (!isNaN(rate)) {
-      // 입력된 값의 소수점 자릿수 확인
-      const decimalPlaces = rateStr.includes('.') ? rateStr.split('.')[1].length : 0;
-      
-      // 입력된 소수점 자릿수를 그대로 유지하면서 백분율로 표시
-      // 예: 42.5 -> 42.5%, 42.55 -> 42.55%, 42 -> 42%
-      let displayRate;
-      if (decimalPlaces > 0) {
-        // 소수점이 있는 경우 입력된 자릿수 그대로 유지
-        displayRate = rate.toFixed(decimalPlaces);
-        // 불필요한 뒤의 0 제거 (예: 42.50 -> 42.5)
-        displayRate = parseFloat(displayRate).toString();
-      } else {
-        // 정수인 경우 그대로 표시
-        displayRate = rate.toString();
-      }
-      
+      // 항상 소수점 1자리로 표시 (50 -> 50.0%, 0.5 -> 50.0%)
+      const commissionRateDecimal = convertCommissionRateToDecimal(rateStr);
+      const displayRate = (commissionRateDecimal * 100).toFixed(1);
       row.commission_rate = displayRate + '%';
     }
   }
@@ -1484,7 +1449,7 @@ async function onSave() {
   const clientId = route.query?.clientId;
   const settlementMonth = route.query?.settlementMonth;
   if (!settlementMonth || !clientId) {
-    alert('정산월이나 병원이 선택되지 않았습니다.');
+    showWarning('정산월이나 병원이 선택되지 않았습니다.');
     return;
   }
 
@@ -1512,7 +1477,7 @@ async function onSave() {
     // 3. 저장 처리 (기존 데이터 삭제 후 새로 저장)
     const savedCount = await savePerformanceData();
     // 4. 성공 메시지
-    alert(`${savedCount}건의 실적이 저장되었습니다.`);
+    showSuccess(`${savedCount}건의 실적이 저장되었습니다.`);
     // 5. 저장 후 실적 목록 화면으로 이동
     if (route.query?.companyId) {
       // 관리자가 대신 등록한 경우
@@ -1565,7 +1530,7 @@ async function onSave() {
       }
     }
     
-    alert(errorMessage);
+    showError(errorMessage);
   }
 
   // 저장 후에는 originalRows를 inputRows에서 입력된 행만 복사해서 동기화
