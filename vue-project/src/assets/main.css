@@ -906,7 +906,7 @@ select option:focus {
 }
 
 /* 모달 컨테이너 */
-.p-dialog {
+.p-dialog:not(.p-confirmdialog) {
   background: var(--bg-content) !important;
   min-height: 25vh !important;
   max-height: 90vh !important;
@@ -914,7 +914,7 @@ select option:focus {
   border-radius: var(--border-radius) !important;
 }
 
-.p-dialog-header {
+.p-dialog-header:not(.p-confirmdialog .p-dialog-header) {
   background: none !important;
   padding: 1.5rem 2rem 1rem 2rem !important;
   border-radius: var(--border-radius) !important;
@@ -951,13 +951,13 @@ select option:focus {
   color: var(--text-primary) !important;
 }
 
-.p-dialog-content {
+.p-dialog-content:not(.p-confirmdialog .p-dialog-content) {
   overflow-y: auto !important;
   padding: 1rem 2rem 0rem 2rem !important;
   background: transparent !important;
 }
 
-.p-dialog-footer {
+.p-dialog-footer:not(.p-confirmdialog .p-dialog-footer) {
   background: var(--bg-content) !important;
   margin: -0.5rem 0 0 0 !important;
   padding: 2rem 2rem 2rem 2rem !important;
@@ -2794,5 +2794,326 @@ select option:focus {
   .modal-body,
   .modal-footer {
     padding: 16px;
+  }
+}
+
+/* ========================================== */
+/* PrimeVue Toast 스타일 - 중앙 정렬 및 큰 크기 */
+/* ========================================== */
+.p-toast {
+  z-index: 1100;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.p-toast.p-toast-top-center {
+  left: 50%;
+  transform: translateX(-50%);
+  right: auto;
+}
+
+.p-toast .p-toast-message {
+  margin: 0 0 1rem 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  padding: 1.5rem 2rem;
+  min-width: 400px;
+  font-size: 1.1rem;
+}
+
+.p-toast .p-toast-message.p-toast-message-success {
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+  border: 3px solid #22c55e;
+  color: #1f2937;
+}
+
+.p-toast .p-toast-message.p-toast-message-success .p-toast-message-icon {
+  color: #22c55e;
+  font-size: 2rem;
+}
+
+.p-toast .p-toast-message.p-toast-message-error {
+  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+  border: 3px solid #ef4444;
+  color: #1f2937;
+}
+
+.p-toast .p-toast-message.p-toast-message-error .p-toast-message-icon {
+  color: #ef4444;
+  font-size: 2rem;
+}
+
+.p-toast .p-toast-message.p-toast-message-warn {
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+  border: 3px solid #f59e0b;
+  color: #1f2937;
+}
+
+.p-toast .p-toast-message.p-toast-message-warn .p-toast-message-icon {
+  color: #f59e0b;
+  font-size: 2rem;
+}
+
+.p-toast .p-toast-message.p-toast-message-info {
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  border: 3px solid #3b82f6;
+  color: #1f2937;
+}
+
+.p-toast .p-toast-message.p-toast-message-info .p-toast-message-icon {
+  color: #3b82f6;
+  font-size: 2rem;
+}
+
+.p-toast .p-toast-message .p-toast-message-content {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.p-toast .p-toast-message .p-toast-message-icon {
+  flex-shrink: 0;
+  font-size: 2rem;
+}
+
+.p-toast .p-toast-message .p-toast-message-text {
+  flex: 1 1 auto;
+}
+
+.p-toast .p-toast-message .p-toast-summary {
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #1f2937;
+}
+
+.p-toast .p-toast-message .p-toast-detail {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.p-toast .p-toast-icon-close {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: transparent;
+  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+  margin-left: 1rem;
+  color: #6b7280;
+  font-size: 1.25rem;
+}
+
+.p-toast .p-toast-icon-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #1f2937;
+}
+
+/* ========================================== */
+/* PrimeVue ConfirmDialog 스타일 - Toast와 동일한 디자인 */
+/* ========================================== */
+.p-confirmdialog,
+.p-confirmdialog.p-dialog {
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+  overflow: hidden !important;
+  max-width: 600px !important;
+  width: 90% !important;
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%) !important;
+}
+
+.p-confirmdialog .p-dialog-header,
+.p-confirmdialog.p-dialog .p-dialog-header {
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%) !important;
+  padding: 1.5rem 2rem !important;
+  border-bottom: 3px solid #f59e0b !important;
+  border-radius: 10px 10px 0 0 !important;
+}
+
+.p-confirmdialog .p-dialog-header .p-dialog-title,
+.p-confirmdialog.p-dialog .p-dialog-header .p-dialog-title {
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: #1f2937 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+}
+
+.p-confirmdialog .p-dialog-header .p-dialog-title i,
+.p-confirmdialog.p-dialog .p-dialog-header .p-dialog-title i {
+  font-size: 2rem !important;
+  color: #f59e0b !important;
+}
+
+.p-confirmdialog .p-dialog-content,
+.p-confirmdialog.p-dialog .p-dialog-content {
+  padding: 1.5rem 2rem !important;
+  font-size: 1.1rem !important;
+  line-height: 1.6 !important;
+  color: #4b5563 !important;
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 1.25rem !important;
+}
+
+.p-confirmdialog .p-dialog-footer,
+.p-confirmdialog.p-dialog .p-dialog-footer {
+  padding: 1.5rem 2rem !important;
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%) !important;
+  border-top: 1px solid #e9ecef !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 1rem !important;
+  border-radius: 0 0 10px 10px !important;
+}
+
+.p-confirmdialog .p-confirmdialog-icon,
+.p-confirmdialog.p-dialog .p-confirmdialog-icon,
+.p-confirmdialog .pi-exclamation-triangle {
+  font-size: 2rem !important;
+  color: #f59e0b !important;
+  flex-shrink: 0 !important;
+}
+
+.p-confirmdialog .p-confirmdialog-message,
+.p-confirmdialog.p-dialog .p-confirmdialog-message {
+  font-size: 1.1rem !important;
+  line-height: 1.6 !important;
+  color: #1f2937 !important;
+  margin: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+/* 닫기 버튼 스타일 */
+.p-confirmdialog .p-dialog-header-icon,
+.p-confirmdialog .p-dialog-close-button,
+.p-confirmdialog .p-dialog-header .p-button-icon-only,
+.p-confirmdialog .p-dialog-header button[aria-label="Close"],
+.p-confirmdialog button.p-dialog-close-button {
+  width: 2rem !important;
+  height: 2rem !important;
+  min-width: 2rem !important;
+  max-width: 2rem !important;
+  padding: 0.5rem !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  border: none !important;
+  color: #6b7280 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  box-shadow: none !important;
+  flex-shrink: 0 !important;
+}
+
+.p-confirmdialog .p-dialog-header-icon:hover,
+.p-confirmdialog .p-dialog-close-button:hover,
+.p-confirmdialog .p-dialog-header .p-button-icon-only:hover,
+.p-confirmdialog .p-dialog-header button[aria-label="Close"]:hover,
+.p-confirmdialog button.p-dialog-close-button:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: #1f2937 !important;
+  transform: scale(1.1) !important;
+}
+
+.p-confirmdialog .p-dialog-header-icon:focus,
+.p-confirmdialog .p-dialog-close-button:focus,
+.p-confirmdialog .p-dialog-header .p-button-icon-only:focus,
+.p-confirmdialog .p-dialog-header button[aria-label="Close"]:focus,
+.p-confirmdialog button.p-dialog-close-button:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2) !important;
+}
+
+.p-confirmdialog .p-dialog-close-button .p-button-icon,
+.p-confirmdialog .p-dialog-close-button svg {
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
+.p-confirmdialog .p-button:not(.p-dialog-header-icon):not(.p-dialog-close-button):not(.p-button-icon-only):not(.p-confirmdialog-accept-button):not(.p-confirmdialog-reject-button) {
+  min-width: 100px !important;
+  padding: 0.625rem 1.25rem !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+  border: 2px solid transparent !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.p-confirmdialog .p-button.p-confirm-dialog-accept,
+.p-confirmdialog .p-button.p-confirmdialog-accept-button {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(22, 163, 74, 0.15) 100%) !important;
+  border: 1px solid #9ca3af !important;
+  border-radius: 8px !important;
+  color: #16a34a !important;
+  min-width: 120px !important;
+  padding: 0.75rem 1.5rem !important;
+}
+
+.p-confirmdialog .p-button.p-confirm-dialog-accept:hover,
+.p-confirmdialog .p-button.p-confirmdialog-accept-button:hover {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(22, 163, 74, 0.25) 100%) !important;
+  border-color: #6b7280 !important;
+  color: #15803d !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+}
+
+.p-confirmdialog .p-button.p-confirm-dialog-reject,
+.p-confirmdialog .p-button.p-confirmdialog-reject-button {
+  background: rgba(108, 117, 125, 0.1) !important;
+  border: 1px solid #9ca3af !important;
+  border-radius: 8px !important;
+  color: #6c757d !important;
+  min-width: 120px !important;
+  padding: 0.75rem 1.5rem !important;
+}
+
+.p-confirmdialog .p-button.p-confirm-dialog-reject:hover,
+.p-confirmdialog .p-button.p-confirmdialog-reject-button:hover {
+  background: rgba(108, 117, 125, 0.15) !important;
+  border-color: #6b7280 !important;
+  color: #495057 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .p-toast .p-toast-message {
+    min-width: 300px;
+    padding: 1.25rem 1.5rem;
+    font-size: 1rem;
+  }
+
+  .p-toast .p-toast-message .p-toast-summary {
+    font-size: 1.1rem;
+  }
+
+  .p-toast .p-toast-message .p-toast-detail {
+    font-size: 1rem;
+  }
+
+  .p-confirm-dialog {
+    width: 95%;
+    max-width: none;
+  }
+
+  .p-confirm-dialog .p-dialog-content {
+    padding: 1.5rem;
+    font-size: 1rem;
+  }
+
+  .p-confirm-dialog .p-button {
+    min-width: 100px;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.9rem;
   }
 }
