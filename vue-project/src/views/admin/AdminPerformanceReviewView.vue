@@ -558,15 +558,10 @@ import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
 import ProgressBar from 'primevue/progressbar';
 import { v4 as uuidv4 } from 'uuid';
-import { useToast } from "primevue/usetoast";
-import Toast from 'primevue/toast';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
 import { useNotifications } from '@/utils/notifications';
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
-
-// --- 초기화 ---
-const toast = useToast();
 
 // --- 고정 변수 ---
 const columnWidths = {
@@ -1409,7 +1404,7 @@ async function fetchProducts(prescriptionMonth) {
 
 async function loadPerformanceData() {
   if (!selectedSettlementMonth.value) {
-    toast.add({ severity: 'warn', summary: '알림', detail: '정산월을 선택해주세요.', life: 3000 });
+    showWarning('정산월을 선택해주세요.');
     return;
   }
 
@@ -1774,9 +1769,8 @@ function startEdit(rowData) {
     rows.value[index] = editRow;
     activeEditingRowId.value = rowData.id;
 
-    nextTick(() => {
-       handleProductNameFocus(editRow);
-    });
+    // 제품명 입력 필드를 클릭하거나 포커스했을 때만 셀렉트 리스트가 보이도록 함
+    // handleProductNameFocus(editRow); // 자동으로 펼쳐지지 않도록 제거
   }
 }
 
@@ -1871,12 +1865,7 @@ async function saveEdit(rowData) {
     if (error) throw error;
 
     // 성공 알림
-    toast.add({ 
-      severity: 'success', 
-      summary: '저장 완료', 
-      detail: '실적이 성공적으로 저장되었습니다.', 
-      life: 3000 
-    });
+    showSuccess('실적이 성공적으로 저장되었습니다.');
     
     await loadPerformanceData();
   } catch (err) {
@@ -1908,12 +1897,7 @@ async function saveEdit(rowData) {
     }
     
     // Toast 알림으로 에러 표시
-    toast.add({ 
-      severity: 'error', 
-      summary: '저장 실패', 
-      detail: errorMessage, 
-      life: 5000 
-    });
+    showError(errorMessage);
     
     // 실패 시, 편집모드로 되돌리거나 원본으로 복구하는 로직 추가 가능
   } finally {
