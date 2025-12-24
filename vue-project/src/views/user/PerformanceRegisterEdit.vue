@@ -280,7 +280,6 @@
         </table>
       </div>
     </div>
-    <Toast />
   </div>
 </template>
 
@@ -293,7 +292,6 @@ import Button from 'primevue/button';
 import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
 import { useNotifications } from '@/utils/notifications';
-import Toast from 'primevue/toast';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -1113,8 +1111,15 @@ function onCommissionRateInput(rowIdx) {
   // 백분율 기호 제거하고 숫자만 추출
   let rate = row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '');
   if (rate && !isNaN(Number(rate))) {
-    // 입력값을 그대로 저장 (포커스 아웃 시 변환)
-    row.commission_rate = rate;
+    const rateNum = Number(rate);
+    // 수수료율이 100을 초과하면 100으로 제한
+    if (rateNum > 100) {
+      showWarning('수수료율은 100%를 초과할 수 없습니다.');
+      row.commission_rate = '100';
+    } else {
+      // 입력값을 그대로 저장 (포커스 아웃 시 변환)
+      row.commission_rate = rate;
+    }
   }
   // 지급액만 계산 (처방액은 변경하지 않음)
   calculatePaymentAmount(rowIdx);
@@ -1144,8 +1149,14 @@ function formatCommissionRate(rowIdx) {
     const rateStr = row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '');
     const rate = Number(rateStr);
     if (!isNaN(rate)) {
+      // 수수료율이 100을 초과하면 100으로 제한
+      let finalRate = rate;
+      if (rate > 100) {
+        showWarning('수수료율은 100%를 초과할 수 없습니다.');
+        finalRate = 100;
+      }
       // 항상 소수점 1자리로 표시 (50 -> 50.0%, 0.5 -> 50.0%)
-      const commissionRateDecimal = convertCommissionRateToDecimal(rateStr);
+      const commissionRateDecimal = convertCommissionRateToDecimal(finalRate.toString());
       const displayRate = (commissionRateDecimal * 100).toFixed(1);
       row.commission_rate = displayRate + '%';
     }
@@ -1320,6 +1331,17 @@ async function savePerformanceData() {
         throw new Error('처방 수량은 0 이상의 숫자여야 합니다.');
       }
 
+      // 수수료율 검증 (100% 초과 방지)
+      const commissionRateStr = String(row.commission_rate || '').replace(/,/g, '').replace(/%/g, '');
+      const commissionRateNum = Number(commissionRateStr);
+      if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
+        throw new Error(`수수료율은 100%를 초과할 수 없습니다. (${i + 1}번째 행)`);
+      }
+      const calculatedRate = convertCommissionRateToDecimal(row.commission_rate);
+      if (calculatedRate > 1) {
+        throw new Error(`수수료율은 100%를 초과할 수 없습니다. (${i + 1}번째 행)`);
+      }
+      
       return {
       company_id: myCompany.id,
       settlement_month: settlementMonth,
@@ -1332,7 +1354,6 @@ async function savePerformanceData() {
       registered_by: currentUserUid, // 실제 등록한 사용자 ID (관리자 또는 일반사용자)
         review_status: reviewStatus,
         commission_rate: (() => {
-          const calculatedRate = convertCommissionRateToDecimal(row.commission_rate);
           // 소수점 3자리로 반올림
           const roundedRate = Math.round(calculatedRate * 1000) / 1000;
           return isNaN(roundedRate) || roundedRate === 0 ? commissionRate : roundedRate;
@@ -1364,7 +1385,7 @@ async function savePerformanceData() {
     // 관리자가 입력하는 경우 바로 완료 상태로 저장
     const reviewStatus = (route.query?.companyId && isAdminUser.value) ? '완료' : '대기';
     
-    const updatePromises = rowsToUpdate.map(row => {
+    const updatePromises = rowsToUpdate.map((row, index) => {
       let commissionRate = 0;
       if (grade === 'A') {
         commissionRate = row.commission_rate_a;
@@ -1377,6 +1398,18 @@ async function savePerformanceData() {
       } else if (grade === 'E') {
         commissionRate = row.commission_rate_e;
       }
+      
+      // 수수료율 검증 (100% 초과 방지)
+      const commissionRateStr = String(row.commission_rate || '').replace(/,/g, '').replace(/%/g, '');
+      const commissionRateNum = Number(commissionRateStr);
+      if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
+        throw new Error(`수수료율은 100%를 초과할 수 없습니다. (${index + 1}번째 행)`);
+      }
+      const calculatedRate = convertCommissionRateToDecimal(row.commission_rate);
+      if (calculatedRate > 1) {
+        throw new Error(`수수료율은 100%를 초과할 수 없습니다. (${index + 1}번째 행)`);
+      }
+      
       return supabase
         .from('performance_records')
         .update({
@@ -1386,8 +1419,9 @@ async function savePerformanceData() {
           prescription_type: row.prescription_type,
           remarks: row.remarks,
           commission_rate: (() => {
-            const calculatedRate = Number((Number(row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '')) / 100).toFixed(3));
-            return isNaN(calculatedRate) ? commissionRate : calculatedRate;
+            // 소수점 3자리로 반올림
+            const roundedRate = Math.round(calculatedRate * 1000) / 1000;
+            return isNaN(roundedRate) ? commissionRate : roundedRate;
           })(),
           review_status: reviewStatus,
           updated_by: currentUserUid,

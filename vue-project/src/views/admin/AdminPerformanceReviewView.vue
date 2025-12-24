@@ -337,6 +337,7 @@
                 type="text"
                 class="edit-mode-input"
                 placeholder="예: 5, 5%, 0.05"
+                @input="handleCommissionRateInput(slotProps.data)"
                 @change="handleEditCalculations(slotProps.data, 'rate')"
               />
               <span v-else>{{ (() => {
@@ -1803,6 +1804,18 @@ async function saveEdit(rowData) {
 
     const isNewRecord = !originalRows.value.some(r => r.id === rowData.id);
 
+    // 수수료율 검증 (100% 초과 방지)
+    const commissionRateStr = String(rowData.commission_rate_modify || '').replace(/,/g, '').replace(/%/g, '');
+    const commissionRateNum = Number(commissionRateStr);
+    if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
+      throw new Error('수수료율은 100%를 초과할 수 없습니다.');
+    }
+    
+    const calculatedRate = convertCommissionRateToDecimal(rowData.commission_rate_modify);
+    if (calculatedRate > 1) {
+      throw new Error('수수료율은 100%를 초과할 수 없습니다.');
+    }
+
     let saveData = {
       settlement_month: rowData.settlement_month,
       company_id: rowData.company_id,
@@ -1811,7 +1824,7 @@ async function saveEdit(rowData) {
       prescription_month: rowData.prescription_month_modify,
       prescription_qty: Number(rowData.prescription_qty_modify) || 0,
       prescription_type: rowData.prescription_type_modify,
-      commission_rate: convertCommissionRateToDecimal(rowData.commission_rate_modify),
+      commission_rate: calculatedRate,
       remarks: rowData.remarks_modify,
       updated_at: new Date().toISOString(),
       updated_by: adminUserId,
@@ -2868,10 +2881,46 @@ async function handleEditCalculations(rowData, field) {
             : null;
       }
   }
+  // 수수료율 검증 (100% 초과 방지)
+  if (field === 'rate' && rowData.commission_rate_modify) {
+    const commissionRateStr = String(rowData.commission_rate_modify).replace(/,/g, '').replace(/%/g, '');
+    const commissionRateNum = Number(commissionRateStr);
+    if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
+      showWarning('수수료율은 100%를 초과할 수 없습니다.');
+      rowData.commission_rate_modify = '100';
+    }
+  }
+  
   // 처방액, 지급 처방액, 지급액 계산
   const qty = Number(rowData.prescription_qty_modify) || 0;
   const price = Number(rowData.price_for_calc) || 0;
   const rate = convertCommissionRateToDecimal(rowData.commission_rate_modify);
+  
+  // 수수료율이 100%를 초과하는지 다시 한번 검증 (소수점 변환 후)
+  if (rate > 1) {
+    showWarning('수수료율은 100%를 초과할 수 없습니다.');
+    rowData.commission_rate_modify = '100';
+    // 100%로 재계산
+    const correctedRate = 1;
+    const prescriptionAmount = Math.round(qty * price);
+    let paymentPrescriptionAmount = 0;
+    let paymentAmount = 0;
+    
+    if (correctedRate > 0) {
+      paymentPrescriptionAmount = prescriptionAmount;
+      paymentAmount = Math.round(prescriptionAmount * correctedRate);
+    }
+    
+    rowData.prescription_amount_modify = prescriptionAmount;
+    rowData.payment_prescription_amount_modify = paymentPrescriptionAmount;
+    rowData.payment_amount_modify = paymentAmount;
+    rowData._raw_prescription_qty = qty;
+    rowData._raw_prescription_amount = prescriptionAmount;
+    rowData._raw_payment_prescription_amount = paymentPrescriptionAmount;
+    rowData._raw_payment_amount = paymentAmount;
+    return;
+  }
+  
   const prescriptionAmount = Math.round(qty * price);
   // 수수료율이 있고 0보다 클 때만 지급 처방액과 지급액 계산
   let paymentPrescriptionAmount = 0;
@@ -2893,6 +2942,19 @@ async function handleEditCalculations(rowData, field) {
   rowData._raw_payment_prescription_amount = paymentPrescriptionAmount;
   rowData._raw_payment_amount = paymentAmount;
   
+}
+
+// 수수료율 입력 시 실시간 검증 (100% 초과 방지)
+function handleCommissionRateInput(rowData) {
+  if (!rowData.commission_rate_modify) return;
+  
+  const commissionRateStr = String(rowData.commission_rate_modify).replace(/,/g, '').replace(/%/g, '');
+  const commissionRateNum = Number(commissionRateStr);
+  
+  if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
+    showWarning('수수료율은 100%를 초과할 수 없습니다.');
+    rowData.commission_rate_modify = '100';
+  }
 }
 
 function handleProductNameInput(rowData, event) {
