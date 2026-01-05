@@ -2131,6 +2131,9 @@ async function confirmStatusChange() {
     return;
   }
 
+  // 상태 선택 모달 먼저 닫기
+  showStatusChangeModal.value = false;
+  
   const confirmed = await showConfirm(`선택된 ${selectedRows.value.length}개 항목의 상태를 '${selectedNewStatus.value}'로 변경하시겠습니까?`, '상태 변경 확인');
   if (confirmed) {
     loading.value = true;
