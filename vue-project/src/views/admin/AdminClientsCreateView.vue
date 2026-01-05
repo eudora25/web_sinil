@@ -57,6 +57,9 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const clientCode = ref('');
 const name = ref('');
@@ -129,7 +132,7 @@ const handleBackspace = (event) => {
 const handleSubmit = async () => {
   // 필수 필드 검증
   if (!name.value || name.value.trim() === '') {
-    alert('병의원명은 필수 입력 항목입니다.');
+    showWarning('병의원명은 필수 입력 항목입니다.');
     setTimeout(() => {
       const nameInput = document.getElementById('name');
       if (nameInput) {
@@ -141,7 +144,7 @@ const handleSubmit = async () => {
   }
 
   if (!businessNumber.value || businessNumber.value.trim() === '') {
-    alert('사업자등록번호는 필수 입력 항목입니다.');
+    showWarning('사업자등록번호는 필수 입력 항목입니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -155,7 +158,7 @@ const handleSubmit = async () => {
   // 사업자등록번호 형식 검증 (10자리 숫자)
   const businessNumberDigits = businessNumber.value.replace(/[^0-9]/g, '');
   if (businessNumberDigits.length !== 10) {
-    alert('사업자등록번호는 10자리여야 합니다.');
+    showWarning('사업자등록번호는 10자리여야 합니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -183,11 +186,11 @@ const handleSubmit = async () => {
         } else {
           // 다른 모든 오류 (HTTP 406, 500 등) - 중단
           console.error('병의원 코드 중복 검사 실패:', codeCheckError);
-          alert(`병의원 코드 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${codeCheckError.code}\n오류 메시지: ${codeCheckError.message}\n\n관리자에게 문의해주세요.`);
+          showError(`병의원 코드 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${codeCheckError.code}\n오류 메시지: ${codeCheckError.message}\n\n관리자에게 문의해주세요.`);
           return;
         }
       } else if (existingClientByCode) {
-        alert(`동일한 병의원 코드로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClientByCode.name}\n병의원 코드: ${existingClientByCode.client_code}`);
+        showWarning(`동일한 병의원 코드로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClientByCode.name}\n병의원 코드: ${existingClientByCode.client_code}`);
         setTimeout(() => {
           const clientCodeInput = document.querySelector('input[v-model="clientCode"]');
           if (clientCodeInput) {
@@ -200,7 +203,7 @@ const handleSubmit = async () => {
       // console.log('병의원 코드 중복 검사 통과');
     } catch (codeDuplicateCheckError) {
       console.error('병의원 코드 중복 검사 중 예외 발생:', codeDuplicateCheckError);
-      alert('병의원 코드 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
+      showError('병의원 코드 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
       return;
     }
   }
@@ -216,10 +219,10 @@ const handleSubmit = async () => {
     
     if (checkError) {
       console.error('사업자등록번호 중복 검사 실패:', checkError);
-      alert(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
+      showError(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
       return;
     } else if (existingClient) {
-      alert(`동일한 사업자등록번호로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClient.name}`);
+      showWarning(`동일한 사업자등록번호로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClient.name}`);
       setTimeout(() => {
         const businessNumberInput = document.getElementById('businessNumber');
         if (businessNumberInput) {
@@ -232,7 +235,7 @@ const handleSubmit = async () => {
     // console.log('사업자등록번호 중복 검사 통과');
   } catch (duplicateCheckError) {
     console.error('사업자등록번호 중복 검사 중 예외 발생:', duplicateCheckError);
-    alert('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
+    showError('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
     return;
   }
 
@@ -252,9 +255,9 @@ const handleSubmit = async () => {
     created_by: currentUserId
   }]);
   if (error) {
-    alert('등록 실패: ' + error.message);
+    showError('등록 실패: ' + error.message);
   } else {
-    alert('등록되었습니다.');
+    showSuccess('등록되었습니다.');
     router.push('/admin/clients');
   }
 };

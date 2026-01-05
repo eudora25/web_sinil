@@ -158,6 +158,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 export default {
   name: 'AdminProductsAssignmentCompanyView',
@@ -305,7 +308,7 @@ export default {
         // console.log('✅ 전체 업체 목록 설정 완료 - 개수:', allCompanies.value.length)
       } catch (error) {
         console.error('❌ 전체 업체 로드 실패:', error)
-        alert('전체 업체 목록을 불러오는데 실패했습니다.')
+        showError('전체 업체 목록을 불러오는데 실패했습니다.')
       } finally {
         loading.value = false
       }
@@ -359,7 +362,7 @@ export default {
         // console.log('✅ 원본 할당 데이터 저장 완료')
       } catch (error) {
         console.error('❌ 미할당 업체 로드 실패:', error)
-        alert('미할당 업체 목록을 불러오는데 실패했습니다.')
+        showError('미할당 업체 목록을 불러오는데 실패했습니다.')
       } finally {
         loading.value = false
       }
@@ -399,7 +402,7 @@ export default {
         const { data: { user } } = await supabase.auth.getUser()
         
         if (!user) {
-          alert('로그인이 필요합니다.')
+          showError('로그인이 필요합니다.')
           return
         }
 
@@ -425,10 +428,10 @@ export default {
         await loadAllCompanies()
         await loadUnassignedCompanies()
         
-        alert(`${companiesToAssign.length}개 업체가 미할당되었습니다.`)
+        showSuccess(`${companiesToAssign.length}개 업체가 미할당되었습니다.`)
       } catch (error) {
         console.error('업체 미할당 실패:', error)
-        alert('업체 미할당 중 오류가 발생했습니다.')
+        showError('업체 미할당 중 오류가 발생했습니다.')
       } finally {
         loading.value = false
       }
@@ -458,10 +461,10 @@ export default {
         await loadAllCompanies()
         await loadUnassignedCompanies()
         
-        alert(`${companiesToUnassign.length}개 업체가 할당되었습니다.`)
+        showSuccess(`${companiesToUnassign.length}개 업체가 할당되었습니다.`)
       } catch (error) {
         console.error('업체 할당 실패:', error)
-        alert('업체 할당 중 오류가 발생했습니다.')
+        showError('업체 할당 중 오류가 발생했습니다.')
       } finally {
         loading.value = false
       }

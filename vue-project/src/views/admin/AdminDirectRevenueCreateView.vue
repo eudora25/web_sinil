@@ -71,6 +71,9 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const pharmacyCode = ref('');
 const pharmacyName = ref('');
@@ -161,7 +164,7 @@ const handleBackspace = (event) => {
 const handleSubmit = async () => {
   // 필수 필드 검증
   if (!businessNumber.value || businessNumber.value.trim() === '') {
-    alert('사업자등록번호는 필수 입력 항목입니다.');
+    showWarning('사업자등록번호는 필수 입력 항목입니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -173,7 +176,7 @@ const handleSubmit = async () => {
   }
 
   if (!standardCode.value || standardCode.value.trim() === '') {
-    alert('표준코드는 필수 입력 항목입니다.');
+    showWarning('표준코드는 필수 입력 항목입니다.');
     setTimeout(() => {
       const standardCodeInput = document.getElementById('standardCode');
       if (standardCodeInput) {
@@ -185,7 +188,7 @@ const handleSubmit = async () => {
   }
 
   if (!salesAmount.value || salesAmount.value.trim() === '') {
-    alert('매출액은 필수 입력 항목입니다.');
+    showWarning('매출액은 필수 입력 항목입니다.');
     setTimeout(() => {
       const salesAmountInput = document.getElementById('salesAmount');
       if (salesAmountInput) {
@@ -197,7 +200,7 @@ const handleSubmit = async () => {
   }
 
   if (!salesDate.value || salesDate.value.trim() === '') {
-    alert('매출일자는 필수 입력 항목입니다.');
+    showWarning('매출일자는 필수 입력 항목입니다.');
     setTimeout(() => {
       const salesDateInput = document.getElementById('salesDate');
       if (salesDateInput) {
@@ -211,7 +214,7 @@ const handleSubmit = async () => {
   // 사업자등록번호 형식 검증 (10자리 숫자)
   const businessNumberDigits = businessNumber.value.replace(/[^0-9]/g, '');
   if (businessNumberDigits.length !== 10) {
-    alert('사업자등록번호는 10자리여야 합니다.');
+    showWarning('사업자등록번호는 10자리여야 합니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -224,7 +227,7 @@ const handleSubmit = async () => {
 
   // 표준코드 형식 검증 (13자리 숫자)
   if (standardCode.value.length !== 13 || !/^\d{13}$/.test(standardCode.value)) {
-    alert('표준코드는 13자리 숫자여야 합니다.');
+    showWarning('표준코드는 13자리 숫자여야 합니다.');
     setTimeout(() => {
       const standardCodeInput = document.getElementById('standardCode');
       if (standardCodeInput) {
@@ -237,7 +240,7 @@ const handleSubmit = async () => {
 
   // 매출액 형식 검증 (숫자, 마이너스 허용)
   if (isNaN(Number(salesAmount.value))) {
-    alert('매출액은 숫자여야 합니다.');
+    showWarning('매출액은 숫자여야 합니다.');
     setTimeout(() => {
       const salesAmountInput = document.getElementById('salesAmount');
       if (salesAmountInput) {
@@ -251,7 +254,7 @@ const handleSubmit = async () => {
   // 매출일자 형식 검증 (YYYY-MM-DD)
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRegex.test(salesDate.value)) {
-    alert('매출일자는 YYYY-MM-DD 형식이어야 합니다.');
+    showWarning('매출일자는 YYYY-MM-DD 형식이어야 합니다.');
     setTimeout(() => {
       const salesDateInput = document.getElementById('salesDate');
       if (salesDateInput) {
@@ -278,9 +281,9 @@ const handleSubmit = async () => {
   };
   const { error } = await supabase.from('direct_sales').insert([dataToInsert]);
   if (error) {
-    alert('등록 실패: ' + error.message);
+    showError('등록 실패: ' + error.message);
   } else {
-    alert('등록되었습니다.');
+    showSuccess('등록되었습니다.');
     router.push('/admin/direct-revenue');
   }
 };

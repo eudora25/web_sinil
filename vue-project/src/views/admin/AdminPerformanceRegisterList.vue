@@ -277,6 +277,9 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { supabase } from '@/supabase';
 import * as XLSX from 'xlsx';
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 // 반응형 데이터
 const availableMonths = ref([]); // 선택 가능한 정산월 목록
@@ -653,7 +656,7 @@ const totalAmount = computed(() => {
 // 엑셀 다운로드 기능
 const downloadExcel = () => {
   if (displayRows.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.');
+    showWarning('다운로드할 데이터가 없습니다.');
     return;
   }
   

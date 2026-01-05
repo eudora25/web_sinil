@@ -42,6 +42,9 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const insuranceCode = ref('');
 const standardCode = ref('');
@@ -68,13 +71,13 @@ const allowOnlyNumbers = (event) => {
 const handleSubmit = async () => {
   // 필수 필드 검증
   if (!insuranceCode.value || !standardCode.value) {
-    alert('필수 항목을 모두 입력하세요.');
+    showWarning('필수 항목을 모두 입력하세요.');
     return;
   }
 
   // 보험코드 형식 검증 (9자리 숫자)
   if (insuranceCode.value.length !== 9 || !/^\d{9}$/.test(insuranceCode.value)) {
-    alert('보험코드는 9자리 숫자여야 합니다.');
+    showWarning('보험코드는 9자리 숫자여야 합니다.');
     setTimeout(() => {
       const insuranceCodeInput = document.getElementById('insuranceCode');
       if (insuranceCodeInput) {
@@ -87,7 +90,7 @@ const handleSubmit = async () => {
 
   // 표준코드 형식 검증 (13자리 숫자)
   if (standardCode.value.length !== 13 || !/^\d{13}$/.test(standardCode.value)) {
-    alert('표준코드는 13자리 숫자여야 합니다.');
+    showWarning('표준코드는 13자리 숫자여야 합니다.');
     setTimeout(() => {
       const standardCodeInput = document.getElementById('standardCode');
       if (standardCodeInput) {
@@ -100,7 +103,7 @@ const handleSubmit = async () => {
 
   // 단위수량 검증 (0 이상의 숫자)
   if (unitQuantity.value && (isNaN(Number(unitQuantity.value)) || Number(unitQuantity.value) < 0)) {
-    alert('단위수량은 0 이상의 숫자여야 합니다.');
+    showWarning('단위수량은 0 이상의 숫자여야 합니다.');
     setTimeout(() => {
       const unitQuantityInput = document.querySelector('input[v-model="unitQuantity"]');
       if (unitQuantityInput) {
@@ -114,7 +117,7 @@ const handleSubmit = async () => {
   // 현재 사용자 정보 가져오기
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
+    showError('로그인 정보가 없습니다. 다시 로그인해주세요.');
     return;
   }
 
@@ -130,9 +133,9 @@ const handleSubmit = async () => {
   
   const { error } = await supabase.from('products_standard_code').insert([dataToInsert]);
   if (error) {
-    alert('등록 실패: ' + error.message);
+    showError('등록 실패: ' + error.message);
   } else {
-    alert('등록되었습니다.');
+    showSuccess('등록되었습니다.');
     router.push('/admin/products-standard-code');
   }
 };

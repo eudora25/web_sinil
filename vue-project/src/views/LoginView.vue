@@ -76,7 +76,6 @@
         </div>
       </div>
     </teleport>
-
   </div>
 </template>
 
@@ -86,6 +85,9 @@ import Button from 'primevue/button';
 import { supabase } from '@/supabase';
 import { useRouter } from 'vue-router';
 import config from '@/config/app.js';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const email = ref('');
 const password = ref('');
@@ -113,21 +115,21 @@ const handleLogin = async () => {
     
     if (companyError) {
       console.error('회사 정보 조회 오류:', companyError);
-      alert('로그인 중 오류가 발생했습니다. 다시 시도해주세요.');
+      showError('로그인 중 오류가 발생했습니다. 다시 시도해주세요.');
       loading.value = false;
       return;
     }
     
     // 미등록 회원인 경우 로그인 차단
     if (!companyRow) {
-      alert('미등록 회원입니다. 회원가입을 먼저 진행해주세요.');
+      showWarning('미등록 회원입니다. 회원가입을 먼저 진행해주세요.');
       loading.value = false;
       return;
     }
     
     // 2단계: 승인 상태 확인
     if (companyRow.approval_status !== 'approved') {
-      alert('미승인 회원입니다. 관리자에게 승인을 요청해주세요.');
+      showWarning('미승인 회원입니다. 관리자에게 승인을 요청해주세요.');
       loading.value = false;
       return;
     }
@@ -143,15 +145,15 @@ const handleLogin = async () => {
       
       // 더 구체적인 오류 메시지 처리
       if (authError.message && authError.message.includes('Invalid login credentials')) {
-        alert('비밀번호가 일치하지 않습니다. 다시 확인해주세요.');
+        showWarning('비밀번호가 일치하지 않습니다. 다시 확인해주세요.');
       } else if (authError.message && authError.message.includes('User not found')) {
-        alert('등록되지 않은 이메일입니다. 회원가입을 먼저 진행해주세요.');
+        showWarning('등록되지 않은 이메일입니다. 회원가입을 먼저 진행해주세요.');
       } else if (authError.message && authError.message.includes('Email not confirmed')) {
         // 이메일 미확인 오류는 무시하고 로그인 허용
         // console.log('이메일 미확인 상태이지만 로그인 허용');
         // 오류를 무시하고 계속 진행
       } else {
-        alert(`로그인 오류: ${authError.message || '알 수 없는 오류가 발생했습니다.'}`);
+        showError(`로그인 오류: ${authError.message || '알 수 없는 오류가 발생했습니다.'}`);
         loading.value = false;
         return;
       }
@@ -183,7 +185,7 @@ const handleLogin = async () => {
     }
   } catch (error) {
     console.error('로그인 처리 중 오류:', error);
-    alert('로그인 중 오류가 발생했습니다. 다시 시도해주세요.');
+    showError('로그인 중 오류가 발생했습니다. 다시 시도해주세요.');
   } finally {
     loading.value = false;
   }
@@ -205,14 +207,14 @@ const closeConfirmationModal = () => {
 
 const handlePasswordReset = async () => {
   if (!resetEmail.value) {
-    alert('아이디(이메일)를 입력해주세요.');
+    showWarning('아이디(이메일)를 입력해주세요.');
     return;
   }
 
   // 이메일 형식 검증
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(resetEmail.value)) {
-    alert('올바른 이메일 형식으로 입력해주세요.');
+    showWarning('올바른 이메일 형식으로 입력해주세요.');
     return;
   }
   
@@ -228,19 +230,19 @@ const handlePasswordReset = async () => {
     
     if (companyError) {
       console.error('회사 정보 조회 오류:', companyError);
-      alert('이메일 확인 중 오류가 발생했습니다. 다시 시도해주세요.');
+      showError('이메일 확인 중 오류가 발생했습니다. 다시 시도해주세요.');
       return;
     }
     
     // 2단계: 등록되지 않은 이메일인 경우
     if (!companyData) {
-      alert('가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해주세요.');
+      showWarning('가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해주세요.');
       return;
     }
     
     // 3단계: 승인되지 않은 계정인 경우
     if (companyData.approval_status !== 'approved') {
-      alert('미승인 계정입니다. 관리자에게 승인을 요청해주세요.');
+      showWarning('미승인 계정입니다. 관리자에게 승인을 요청해주세요.');
       return;
     }
     
@@ -251,9 +253,9 @@ const handlePasswordReset = async () => {
     
     if (error) {
       if (error.message.includes('not found')) {
-        alert('가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해주세요.');
+        showWarning('가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해주세요.');
       } else {
-        alert(`오류가 발생했습니다: ${error.message}`);
+        showError(`오류가 발생했습니다: ${error.message}`);
       }
     } else {
       closePasswordResetModal();
@@ -261,7 +263,7 @@ const handlePasswordReset = async () => {
     }
   } catch (err) {
     console.error('비밀번호 재설정 오류:', err);
-    alert('예기치 않은 오류가 발생했습니다.');
+    showError('예기치 않은 오류가 발생했습니다.');
   } finally {
     loading.value = false;
   }

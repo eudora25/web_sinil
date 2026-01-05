@@ -317,6 +317,9 @@ import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
 import { read, utils } from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const router = useRouter()
 const clients = ref([])
@@ -370,7 +373,7 @@ const fetchClients = async () => {
         details: error.details,
         hint: error.hint
       });
-      alert('병의원 목록을 불러오는 중 오류가 발생했습니다: ' + error.message);
+      showError('병의원 목록을 불러오는 중 오류가 발생했습니다: ' + error.message);
       clients.value = [];
       filteredClients.value = [];
       return;
@@ -401,7 +404,7 @@ const fetchClients = async () => {
     }
   } catch (err) {
     console.error('병의원 목록 조회 예외:', err);
-    alert('병의원 목록을 불러오는 중 예외가 발생했습니다: ' + err.message);
+    showError('병의원 목록을 불러오는 중 예외가 발생했습니다: ' + err.message);
     clients.value = [];
     filteredClients.value = [];
   } finally {
@@ -593,7 +596,7 @@ async function assignPharmacies() {
 
     // 성공 메시지 표시
     const addedCount = selectedPharmacies.value.length
-    alert(`${addedCount}개의 문전약국이 지정되었습니다.`)
+    showSuccess(`${addedCount}개의 문전약국이 지정되었습니다.`)
 
     // 선택된 약국 초기화 (모달은 유지)
     selectedPharmacies.value = []
@@ -603,7 +606,7 @@ async function assignPharmacies() {
 
   } catch (error) {
     console.error('문전약국 지정 실패:', error);
-    alert('문전약국 지정 중 오류가 발생했습니다: ' + error.message);
+    showError('문전약국 지정 중 오류가 발생했습니다: ' + error.message);
     return;
   }
 }
@@ -752,7 +755,7 @@ const handleFileUpload = async (event) => {
     const jsonData = utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
-      alert('엑셀 파일에 데이터가 없습니다.')
+      showWarning('엑셀 파일에 데이터가 없습니다.')
       return
     }
 
@@ -767,7 +770,7 @@ const handleFileUpload = async (event) => {
       .select('id, business_registration_number')
 
     if (clientError || pharmacyError) {
-      alert('병의원 또는 약국 정보 조회 중 오류가 발생했습니다.')
+      showError('병의원 또는 약국 정보 조회 중 오류가 발생했습니다.')
       console.error(clientError || pharmacyError)
       return
     }
@@ -811,7 +814,7 @@ const handleFileUpload = async (event) => {
     }
 
     if (errors.length > 0) {
-      alert('데이터 오류:\n' + errors.join('\n'))
+      showError('데이터 오류:\n' + errors.join('\n'))
       return
     }
 
@@ -830,20 +833,20 @@ const handleFileUpload = async (event) => {
           console.error('오류 상세:', error.details);
           console.error('오류 힌트:', error.hint);
           console.error('전체 오류:', JSON.stringify(error, null, 2));
-          alert('업로드 실패: ' + error.message)
+          showError('업로드 실패: ' + error.message)
         } else {
           // console.log('엑셀 업로드 성공 응답:', data);
-          alert(`${assignmentsToUpload.length}건의 문전약국 지정 정보가 업로드/갱신되었습니다.`)
+          showSuccess(`${assignmentsToUpload.length}건의 문전약국 지정 정보가 업로드/갱신되었습니다.`)
           await fetchClients()
         }
       } catch (error) {
         console.error('엑셀 업로드 예외:', error);
-        alert('업로드 중 예외가 발생했습니다: ' + error.message);
+        showError('업로드 중 예외가 발생했습니다: ' + error.message);
       }
     }
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    alert('파일 처리 중 오류가 발생했습니다.')
+    showError('파일 처리 중 오류가 발생했습니다.')
   } finally {
     // 엑셀 등록 로딩 종료
     excelLoading.value = false
@@ -855,7 +858,7 @@ const handleFileUpload = async (event) => {
 
 const downloadExcel = async () => {
   if (filteredClients.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.')
+    showWarning('다운로드할 데이터가 없습니다.')
     return
   }
   const excelData = []

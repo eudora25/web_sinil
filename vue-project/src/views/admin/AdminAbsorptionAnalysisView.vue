@@ -368,7 +368,6 @@
         </div>
       </div>
     </div>
-    <Toast />
   </div>
 </template>
 
@@ -385,7 +384,6 @@ import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
 import { useNotifications } from '@/utils/notifications';
-import Toast from 'primevue/toast';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();

@@ -46,6 +46,9 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -95,13 +98,13 @@ onMounted(async () => {
     
   if (error) {
     console.error('❌ 표준코드 데이터 로드 실패:', error);
-    alert('데이터를 불러오는데 실패했습니다.');
+    showError('데이터를 불러오는데 실패했습니다.');
     return;
   }
   
   if (!data) {
     console.error('❌ 표준코드 데이터가 없습니다.');
-    alert('해당 표준코드를 찾을 수 없습니다.');
+    showError('해당 표준코드를 찾을 수 없습니다.');
     return;
   }
   
@@ -162,7 +165,7 @@ onMounted(async () => {
 const handleSubmit = async () => {
   // 필수 필드 검증
   if (!insuranceCode.value || insuranceCode.value.toString().trim() === '') {
-    alert('보험코드는 필수 입력 항목입니다.');
+    showWarning('보험코드는 필수 입력 항목입니다.');
     setTimeout(() => {
       const insuranceCodeInput = document.getElementById('insuranceCode');
       if (insuranceCodeInput) {
@@ -174,7 +177,7 @@ const handleSubmit = async () => {
   }
 
   if (!standardCode.value || standardCode.value.toString().trim() === '') {
-    alert('표준코드는 필수 입력 항목입니다.');
+    showWarning('표준코드는 필수 입력 항목입니다.');
     setTimeout(() => {
       const standardCodeInput = document.getElementById('standardCode');
       if (standardCodeInput) {
@@ -187,7 +190,7 @@ const handleSubmit = async () => {
 
   // 보험코드 형식 검증 (9자리 숫자)
   if (insuranceCode.value.toString().length !== 9 || !/^\d{9}$/.test(insuranceCode.value.toString())) {
-    alert('보험코드는 9자리 숫자여야 합니다.');
+    showWarning('보험코드는 9자리 숫자여야 합니다.');
     setTimeout(() => {
       const insuranceCodeInput = document.getElementById('insuranceCode');
       if (insuranceCodeInput) {
@@ -200,7 +203,7 @@ const handleSubmit = async () => {
 
   // 표준코드 형식 검증 (13자리 숫자)
   if (standardCode.value.toString().length !== 13 || !/^\d{13}$/.test(standardCode.value.toString())) {
-    alert('표준코드는 13자리 숫자여야 합니다.');
+    showWarning('표준코드는 13자리 숫자여야 합니다.');
     setTimeout(() => {
       const standardCodeInput = document.getElementById('standardCode');
       if (standardCodeInput) {
@@ -213,7 +216,7 @@ const handleSubmit = async () => {
 
   // 단위수량 검증 (0 이상의 숫자)
   if (unitQuantity.value && (isNaN(Number(unitQuantity.value)) || Number(unitQuantity.value) < 0)) {
-    alert('단위수량은 0 이상의 숫자여야 합니다.');
+    showWarning('단위수량은 0 이상의 숫자여야 합니다.');
     setTimeout(() => {
       const unitQuantityInput = document.querySelector('input[v-model="unitQuantity"]');
       if (unitQuantityInput) {
@@ -242,9 +245,9 @@ const handleSubmit = async () => {
     .update(dataToUpdate)
     .eq('id', route.params.id);
   if (error) {
-    alert('수정 실패: ' + error.message);
+    showError('수정 실패: ' + error.message);
   } else {
-    alert('수정되었습니다.');
+    showSuccess('수정되었습니다.');
     router.push('/admin/products-standard-code');
   }
 };

@@ -6,6 +6,7 @@ import router from './router';
 import TopNavigationBar from './components/TopNavigationBar.vue';
 import SideNavigationBar from './components/SideNavigationBar.vue';
 import Toast from 'primevue/toast';
+import ConfirmDialog from 'primevue/confirmdialog';
 import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
 import { useToast } from 'primevue/usetoast';
@@ -308,7 +309,7 @@ toast.add({ severity: 'error', summary: '실패', detail: '오류가 발생했�
     <div class="main-content">
       <RouterView />
     </div>
-    <Toast />
-    <!-- Dialog(승인 취소 모달) 완전 삭제 -->
+    <Toast position="top-center" />
+    <ConfirmDialog />
   </DefaultLayout>
 </template>

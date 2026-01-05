@@ -203,6 +203,9 @@ import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
 import { read, utils } from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const router = useRouter()
 const assignments = ref([])
@@ -305,7 +308,7 @@ async function onGradeChange(assignment, newValue) {
 
       if (error) {
         console.error('수수료 등급 변경 오류:', error)
-        alert('수수료 등급 변경 중 오류가 발생했습니다.')
+        showError('수수료 등급 변경 중 오류가 발생했습니다.')
         // 드롭다운을 이전 값으로 되돌리기
         assignment.modified_commission_grade = oldValue
       } else {
@@ -314,7 +317,7 @@ async function onGradeChange(assignment, newValue) {
       }
     } catch (err) {
       console.error('수수료 등급 변경 오류:', err)
-      alert('수수료 등급 변경 중 오류가 발생했습니다.')
+      showError('수수료 등급 변경 중 오류가 발생했습니다.')
       // 드롭다운을 이전 값으로 되돌리기
       assignment.modified_commission_grade = oldValue
     }
@@ -422,7 +425,7 @@ const handleFileUpload = async (event) => {
     const jsonData = utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
-      alert('엑셀 파일에 데이터가 없습니다.')
+      showWarning('엑셀 파일에 데이터가 없습니다.')
       return
     }
 
@@ -439,7 +442,7 @@ const handleFileUpload = async (event) => {
       `)
 
     if (assignmentError) {
-      alert('매핑 정보 조회 중 오류가 발생했습니다.')
+      showError('매핑 정보 조회 중 오류가 발생했습니다.')
       console.error(assignmentError)
       return
     }
@@ -486,7 +489,7 @@ const handleFileUpload = async (event) => {
     }
 
     if (errors.length > 0) {
-      alert('데이터 오류:\n' + errors.join('\n'))
+      showError('데이터 오류:\n' + errors.join('\n'))
       return
     }
 
@@ -510,16 +513,16 @@ const handleFileUpload = async (event) => {
       }
 
       if (errorCount > 0) {
-        alert(`업로드 완료: 성공 ${successCount}건, 실패 ${errorCount}건`)
+        showInfo(`업로드 완료: 성공 ${successCount}건, 실패 ${errorCount}건`)
       } else {
-        alert(`${successCount}건의 수수료 등급이 업데이트되었습니다.`)
+        showSuccess(`${successCount}건의 수수료 등급이 업데이트되었습니다.`)
       }
 
       await fetchAssignments() // 목록 새로고침
     }
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    alert('파일 처리 중 오류가 발생했습니다.')
+    showError('파일 처리 중 오류가 발생했습니다.')
   } finally {
     // 엑셀 등록 로딩 종료
     excelLoading.value = false
@@ -531,7 +534,7 @@ const handleFileUpload = async (event) => {
 
 const downloadExcel = async () => {
   if (filteredClients.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.')
+    showWarning('다운로드할 데이터가 없습니다.')
     return
   }
 

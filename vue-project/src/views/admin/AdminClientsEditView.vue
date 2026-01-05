@@ -57,6 +57,9 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -183,7 +186,7 @@ onMounted(async () => {
 const handleSubmit = async () => {
   // 필수 필드 검증
   if (!name.value || name.value.trim() === '') {
-    alert('병의원명은 필수 입력 항목입니다.');
+    showWarning('병의원명은 필수 입력 항목입니다.');
     setTimeout(() => {
       const nameInput = document.getElementById('name');
       if (nameInput) {
@@ -195,7 +198,7 @@ const handleSubmit = async () => {
   }
 
   if (!businessNumber.value || businessNumber.value.trim() === '') {
-    alert('사업자등록번호는 필수 입력 항목입니다.');
+    showWarning('사업자등록번호는 필수 입력 항목입니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -209,7 +212,7 @@ const handleSubmit = async () => {
   // 사업자등록번호 형식 검증 (10자리 숫자)
   const businessNumberDigits = businessNumber.value.replace(/[^0-9]/g, '');
   if (businessNumberDigits.length !== 10) {
-    alert('사업자등록번호는 10자리여야 합니다.');
+    showWarning('사업자등록번호는 10자리여야 합니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -240,9 +243,9 @@ const handleSubmit = async () => {
     })
     .eq('id', route.params.id);
   if (error) {
-    alert('수정 실패: ' + error.message);
+    showError('수정 실패: ' + error.message);
   } else {
-    alert('수정되었습니다.');
+    showSuccess('수정되었습니다.');
     goDetail();
   }
 };

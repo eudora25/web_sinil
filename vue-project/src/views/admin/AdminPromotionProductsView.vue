@@ -583,7 +583,6 @@
         </div>
       </div>
     </Dialog>
-    <Toast />
   </div>
 </template>
 
@@ -597,7 +596,6 @@ import Button from 'primevue/button';
 import ProgressBar from 'primevue/progressbar';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
-import Toast from 'primevue/toast';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();

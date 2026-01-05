@@ -75,6 +75,9 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const router = useRouter()
 const loading = ref(false)
@@ -217,7 +220,7 @@ onMounted(async () => {
       
     if (error) {
       console.error('사용자 정보 조회 오류:', error)
-      alert('사용자 정보를 불러올 수 없습니다.')
+      showError('사용자 정보를 불러올 수 없습니다.')
       return
     }
     
@@ -241,7 +244,7 @@ onMounted(async () => {
     }
   } catch (err) {
     console.error('사용자 정보 조회 예외:', err)
-    alert('사용자 정보를 불러오는 중 오류가 발생했습니다.')
+    showError('사용자 정보를 불러오는 중 오류가 발생했습니다.')
   }
 })
 
@@ -256,7 +259,7 @@ const handleSubmit = async () => {
   try {
     // 필수 필드 검증
     if (!companyName.value || companyName.value.trim() === '') {
-      alert('업체명은 필수 입력 항목입니다.');
+      showWarning('업체명은 필수 입력 항목입니다.');
       setTimeout(() => {
         const companyNameInput = document.getElementById('companyName');
         if (companyNameInput) {
@@ -269,7 +272,7 @@ const handleSubmit = async () => {
     }
 
     if (!businessNumber.value || businessNumber.value.trim() === '') {
-      alert('사업자등록번호는 필수 입력 항목입니다.');
+      showWarning('사업자등록번호는 필수 입력 항목입니다.');
       setTimeout(() => {
         const businessNumberInput = document.getElementById('businessNumber');
         if (businessNumberInput) {
@@ -282,7 +285,7 @@ const handleSubmit = async () => {
     }
 
     if (!representative.value || representative.value.trim() === '') {
-      alert('대표자명은 필수 입력 항목입니다.');
+      showWarning('대표자명은 필수 입력 항목입니다.');
       setTimeout(() => {
         const representativeInput = document.getElementById('representative');
         if (representativeInput) {
@@ -297,7 +300,7 @@ const handleSubmit = async () => {
     // 사업자등록번호 형식 검증 (10자리 숫자)
     const businessNumberDigits = businessNumber.value.replace(/[^0-9]/g, '');
     if (businessNumberDigits.length !== 10) {
-      alert('사업자등록번호는 10자리여야 합니다.');
+      showWarning('사업자등록번호는 10자리여야 합니다.');
       setTimeout(() => {
         const businessNumberInput = document.getElementById('businessNumber');
         if (businessNumberInput) {
@@ -313,7 +316,7 @@ const handleSubmit = async () => {
     if (mobile.value && mobile.value.trim() !== '') {
       const mobileNumber = mobile.value.replace(/[^0-9]/g, '');
       if (mobileNumber.length !== 11 || !mobileNumber.startsWith('010')) {
-        alert('휴대폰번호 형식이 올바르지 않습니다.');
+        showWarning('휴대폰번호 형식이 올바르지 않습니다.');
         setTimeout(() => {
           const mobileInput = document.getElementById('mobile');
           if (mobileInput) {
@@ -328,7 +331,7 @@ const handleSubmit = async () => {
 
     const currentUser = await supabase.auth.getUser();
     if (!currentUser.data.user) {
-      alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
+      showError('로그인 정보가 없습니다. 다시 로그인해주세요.');
       loading.value = false;
       return;
     }
@@ -351,7 +354,7 @@ const handleSubmit = async () => {
       }
       
       if (existingCompany) {
-        alert('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
+        showWarning('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
         setTimeout(() => {
           const businessNumberInput = document.getElementById('businessNumber');
           if (businessNumberInput) {
@@ -379,17 +382,17 @@ const handleSubmit = async () => {
       .eq('id', companyId.value)
       
     if (error) {
-      alert('수정 실패: ' + error.message)
+      showError('수정 실패: ' + error.message)
       loading.value = false;
       return
     }
     
-    alert('수정되었습니다.')
+    showSuccess('수정되었습니다.')
     router.push('/my-info')
     
   } catch (err) {
     console.error('수정 오류:', err)
-    alert('수정 중 오류가 발생했습니다: ' + (err.message || err))
+    showError('수정 중 오류가 발생했습니다: ' + (err.message || err))
   } finally {
     loading.value = false
   }

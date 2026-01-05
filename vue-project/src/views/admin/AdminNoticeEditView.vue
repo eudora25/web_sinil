@@ -45,6 +45,9 @@
 import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -92,7 +95,7 @@ onMounted(async () => {
     .eq('id', route.params.id)
     .single();
   if (error) {
-    alert('데이터 로드 실패: ' + error.message);
+    showError('데이터 로드 실패: ' + error.message);
     router.push('/admin/notices');
     return;
   }
@@ -166,7 +169,7 @@ function onFileChange(e) {
   // 파일 개수 제한 (5개)
   const remainingSlots = 5 - files.value.length;
   if (remainingSlots <= 0) {
-    alert('최대 5개 파일까지만 첨부할 수 있습니다.');
+    showWarning('최대 5개 파일까지만 첨부할 수 있습니다.');
     e.target.value = '';
     return;
   }
@@ -175,7 +178,7 @@ function onFileChange(e) {
   const maxSize = 10 * 1024 * 1024; // 10MB in bytes
   const oversizedFiles = selected.filter(file => file.size > maxSize);
   if (oversizedFiles.length > 0) {
-    alert(`파일 크기는 10MB 이하만 가능합니다. 다음 파일들이 크기를 초과했습니다:\n${oversizedFiles.map(f => f.name).join('\n')}`);
+    showWarning(`파일 크기는 10MB 이하만 가능합니다. 다음 파일들이 크기를 초과했습니다:\n${oversizedFiles.map(f => f.name).join('\n')}`);
     e.target.value = '';
     return;
   }
@@ -186,7 +189,7 @@ function onFileChange(e) {
   
   // 추가할 수 있는 개수보다 많이 선택했을 경우 알림
   if (selected.length > remainingSlots) {
-    alert(`최대 5개 파일까지만 첨부할 수 있습니다. ${filesToAdd.length}개 파일만 추가되었습니다.`);
+    showWarning(`최대 5개 파일까지만 첨부할 수 있습니다. ${filesToAdd.length}개 파일만 추가되었습니다.`);
   }
   
   e.target.value = '';
@@ -199,12 +202,12 @@ function removeFile(idx) {
 const handleSubmit = async () => {
   // 필수 필드 검증
   if (!title.value || title.value.trim() === '') {
-    alert('제목은 필수 입력 항목입니다.');
+    showWarning('제목은 필수 입력 항목입니다.');
     return;
   }
   
   if (!content.value || content.value.trim() === '') {
-    alert('내용은 필수 입력 항목입니다.');
+    showWarning('내용은 필수 입력 항목입니다.');
     return;
   }
 
@@ -225,7 +228,7 @@ const handleSubmit = async () => {
         .from('notices')
         .upload(filePath, f);
       if (error) {
-        alert('파일 업로드 실패: ' + error.message);
+        showError('파일 업로드 실패: ' + error.message);
         return;
       }
       const url = data?.path
@@ -253,9 +256,9 @@ const handleSubmit = async () => {
 
   if (updateError) {
     console.error('Update error:', updateError);
-    alert('수정 실패: ' + updateError.message);
+    showError('수정 실패: ' + updateError.message);
   } else {
-    alert('수정되었습니다.');
+    showSuccess('수정되었습니다.');
     router.push('/admin/notices');
   }
 };

@@ -241,6 +241,9 @@ import Row from 'primevue/row';
 import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const columnWidths = {
   no: '3%',
@@ -848,7 +851,7 @@ function onPageChange(event) {
 // 엑셀 다운로드
 const downloadExcel = async () => {
   if (displayRows.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.');
+    showWarning('다운로드할 데이터가 없습니다.');
     return;
   }
 

@@ -52,6 +52,9 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -275,7 +278,7 @@ async function downloadFile(fileUrl, fileName = null) {
 
   } catch (err) {
     console.error('파일 다운로드 오류:', err);
-    alert('파일을 다운로드하는 중 오류가 발생했습니다.');
+    showError('파일을 다운로드하는 중 오류가 발생했습니다.');
   }
 }
 
@@ -284,13 +287,14 @@ function goList() {
 }
 
 async function handleDelete() {
-  if (!confirm('정말 삭제하시겠습니까?')) return;
+  const confirmed = await showConfirm('정말 삭제하시겠습니까?');
+  if (!confirmed) return;
   const { error } = await supabase.from('notices').delete().eq('id', route.params.id);
   if (!error) {
-    alert('삭제되었습니다.');
+    showSuccess('삭제되었습니다.');
     router.push('/admin/notices');
   } else {
-    alert('삭제 실패: ' + error.message);
+    showError('삭제 실패: ' + error.message);
   }
 }
 </script> 

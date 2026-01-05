@@ -45,6 +45,9 @@
 import { ref, onMounted, nextTick, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -135,13 +138,13 @@ onMounted(async () => {
 
 const handleSubmit = async () => {
   if (!isFormValid.value) {
-    alert('필수 항목을 모두 입력하고 변경사항이 있어야 합니다.');
+    showWarning('필수 항목을 모두 입력하고 변경사항이 있어야 합니다.');
     return;
   }
 
   // 날짜 검증
   if (new Date(endDate.value) <= new Date(startDate.value)) {
-    alert('실적입력 종료일이 실적입력 시작일보다 이전 날짜입니다.');
+    showWarning('실적입력 종료일이 실적입력 시작일보다 이전 날짜입니다.');
     return;
   }
 
@@ -159,9 +162,9 @@ const handleSubmit = async () => {
     .eq('id', route.params.id);
 
   if (error) {
-    alert('수정 실패: ' + error.message);
+    showError('수정 실패: ' + error.message);
   } else {
-    alert('수정되었습니다.');
+    showSuccess('수정되었습니다.');
     router.push('/admin/settlement-months');
   }
 };

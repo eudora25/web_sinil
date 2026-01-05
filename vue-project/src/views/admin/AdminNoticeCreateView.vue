@@ -45,6 +45,9 @@
 import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const title = ref('');
 const content = ref('');
@@ -81,7 +84,7 @@ function onFileChange(e) {
   // 파일 개수 제한 (5개)
   const remainingSlots = 5 - files.value.length;
   if (remainingSlots <= 0) {
-    alert('최대 5개 파일까지만 첨부할 수 있습니다.');
+    showWarning('최대 5개 파일까지만 첨부할 수 있습니다.');
     e.target.value = '';
     return;
   }
@@ -90,7 +93,7 @@ function onFileChange(e) {
   const maxSize = 10 * 1024 * 1024; // 10MB in bytes
   const oversizedFiles = selected.filter(file => file.size > maxSize);
   if (oversizedFiles.length > 0) {
-    alert(`파일 크기는 10MB 이하만 가능합니다. 다음 파일들이 크기를 초과했습니다:\n${oversizedFiles.map(f => f.name).join('\n')}`);
+    showWarning(`파일 크기는 10MB 이하만 가능합니다. 다음 파일들이 크기를 초과했습니다:\n${oversizedFiles.map(f => f.name).join('\n')}`);
     e.target.value = '';
     return;
   }
@@ -101,7 +104,7 @@ function onFileChange(e) {
   
   // 추가할 수 있는 개수보다 많이 선택했을 경우 알림
   if (selected.length > remainingSlots) {
-    alert(`최대 5개 파일까지만 첨부할 수 있습니다. ${filesToAdd.length}개 파일만 추가되었습니다.`);
+    showWarning(`최대 5개 파일까지만 첨부할 수 있습니다. ${filesToAdd.length}개 파일만 추가되었습니다.`);
   }
   
   e.target.value = '';
@@ -115,7 +118,7 @@ function removeFile(idx) {
     // 현재 사용자 정보 가져오기
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
+      showError('로그인 정보가 없습니다. 다시 로그인해주세요.');
       return;
     }
     
@@ -143,7 +146,7 @@ function removeFile(idx) {
         .from('notices')
         .upload(filePath, f);
       if (error) {
-        alert('파일 업로드 실패: ' + error.message);
+        showError('파일 업로드 실패: ' + error.message);
         return;
       }
       const url = data?.path
@@ -173,9 +176,9 @@ function removeFile(idx) {
 
     if (insertError) {
       console.error('Insert error:', insertError);
-      alert('등록 실패: ' + insertError.message);
+      showError('등록 실패: ' + insertError.message);
     } else {
-      alert('등록되었습니다.');
+      showSuccess('등록되었습니다.');
       router.push('/admin/notices');
     }
   };

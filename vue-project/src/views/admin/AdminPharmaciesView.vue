@@ -293,9 +293,13 @@ import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
+import { formatBusinessNumber } from '@/utils/formatUtils'
 import ExcelJS from 'exceljs'
 import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 // 컬럼 너비 한 곳에서 관리
 const columnWidths = {
@@ -381,19 +385,19 @@ function formatBusinessNumberModal(event) {
 async function handleCreateSubmit() {
   // 필수 필드 검증
   if (!newPharmacy.value.name || newPharmacy.value.name.trim() === '') {
-    alert('약국명은 필수 입력 항목입니다.')
+    showWarning('약국명은 필수 입력 항목입니다.')
     return
   }
 
   if (!newPharmacy.value.business_registration_number || newPharmacy.value.business_registration_number.trim() === '') {
-    alert('사업자등록번호는 필수 입력 항목입니다.')
+    showWarning('사업자등록번호는 필수 입력 항목입니다.')
     return
   }
 
   // 사업자등록번호 형식 검증 (10자리 숫자)
   const businessNumberDigits = newPharmacy.value.business_registration_number.replace(/[^0-9]/g, '')
   if (businessNumberDigits.length !== 10) {
-    alert('사업자등록번호는 10자리여야 합니다.')
+    showWarning('사업자등록번호는 10자리여야 합니다.')
     return
   }
 
@@ -405,19 +409,19 @@ async function handleCreateSubmit() {
     .single()
 
   if (checkError && checkError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
-    alert('중복 확인 중 오류가 발생했습니다: ' + checkError.message)
+    showError('중복 확인 중 오류가 발생했습니다: ' + checkError.message)
     return
   }
 
   if (existingPharmacy) {
-    alert(`이미 등록된 사업자등록번호입니다.\n등록된 약국: ${existingPharmacy.name}`)
+    showWarning(`이미 등록된 사업자등록번호입니다.\n등록된 약국: ${existingPharmacy.name}`)
     return
   }
 
   // 현재 사용자 정보 가져오기
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    alert('로그인 정보가 없습니다. 다시 로그인해주세요.')
+    showError('로그인 정보가 없습니다. 다시 로그인해주세요.')
     return
   }
 
@@ -433,9 +437,9 @@ async function handleCreateSubmit() {
 
   const { error } = await supabase.from('pharmacies').insert([dataToInsert])
   if (error) {
-    alert('등록 실패: ' + error.message)
+    showError('등록 실패: ' + error.message)
   } else {
-    alert('등록되었습니다.')
+    showSuccess('등록되었습니다.')
     closeCreateModal()
     await fetchPharmacies() // 목록 새로고침
   }
@@ -549,7 +553,7 @@ const saveEdit = async (row) => {
   try {
     // 필수 필드 검증
     if (!row.name || row.name.trim() === '') {
-      alert('약국명은 필수 입력 항목입니다.');
+      showWarning('약국명은 필수 입력 항목입니다.');
       await nextTick();
       setTimeout(() => {
         const nameInput = document.getElementById(`name_${row.id}`);
@@ -562,7 +566,7 @@ const saveEdit = async (row) => {
     }
 
     if (!row.business_registration_number || row.business_registration_number.trim() === '') {
-      alert('사업자등록번호는 필수 입력 항목입니다.');
+      showWarning('사업자등록번호는 필수 입력 항목입니다.');
       await nextTick();
       setTimeout(() => {
         const businessNumberInput = document.getElementById(`business_registration_number_${row.id}`);
@@ -577,7 +581,7 @@ const saveEdit = async (row) => {
     // 사업자등록번호 형식 검증 (10자리 숫자)
     const businessNumberDigits = row.business_registration_number.replace(/[^0-9]/g, '');
     if (businessNumberDigits.length !== 10) {
-      alert('사업자등록번호는 10자리여야 합니다.');
+      showWarning('사업자등록번호는 10자리여야 합니다.');
       await nextTick();
       setTimeout(() => {
         const businessNumberInput = document.getElementById(`business_registration_number_${row.id}`);
@@ -591,7 +595,7 @@ const saveEdit = async (row) => {
 
     // 상태 값 검증
     if (!['active', 'inactive'].includes(row.status)) {
-      alert('상태는 active 또는 inactive여야 합니다.')
+      showWarning('상태는 active 또는 inactive여야 합니다.')
       return
     }
 
@@ -607,7 +611,7 @@ const saveEdit = async (row) => {
     const { error } = await supabase.from('pharmacies').update(updateData).eq('id', row.id)
 
     if (error) {
-      alert('수정 실패: ' + error.message)
+      showError('수정 실패: ' + error.message)
       return
     }
 
@@ -615,16 +619,17 @@ const saveEdit = async (row) => {
     row.isEditing = false
     row.originalData = { ...row }
 
-    alert('수정되었습니다.')
+    showSuccess('수정되었습니다.')
   } catch (error) {
     console.error('수정 오류:', error)
-    alert('수정 중 오류가 발생했습니다.')
+    showError('수정 중 오류가 발생했습니다.')
   }
 }
 
 // 삭제
 const deletePharmacy = async (row) => {
-  if (!confirm('정말 삭제하시겠습니까?')) {
+  const confirmed = await showConfirm('정말 삭제하시겠습니까?', '삭제 확인');
+  if (!confirmed) {
     return
   }
 
@@ -640,7 +645,7 @@ const deletePharmacy = async (row) => {
     }
 
     if (isReferenceExist != 0) {
-      alert(`이 약국(${row.name})은 이미 사용되고 있어 삭제할 수 없습니다.`);
+      showWarning(`이 약국(${row.name})은 이미 사용되고 있어 삭제할 수 없습니다.`);
       return;
     }
 
@@ -656,10 +661,10 @@ const deletePharmacy = async (row) => {
       pharmacies.value.splice(index, 1)
     }
 
-    alert('삭제되었습니다.')
+    showSuccess('삭제되었습니다.')
   } catch (error) {
     console.error('삭제 오류:', error)
-    alert('삭제 중 오류가 발생했습니다.')
+    showError('삭제 중 오류가 발생했습니다.')
   }
 }
 
@@ -776,7 +781,7 @@ const handleFileUpload = async (event) => {
     const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
-      alert('엑셀 파일에 데이터가 없습니다.')
+      showWarning('엑셀 파일에 데이터가 없습니다.')
       return
     }
 
@@ -785,7 +790,8 @@ const handleFileUpload = async (event) => {
 
     // 1단계: 기존 데이터 존재 시 확인
     if (hasExistingData) {
-      if (!confirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?')) {
+      const confirmed = await showConfirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?', '데이터 확인');
+      if (!confirmed) {
         event.target.value = ''
         return
       }
@@ -859,7 +865,7 @@ const handleFileUpload = async (event) => {
     })
 
     if (errors.length > 0) {
-      alert('데이터 오류:\n' + errors.join('\n'))
+      showError('데이터 오류:\n' + errors.join('\n'))
       return
     }
 
@@ -873,7 +879,7 @@ const handleFileUpload = async (event) => {
       .select('pharmacy_code, business_registration_number, name')
 
     if (fetchError) {
-      alert('기존 데이터 조회 중 오류가 발생했습니다: ' + fetchError.message)
+      showError('기존 데이터 조회 중 오류가 발생했습니다: ' + fetchError.message)
       return
     }
 
@@ -918,7 +924,8 @@ const handleFileUpload = async (event) => {
       
       // 중복 발견 시 계속 진행 여부 확인
       const duplicateCount = duplicateErrors.length
-      if (!confirm(`중복 오류가 ${duplicateCount}건 발견되었습니다:\n\n` + duplicateErrors.join('\n') + `\n\n계속 등록 작업을 진행하시겠습니까?`)) {
+      const confirmed = await showConfirm(`중복 오류가 ${duplicateCount}건 발견되었습니다:\n\n` + duplicateErrors.join('\n') + `\n\n계속 등록 작업을 진행하시겠습니까?`, '중복 확인');
+      if (!confirmed) {
         return
       }
 
@@ -951,7 +958,7 @@ const handleFileUpload = async (event) => {
               .eq('id', pharmacy.id)
 
             if (deleteError) {
-              alert('기존 약국 삭제 실패: ' + deleteError.message)
+              showError('기존 약국 삭제 실패: ' + deleteError.message)
               return
             }
           }
@@ -984,7 +991,7 @@ const handleFileUpload = async (event) => {
     })
 
     if (insertData.length === 0) {
-      alert('등록할 데이터가 없습니다.')
+      showWarning('등록할 데이터가 없습니다.')
       return
     }
 
@@ -1068,11 +1075,15 @@ const handleFileUpload = async (event) => {
       message += `\n실패: ${insertErrors.length}건`
     }
 
-    alert(message)
+    if (insertErrors.length > 0) {
+      showError(message + '\n\n실패 상세:\n' + insertErrors.join('\n'))
+    } else {
+      showSuccess(message)
+    }
     await fetchPharmacies() // 목록 새로고침
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    alert('파일 처리 중 오류가 발생했습니다.')
+    showError('파일 처리 중 오류가 발생했습니다.')
   } finally {
     // 엑셀 등록 로딩 종료
     excelLoading.value = false
@@ -1099,12 +1110,12 @@ const downloadExcel = async () => {
     const { data: allPharmacies, error } = await query
 
     if (error) {
-      alert('데이터 조회 실패: ' + error.message)
+      showError('데이터 조회 실패: ' + error.message)
       return
     }
 
     if (!allPharmacies || allPharmacies.length === 0) {
-      alert('다운로드할 데이터가 없습니다.')
+      showWarning('다운로드할 데이터가 없습니다.')
       return
     }
 
@@ -1204,7 +1215,7 @@ const downloadExcel = async () => {
   window.URL.revokeObjectURL(url)
   } catch (error) {
     console.error('엑셀 다운로드 오류:', error)
-    alert('엑셀 다운로드 중 오류가 발생했습니다.')
+    showError('엑셀 다운로드 중 오류가 발생했습니다.')
   }
 }
 
@@ -1494,19 +1505,6 @@ function showUploadChoiceModal() {
   })
 }
 
-// 사업자번호 형식 변환 함수 (표시용)
-function formatBusinessNumber(businessNumber) {
-  if (!businessNumber) return '-';
-
-  // 숫자만 추출
-  const numbers = businessNumber.replace(/[^0-9]/g, '');
-
-  // 10자리가 아니면 원본 반환
-  if (numbers.length !== 10) return businessNumber;
-
-  // 형식 변환: ###-##-#####
-  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
-}
 
 onMounted(() => {
   fetchPharmacies()

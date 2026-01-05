@@ -303,6 +303,10 @@ import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
 import { read, utils } from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
+import { formatBusinessNumber } from '@/utils/formatUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const router = useRouter()
 const clients = ref([])
@@ -549,7 +553,7 @@ const handleFileUpload = async (event) => {
     const jsonData = utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
-      alert('엑셀 파일에 데이터가 없습니다.')
+      showWarning('엑셀 파일에 데이터가 없습니다.')
       return
     }
 
@@ -565,7 +569,7 @@ const handleFileUpload = async (event) => {
       .select('id, business_registration_number')
 
     if (clientError || companyError) {
-      alert('병의원 또는 업체 정보 조회 중 오류가 발생했습니다.')
+      showError('병의원 또는 업체 정보 조회 중 오류가 발생했습니다.')
       console.error(clientError || companyError)
       return
     }
@@ -603,7 +607,7 @@ const handleFileUpload = async (event) => {
     }
 
     if (errors.length > 0) {
-      alert('데이터 오류:\n' + errors.join('\n'))
+      showError('데이터 오류:\n' + errors.join('\n'))
       return
     }
 
@@ -612,15 +616,15 @@ const handleFileUpload = async (event) => {
         .from('client_company_assignments')
         .upsert(assignmentsToUpload, { onConflict: 'client_id,company_id' })
       if (error) {
-        alert('업로드 실패: ' + error.message)
+        showError('업로드 실패: ' + error.message)
       } else {
-        alert(`${assignmentsToUpload.length}건의 담당업체 지정 정보가 업로드/갱신되었습니다.`)
+        showSuccess(`${assignmentsToUpload.length}건의 담당업체 지정 정보가 업로드/갱신되었습니다.`)
         await fetchClients() // 목록 새로고침
       }
     }
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    alert('파일 처리 중 오류가 발생했습니다.')
+    showError('파일 처리 중 오류가 발생했습니다.')
   } finally {
     // 엑셀 등록 로딩 종료
     excelLoading.value = false
@@ -633,7 +637,7 @@ const handleFileUpload = async (event) => {
 const downloadExcel = async () => {
   try {
     if (filteredClients.value.length === 0) {
-      alert('다운로드할 데이터가 없습니다.')
+      showWarning('다운로드할 데이터가 없습니다.')
       return
     }
   const excelData = []
@@ -750,7 +754,7 @@ const downloadExcel = async () => {
   window.URL.revokeObjectURL(url)
   } catch (error) {
     console.error('엑셀 다운로드 오류:', error)
-    alert('엑셀 다운로드 중 오류가 발생했습니다.')
+    showError('엑셀 다운로드 중 오류가 발생했습니다.')
   }
 }
 
@@ -777,17 +781,4 @@ function goToCompanyDetail(companyId) {
   })
 }
 
-// 사업자번호 형식 변환 함수
-function formatBusinessNumber(businessNumber) {
-  if (!businessNumber) return '-';
-
-  // 숫자만 추출
-  const numbers = businessNumber.replace(/[^0-9]/g, '');
-
-  // 10자리가 아니면 원본 반환
-  if (numbers.length !== 10) return businessNumber;
-
-  // 형식 변환: ###-##-#####
-  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
-}
 </script>

@@ -49,6 +49,9 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const pharmacyCode = ref('');
 const name = ref('');
@@ -119,7 +122,7 @@ const handleBackspace = (event) => {
 const handleSubmit = async () => {
   // 필수 필드 검증
   if (!name.value || name.value.trim() === '') {
-    alert('약국명은 필수 입력 항목입니다.');
+    showWarning('약국명은 필수 입력 항목입니다.');
     setTimeout(() => {
       const nameInput = document.getElementById('name');
       if (nameInput) {
@@ -131,7 +134,7 @@ const handleSubmit = async () => {
   }
 
   if (!businessNumber.value || businessNumber.value.trim() === '') {
-    alert('사업자등록번호는 필수 입력 항목입니다.');
+    showWarning('사업자등록번호는 필수 입력 항목입니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -145,7 +148,7 @@ const handleSubmit = async () => {
   // 사업자등록번호 형식 검증 (10자리 숫자)
   const businessNumberDigits = businessNumber.value.replace(/[^0-9]/g, '');
   if (businessNumberDigits.length !== 10) {
-    alert('사업자등록번호는 10자리여야 합니다.');
+    showWarning('사업자등록번호는 10자리여야 합니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -165,12 +168,12 @@ const handleSubmit = async () => {
 
   if (checkError) {
     console.error('사업자등록번호 중복 검사 실패:', checkError);
-    alert(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
+    showError(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
     return;
   }
 
   if (existingPharmacy) {
-    alert(`이미 등록된 사업자등록번호입니다.\n등록된 약국: ${existingPharmacy.name}`);
+    showWarning(`이미 등록된 사업자등록번호입니다.\n등록된 약국: ${existingPharmacy.name}`);
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -184,7 +187,7 @@ const handleSubmit = async () => {
   // 현재 사용자 정보 가져오기
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
+    showError('로그인 정보가 없습니다. 다시 로그인해주세요.');
     return;
   }
 
@@ -199,9 +202,9 @@ const handleSubmit = async () => {
   };
   const { error } = await supabase.from('pharmacies').insert([dataToInsert]);
   if (error) {
-    alert('등록 실패: ' + error.message);
+    showError('등록 실패: ' + error.message);
   } else {
-    alert('등록되었습니다.');
+    showSuccess('등록되었습니다.');
     router.push('/admin/pharmacies');
   }
 };

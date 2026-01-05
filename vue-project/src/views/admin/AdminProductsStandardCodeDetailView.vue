@@ -59,6 +59,9 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -101,13 +104,13 @@ onMounted(async () => {
     
   if (error) {
     console.error('❌ 표준코드 데이터 로드 실패:', error);
-    alert('데이터를 불러오는데 실패했습니다.');
+    showError('데이터를 불러오는데 실패했습니다.');
     return;
   }
   
   if (!data) {
     console.error('❌ 표준코드 데이터가 없습니다.');
-    alert('해당 표준코드를 찾을 수 없습니다.');
+    showError('해당 표준코드를 찾을 수 없습니다.');
     return;
   }
   
@@ -203,13 +206,14 @@ function goList() {
 }
 
 async function handleDelete() {
-  if (!confirm('정말 삭제하시겠습니까?')) return;
+  const confirmed = await showConfirm('정말 삭제하시겠습니까?');
+  if (!confirmed) return;
   const { error } = await supabase.from('products_standard_code').delete().eq('id', route.params.id);
   if (!error) {
-    alert('삭제되었습니다.');
+    showSuccess('삭제되었습니다.');
     router.push('/admin/products-standard-code');
   } else {
-    alert('삭제 실패: ' + error.message);
+    showError('삭제 실패: ' + error.message);
   }
 }
 </script> 

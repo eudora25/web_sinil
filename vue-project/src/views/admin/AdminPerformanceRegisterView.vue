@@ -461,6 +461,9 @@ import Row from 'primevue/row';
 import { supabase } from '@/supabase'
 import { useRouter } from 'vue-router'
 import ExcelJS from 'exceljs'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const columnWidths = {
   no: '4%',
@@ -667,7 +670,7 @@ const viewModalTotalAmount = computed(() =>
 
 const viewDetails = (client) => {
   if (!selectedSettlementMonth.value) {
-    alert('정산월을 선택해주세요.')
+    showWarning('정산월을 선택해주세요.')
     return
   }
 
@@ -723,11 +726,11 @@ async function fetchViewModalData(clientId) {
 
 const registerPerformance = (client) => {
   if (!selectedSettlementMonth.value) {
-    alert('정산월을 선택해주세요.')
+    showWarning('정산월을 선택해주세요.')
     return
   }
   if (!selectedCompanyId.value) {
-    alert('업체를 선택해주세요.')
+    showWarning('업체를 선택해주세요.')
     return
   }
 
@@ -794,7 +797,7 @@ async function downloadFile(file) {
     .from('performance-evidence')
     .download(file.file_path)
   if (error) {
-    alert('파일 다운로드에 실패했습니다.')
+    showError('파일 다운로드에 실패했습니다.')
     return
   }
   const url = URL.createObjectURL(data)
@@ -816,7 +819,7 @@ async function deleteFile(file, index) {
 }
 async function downloadAllFiles() {
   if (clientFiles.value.length === 0) {
-    alert('다운로드할 파일이 없습니다.')
+    showWarning('다운로드할 파일이 없습니다.')
     return
   }
   const zip = new window.JSZip()
@@ -842,7 +845,7 @@ async function downloadAllFiles() {
       URL.revokeObjectURL(link.href)
     })
     .catch((err) => {
-      alert('ZIP 파일 생성에 실패했습니다.')
+      showError('ZIP 파일 생성에 실패했습니다.')
     })
 }
 
@@ -865,7 +868,7 @@ function handleFileSelect(event) {
   const totalFiles = selectedFiles.value.length + newFiles.length
 
   if (totalFiles > 10) {
-    alert('최대 10개의 파일만 선택할 수 있습니다.')
+    showWarning('최대 10개의 파일만 선택할 수 있습니다.')
     return
   }
 
@@ -894,7 +897,7 @@ async function uploadFiles() {
         .from('performance-evidence')
         .upload(filePath, file)
       if (uploadError) {
-        alert(`파일 업로드 실패: ${file.name}`)
+        showError(`파일 업로드 실패: ${file.name}`)
         continue
       }
       await supabase.from('performance_evidence_files').insert({
@@ -907,11 +910,11 @@ async function uploadFiles() {
         uploaded_by: null, // 필요시 사용자 ID로 변경
       })
     }
-    alert('파일 업로드가 완료되었습니다.')
+    showSuccess('파일 업로드가 완료되었습니다.')
     closeUploadModal()
     await fetchClientList() // 목록 새로고침
   } catch (err) {
-    alert('파일 업로드 중 오류가 발생했습니다.')
+    showError('파일 업로드 중 오류가 발생했습니다.')
   } finally {
     uploading.value = false
   }
@@ -969,7 +972,7 @@ function goToClientDetail(clientId) {
 // 엑셀 다운로드 함수
 async function downloadExcel() {
   if (!clientList.value || clientList.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.')
+    showWarning('다운로드할 데이터가 없습니다.')
     return
   }
 

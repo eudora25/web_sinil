@@ -110,6 +110,9 @@ import Button from 'primevue/button'
 import { supabase } from '@/supabase'
 import TopNavigationBar from '@/components/TopNavigationBar.vue'
 import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const email = ref('')
 const password = ref('')
@@ -175,7 +178,7 @@ const checkValidations = (event) => {
   if (event.target.id === 'companyName') {
     if (confirmPassword.value && password.value !== confirmPassword.value) {
       event.target.blur();
-      alert('비밀번호가 일치하지 않습니다.');
+      showWarning('비밀번호가 일치하지 않습니다.');
       setTimeout(() => {
         const confirmPasswordInput = document.getElementById('confirmPassword');
         if (confirmPasswordInput) {
@@ -191,7 +194,7 @@ const checkValidations = (event) => {
     const businessNumberDigits = businessNumber.value.replace(/[^0-9]/g, '');
     if (businessNumberDigits.length !== 10) {
       event.target.blur();
-      alert('사업자등록번호는 10자리여야 합니다.');
+      showWarning('사업자등록번호는 10자리여야 합니다.');
       setTimeout(() => {
         const businessNumberInput = document.getElementById('businessNumber');
         if (businessNumberInput) {
@@ -358,19 +361,19 @@ const handleSubmit = async () => {
     !businessNumber.value ||
     !representative.value
   ) {
-    alert('필수 항목을 모두 입력해 주세요.');
+    showWarning('필수 항목을 모두 입력해 주세요.');
     return;
   }
 
   if (password.value !== confirmPassword.value) {
-    alert('비밀번호가 일치하지 않습니다.');
+    showWarning('비밀번호가 일치하지 않습니다.');
     return;
   }
 
   // 사업자등록번호 형식 검증
   const businessNumberDigits = businessNumber.value.replace(/[^0-9]/g, '');
   if (businessNumberDigits.length !== 10) {
-    alert('사업자등록번호는 10자리여야 합니다.');
+    showWarning('사업자등록번호는 10자리여야 합니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -385,7 +388,7 @@ const handleSubmit = async () => {
   if (mobile.value && mobile.value.trim() !== '') {
     const mobileNumber = mobile.value.replace(/[^0-9]/g, '');
     if (mobileNumber.length !== 11 || !mobileNumber.startsWith('010')) {
-      alert('휴대폰번호 형식이 올바르지 않습니다.');
+      showWarning('휴대폰번호 형식이 올바르지 않습니다.');
       setTimeout(() => {
         const mobileInput = document.getElementById('mobile');
         if (mobileInput) {
@@ -401,7 +404,7 @@ const handleSubmit = async () => {
   if (mobile2.value && mobile2.value.trim() !== '') {
     const mobile2Number = mobile2.value.replace(/[^0-9]/g, '');
     if (mobile2Number.length !== 11 || !mobile2Number.startsWith('010')) {
-      alert('휴대폰번호2 형식이 올바르지 않습니다.');
+      showWarning('휴대폰번호2 형식이 올바르지 않습니다.');
       setTimeout(() => {
         const mobile2Input = document.getElementById('mobile2');
         if (mobile2Input) {
@@ -417,7 +420,7 @@ const handleSubmit = async () => {
   if (landline.value && landline.value.trim() !== '') {
     const landlineNumber = landline.value.replace(/[^0-9]/g, '');
     if (!landlineNumber.startsWith('0')) {
-      alert('유선전화 형식이 올바르지 않습니다.');
+      showWarning('유선전화 형식이 올바르지 않습니다.');
       setTimeout(() => {
         const landlineInput = document.getElementById('landline');
         if (landlineInput) {
@@ -431,7 +434,7 @@ const handleSubmit = async () => {
     // 서울(02)은 10자리, 나머지는 11자리
     if (landlineNumber.startsWith('02')) {
       if (landlineNumber.length !== 10) {
-        alert('유선전화 번호 형식이 올바르지 않습니다.');
+        showWarning('유선전화 번호 형식이 올바르지 않습니다.');
         setTimeout(() => {
           const landlineInput = document.getElementById('landline');
           if (landlineInput) {
@@ -443,7 +446,7 @@ const handleSubmit = async () => {
       }
     } else {
       if (landlineNumber.length !== 11) {
-        alert('유선전화 번호 형식이 올바르지 않습니다.');
+        showWarning('유선전화 번호 형식이 올바르지 않습니다.');
         setTimeout(() => {
           const landlineInput = document.getElementById('landline');
           if (landlineInput) {
@@ -460,7 +463,7 @@ const handleSubmit = async () => {
   if (receiveEmail.value && receiveEmail.value.trim() !== '') {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(receiveEmail.value)) {
-      alert('수신용 이메일 형식이 올바르지 않습니다.');
+      showWarning('수신용 이메일 형식이 올바르지 않습니다.');
       setTimeout(() => {
         const receiveEmailInput = document.getElementById('receiveEmail');
         if (receiveEmailInput) {
@@ -488,7 +491,7 @@ const handleSubmit = async () => {
     }
     
     if (existingCompanies && existingCompanies.length > 0) {
-      alert('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
+      showWarning('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
       setTimeout(() => {
         const businessNumberInput = document.getElementById('businessNumber');
         if (businessNumberInput) {
@@ -553,25 +556,25 @@ const handleSubmit = async () => {
                 errorMessage = translateSupabaseError(error, '업체 등록');
               }
               
-              alert(errorMessage);
+              showError(errorMessage);
               return;
             }
             
             if (!data.user || !data.company) {
-              alert('사용자 계정 또는 회사 정보 생성에 실패했습니다.');
+              showError('사용자 계정 또는 회사 정보 생성에 실패했습니다.');
               return;
             }
             
             // console.log('✅ 사용자 계정 생성됨:', data.user.id);
             // console.log('✅ 회사 정보 생성됨:', data.company.id);
     
-    alert('등록되었습니다.');
+    showSuccess('등록되었습니다.');
     const from = route.query?.from === 'pending' ? 'pending' : 'approved';
     router.push(`/admin/companies/${from}`);
   } catch (err) {
     console.error('업체 등록 오류:', err);
     const errorMessage = translateGeneralError(err, '업체 등록');
-    alert(errorMessage);
+    showError(errorMessage);
   } finally {
     loading.value = false;
   }

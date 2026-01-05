@@ -185,6 +185,9 @@ import Row from 'primevue/row';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -217,7 +220,7 @@ const columnWidths = {
 
 onMounted(async () => {
   if (!month.value || !companyId.value) {
-    alert('잘못된 접근입니다. 정산 공유 페이지에서 다시 접근해주세요.');
+    showWarning('잘못된 접근입니다. 정산 공유 페이지에서 다시 접근해주세요.');
     router.push('/admin/settlement-share');
     return;
   }
@@ -516,7 +519,7 @@ async function loadDetailData() {
       details: err.details,
       hint: err.hint 
     });
-    alert('상세 데이터를 불러오는 중 오류가 발생했습니다: ' + err.message);
+    showError('상세 데이터를 불러오는 중 오류가 발생했습니다: ' + err.message);
     detailRows.value = [];
   } finally {
     loading.value = false;
@@ -598,7 +601,7 @@ function goBack() {
 
 async function downloadExcel() {
   if (detailRows.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.');
+    showWarning('다운로드할 데이터가 없습니다.');
     return;
   }
   

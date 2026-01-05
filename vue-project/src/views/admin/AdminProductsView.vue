@@ -321,8 +321,6 @@
         </div>
       </div>
     </div>
-    <Toast />
-    <ConfirmDialog />
   </div>
 </template>
 
@@ -339,8 +337,6 @@ import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils'
 import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages'
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils'
 import { useNotifications } from '@/utils/notifications'
-import Toast from 'primevue/toast'
-import ConfirmDialog from 'primevue/confirmdialog'
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
@@ -2352,5 +2348,6 @@ function showUploadChoiceModal() {
     font-size: 18px;
   }
 }
+
 
 </style>

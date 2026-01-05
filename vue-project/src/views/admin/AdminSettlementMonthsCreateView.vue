@@ -45,6 +45,9 @@
 import { ref, nextTick, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const settlementMonth = ref('');
 const startDate = ref('');
@@ -89,7 +92,7 @@ watch(noticePayment, () => {
 
 const handleSubmit = async () => {
   if (!isFormValid.value) {
-    alert('필수 항목을 모두 입력하세요.');
+    showWarning('필수 항목을 모두 입력하세요.');
     return;
   }
 
@@ -101,20 +104,20 @@ const handleSubmit = async () => {
     .single();
 
   if (existingMonth) {
-    alert('이미 등록된 정산월이 있습니다.');
+    showWarning('이미 등록된 정산월이 있습니다.');
     return;
   }
 
   // 2. 날짜 검증
   if (new Date(endDate.value) <= new Date(startDate.value)) {
-    alert('실적입력 종료일이 실적입력 시작일보다 이전 날짜입니다.');
+    showWarning('실적입력 종료일이 실적입력 시작일보다 이전 날짜입니다.');
     return;
   }
 
   // 현재 사용자 정보 가져오기
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
+    showError('로그인 정보가 없습니다. 다시 로그인해주세요.');
     return;
   }
 
@@ -130,9 +133,9 @@ const handleSubmit = async () => {
   }]);
 
   if (error) {
-    alert('등록 실패: ' + error.message);
+    showError('등록 실패: ' + error.message);
   } else {
-    alert('등록되었습니다.');
+    showSuccess('등록되었습니다.');
     router.push('/admin/settlement-months');
   }
 };

@@ -59,6 +59,9 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -145,15 +148,15 @@ function goList() {
   router.push('/admin/settlement-months');
 }
 async function handleDelete() {
-  if (!confirm('정말 삭제하시겠습니까?')) return;
-
+  const confirmed = await showConfirm('정말 삭제하시겠습니까?');
+  if (!confirmed) return;
 
   const { error } = await supabase.from('settlement_months').delete().eq('id', route.params.id);
   if (!error) {
-    alert('삭제되었습니다.');
+    showSuccess('삭제되었습니다.');
     router.push('/admin/settlement-months');
   } else {
-    alert('삭제 실패: ' + error.message);
+    showError('삭제 실패: ' + error.message);
   }
 }
 </script>

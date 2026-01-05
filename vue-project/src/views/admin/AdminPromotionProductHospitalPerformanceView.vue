@@ -333,6 +333,9 @@ import Row from 'primevue/row';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -459,7 +462,7 @@ async function fetchHospitalPerformance() {
     }));
   } catch (error) {
     console.error('병원 실적 조회 오류:', error);
-    alert('병원 실적 조회 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('병원 실적 조회 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     loading.value = false;
   }
@@ -593,7 +596,7 @@ async function searchHospitals() {
     searchResults.value = (data || []).filter(h => !excludedHospitalIds.has(h.id));
   } catch (error) {
     console.error('병원 검색 오류:', error);
-    alert('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     searchingHospitals.value = false;
   }
@@ -615,7 +618,7 @@ async function addExcludedHospital(hospitalId) {
       if (productsError) throw productsError;
       
       if (!allProducts || allProducts.length === 0) {
-        alert('프로모션 제품이 없습니다.');
+        showWarning('프로모션 제품이 없습니다.');
         return;
       }
       
@@ -642,11 +645,11 @@ async function addExcludedHospital(hospitalId) {
         }
       }
       
-      alert(`제외 병원이 전체 ${productIds.length}개 제품에 추가되었습니다.`);
+      showSuccess(`제외 병원이 전체 ${productIds.length}개 제품에 추가되었습니다.`);
     } else {
       // 현재 제품에만 적용
       if (!promotionProductId.value) {
-        alert('제품 정보가 없습니다.');
+        showWarning('제품 정보가 없습니다.');
         return;
       }
       
@@ -661,7 +664,7 @@ async function addExcludedHospital(hospitalId) {
       
       if (error) throw error;
       
-      alert('제외 병원이 추가되었습니다.');
+      showSuccess('제외 병원이 추가되었습니다.');
       excludedHospitalIds.value.add(hospitalId);
     }
     
@@ -672,21 +675,22 @@ async function addExcludedHospital(hospitalId) {
   } catch (error) {
     console.error('제외 병원 추가 오류:', error);
     if (error.code === '23505') {
-      alert('이미 제외된 병원입니다.');
+      showWarning('이미 제외된 병원입니다.');
     } else {
-      alert('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
+      showError('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
     }
   }
 }
 
 // 제외 병원 삭제
 async function removeExcludedHospital(hospitalId) {
-  if (!confirm('이 병원을 제외 목록에서 제거하시겠습니까?')) {
+  const confirmed = await showConfirm('이 병원을 제외 목록에서 제거하시겠습니까?', '제외 병원 제거 확인');
+  if (!confirmed) {
     return;
   }
   
   if (!promotionProductId.value) {
-    alert('제품 정보가 없습니다.');
+    showWarning('제품 정보가 없습니다.');
     return;
   }
   
@@ -700,14 +704,14 @@ async function removeExcludedHospital(hospitalId) {
     
     if (error) throw error;
     
-    alert('제외 병원이 제거되었습니다.');
+    showSuccess('제외 병원이 제거되었습니다.');
     excludedHospitalIds.value.delete(hospitalId);
     await fetchExcludedHospitals();
     // 병원 실적 목록도 다시 조회하여 isExcluded 플래그 업데이트
     await fetchHospitalPerformance();
   } catch (error) {
     console.error('제외 병원 삭제 오류:', error);
-    alert('제외 병원 삭제 중 오류가 발생했습니다: ' + (error.message || error));
+    showError('제외 병원 삭제 중 오류가 발생했습니다: ' + (error.message || error));
   } finally {
     removingExcluded.value = false;
   }

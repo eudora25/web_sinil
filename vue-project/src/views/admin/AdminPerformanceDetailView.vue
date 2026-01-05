@@ -674,8 +674,6 @@
       </div>
     </div>
     
-    <!-- ConfirmDialog -->
-    <ConfirmDialog />
     
     <!-- 데이터 검증 결과 모달 -->
     <Dialog 
@@ -923,9 +921,7 @@ import ExcelJS from 'exceljs';
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
 import { formatNumber, formatAbsorptionRate, formatBusinessNumber } from '@/utils/formatUtils';
 import { validateAbsorptionRate, validateTotals, validateDataIntegrity, detectOutliers } from '@/utils/statisticsValidation';
-import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
-import ConfirmDialog from 'primevue/confirmdialog';
+import { useNotifications } from '@/utils/notifications';
 
 // Props
 const props = defineProps({
@@ -937,8 +933,7 @@ const props = defineProps({
 });
 
 // Toast 및 Confirm 서비스
-const toast = useToast();
-const confirm = useConfirm();
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 // 통계 계산 확인 모달
 const showStatisticsConfirmModal = ref(false);
@@ -2044,12 +2039,7 @@ async function fetchStatistics() {
       return;
     }
     console.error('통계 데이터 조회 예외:', err);
-    toast.add({
-      severity: 'error',
-      summary: '오류',
-      detail: '데이터 조회 중 오류가 발생했습니다: ' + (err.message || err),
-      life: 5000
-    });
+    showError('데이터 조회 중 오류가 발생했습니다: ' + (err.message || err));
   } finally {
     if (isMounted.value) {
       loading.value = false;
@@ -3225,12 +3215,7 @@ function onProductStatisticsFilterChange() {
 // 통계 계산 함수 (모든 타입 한 번에 계산하여 테이블에 저장)
 async function calculateStatistics() {
   if (!selectedSettlementMonth.value) {
-    toast.add({
-      severity: 'warn',
-      summary: '알림',
-      detail: '정산월을 선택해주세요.',
-      life: 3000
-    });
+    showWarning('정산월을 선택해주세요.');
     return;
   }
 
@@ -3246,12 +3231,7 @@ async function handleConfirmStatistics() {
 
 async function executeCalculateStatistics() {
   if (!selectedSettlementMonth.value) {
-    toast.add({
-      severity: 'warn',
-      summary: '알림',
-      detail: '정산월을 선택해주세요.',
-      life: 3000
-    });
+    showWarning('정산월을 선택해주세요.');
     return;
   }
 
@@ -3293,12 +3273,7 @@ async function executeCalculateStatistics() {
   } catch (err) {
     console.error('통계 계산 오류:', err);
     console.error('에러 스택:', err.stack);
-    toast.add({
-      severity: 'error',
-      summary: '오류',
-      detail: '통계 계산 중 오류가 발생했습니다: ' + (err.message || err),
-      life: 5000
-    });
+    showError('통계 계산 중 오류가 발생했습니다: ' + (err.message || err));
   } finally {
     calculatingStatistics.value = false;
     loading.value = false;
@@ -3319,12 +3294,7 @@ function onPageChange(event) {
 // 데이터 정확성 검증
 async function validateData() {
   if (displayRows.value.length === 0) {
-    toast.add({
-      severity: 'warn',
-      summary: '알림',
-      detail: '검증할 데이터가 없습니다.',
-      life: 3000
-    });
+    showWarning('검증할 데이터가 없습니다.');
     return;
   }
 
@@ -3392,24 +3362,14 @@ async function validateData() {
     }
   } catch (err) {
     console.error('데이터 검증 오류:', err);
-    toast.add({
-      severity: 'error',
-      summary: '오류',
-      detail: '데이터 검증 중 오류가 발생했습니다: ' + (err.message || err),
-      life: 5000
-    });
+    showError('데이터 검증 중 오류가 발생했습니다: ' + (err.message || err));
   }
 }
 
 // 엑셀 다운로드
 async function downloadExcel() {
   if (displayRows.value.length === 0) {
-    toast.add({
-      severity: 'warn',
-      summary: '알림',
-      detail: '다운로드할 데이터가 없습니다.',
-      life: 3000
-    });
+    showWarning('다운로드할 데이터가 없습니다.');
     return;
   }
 

@@ -91,6 +91,9 @@ import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const products = ref([]);
 const filters = ref({ 'global': { value: null, matchMode: 'contains' } });
@@ -299,7 +302,7 @@ const fetchUserCommissionGrade = async () => {
 // 엑셀 다운로드 함수
 async function downloadExcel() {
   if (!filteredProducts.value || filteredProducts.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.');
+    showWarning('다운로드할 데이터가 없습니다.');
     return;
   }
 
@@ -413,7 +416,7 @@ async function downloadExcel() {
     
   } catch (err) {
     console.error('엑셀 다운로드 오류:', err);
-    alert('엑셀 다운로드 중 오류가 발생했습니다.');
+    showError('엑셀 다운로드 중 오류가 발생했습니다.');
   }
 }
 

@@ -20,23 +20,23 @@
       </div>
       <div class="form-group">
         <label>수수료율 A등급(%)</label>
-        <input id="commissionA" v-model="commissionA" type="text" placeholder="예: 36, 36%, 0.36" />
+        <input id="commissionA" v-model="commissionA" type="text" placeholder="예: 36, 36%" />
       </div>
       <div class="form-group">
         <label>수수료율 B등급(%)</label>
-        <input id="commissionB" v-model="commissionB" type="text" placeholder="예: 36, 36%, 0.36" />
+        <input id="commissionB" v-model="commissionB" type="text" placeholder="예: 36, 36%" />
       </div>
       <div class="form-group">
         <label>수수료율 C등급(%)</label>
-        <input id="commissionC" v-model="commissionC" type="text" placeholder="예: 36, 36%, 0.36" />
+        <input id="commissionC" v-model="commissionC" type="text" placeholder="예: 36, 36%" />
       </div>
       <div class="form-group">
         <label>수수료율 D등급(%)</label>
-        <input id="commissionD" v-model="commissionD" type="text" placeholder="예: 36, 36%, 0.36" />
+        <input id="commissionD" v-model="commissionD" type="text" placeholder="예: 36, 36%" />
       </div>
       <div class="form-group">
         <label>수수료율 E등급(%)</label>
-        <input id="commissionE" v-model="commissionE" type="text" placeholder="예: 36, 36%, 0.36" />
+        <input id="commissionE" v-model="commissionE" type="text" placeholder="예: 36, 36%" />
       </div>
 
       <div class="form-group">
@@ -62,6 +62,10 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -117,34 +121,6 @@ const isFormValid = computed(() => {
   return hasRequiredFields && hasChanges;
 });
 
-// 수수료율을 소수점으로 변환하는 헬퍼 함수
-// 입력값이 퍼센트(예: 5, 5%, 5.5%)이면 소수점(0.05)으로 변환
-// 입력값이 이미 소수점(예: 0.05)이면 그대로 사용
-function convertCommissionRateToDecimal(input) {
-  if (input === null || input === undefined || input === '') {
-    return 0;
-  }
-  
-  // 문자열로 변환하고 공백 제거
-  const str = String(input).trim();
-  if (!str) return 0;
-  
-  // 퍼센트 기호 제거
-  const hasPercent = str.includes('%');
-  const cleanedStr = str.replace(/%/g, '').replace(/,/g, '');
-  
-  // 숫자로 변환
-  const num = parseFloat(cleanedStr);
-  if (isNaN(num)) return 0;
-  
-  // 퍼센트 기호가 있거나 값이 1보다 크면 100으로 나누어 소수점으로 변환
-  if (hasPercent || num > 1) {
-    return num / 100;
-  }
-  
-  // 이미 소수점으로 입력된 경우 그대로 사용
-  return num;
-}
 
 onMounted(async () => {
   const { data, error } = await supabase
@@ -186,7 +162,7 @@ onMounted(async () => {
 const handleSubmit = async () => {
   // 필수 필드 검증
   if (!baseMonth.value || baseMonth.value.trim() === '') {
-    alert('기준월은 필수 입력 항목입니다.');
+    showWarning('기준월은 필수 입력 항목입니다.');
     setTimeout(() => {
       const baseMonthInput = document.getElementById('baseMonth');
       if (baseMonthInput) {
@@ -198,7 +174,7 @@ const handleSubmit = async () => {
   }
 
   if (!productName.value || productName.value.trim() === '') {
-    alert('제품명은 필수 입력 항목입니다.');
+    showWarning('제품명은 필수 입력 항목입니다.');
     setTimeout(() => {
       const productNameInput = document.getElementById('productName');
       if (productNameInput) {
@@ -210,7 +186,7 @@ const handleSubmit = async () => {
   }
 
   if (!insuranceCode.value || insuranceCode.value.toString().trim() === '') {
-    alert('보험코드는 필수 입력 항목입니다.');
+    showWarning('보험코드는 필수 입력 항목입니다.');
     setTimeout(() => {
       const insuranceCodeInput = document.getElementById('insuranceCode');
       if (insuranceCodeInput) {
@@ -222,7 +198,7 @@ const handleSubmit = async () => {
   }
 
   if (!price.value || price.value.toString().trim() === '') {
-    alert('약가는 필수 입력 항목입니다.');
+    showWarning('약가는 필수 입력 항목입니다.');
     setTimeout(() => {
       const priceInput = document.getElementById('price');
       if (priceInput) {
@@ -236,7 +212,7 @@ const handleSubmit = async () => {
   // 기준월 형식 검증 (YYYY-MM)
   const monthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
   if (!monthRegex.test(baseMonth.value)) {
-    alert('기준월은 YYYY-MM 형식의 유효한 연월이어야 합니다.');
+    showWarning('기준월은 YYYY-MM 형식의 유효한 연월이어야 합니다.');
     setTimeout(() => {
       const baseMonthInput = document.getElementById('baseMonth');
       if (baseMonthInput) {
@@ -249,7 +225,7 @@ const handleSubmit = async () => {
 
   // 보험코드 형식 검증 (9자리 숫자)
   if (insuranceCode.value.toString().length !== 9 || !/^\d{9}$/.test(insuranceCode.value.toString())) {
-    alert('보험코드는 9자리 숫자여야 합니다.');
+    showWarning('보험코드는 9자리 숫자여야 합니다.');
     setTimeout(() => {
       const insuranceCodeInput = document.getElementById('insuranceCode');
       if (insuranceCodeInput) {
@@ -264,7 +240,7 @@ const handleSubmit = async () => {
 
   // 약가 형식 검증 (0 이상의 숫자)
   if (price.value && (isNaN(Number(price.value)) || Number(price.value) < 0)) {
-    alert('약가는 0 이상의 숫자여야 합니다.');
+    showWarning('약가는 0 이상의 숫자여야 합니다.');
     setTimeout(() => {
       const priceInput = document.getElementById('price');
       if (priceInput) {
@@ -279,8 +255,8 @@ const handleSubmit = async () => {
   let commissionRateA = 0;
   if (commissionA.value && commissionA.value.toString().trim() !== '') {
     commissionRateA = convertCommissionRateToDecimal(commissionA.value);
-    if (commissionRateA < 0 || commissionRateA > 1) {
-      alert('수수료율 A는 0~100% 사이의 숫자여야 합니다.');
+      if (commissionRateA < 0 || commissionRateA > 1) {
+        showWarning('수수료율 A는 0~100% 사이의 숫자여야 합니다.');
       setTimeout(() => {
         const commissionAInput = document.getElementById('commissionA');
         if (commissionAInput) {
@@ -298,8 +274,8 @@ const handleSubmit = async () => {
   let commissionRateB = 0;
   if (commissionB.value && commissionB.value.toString().trim() !== '') {
     commissionRateB = convertCommissionRateToDecimal(commissionB.value);
-    if (commissionRateB < 0 || commissionRateB > 1) {
-      alert('수수료율 B는 0~100% 사이의 숫자여야 합니다.');
+      if (commissionRateB < 0 || commissionRateB > 1) {
+        showWarning('수수료율 B는 0~100% 사이의 숫자여야 합니다.');
       setTimeout(() => {
         const commissionBInput = document.getElementById('commissionB');
         if (commissionBInput) {
@@ -317,8 +293,8 @@ const handleSubmit = async () => {
   let commissionRateC = 0;
   if (commissionC.value && commissionC.value.toString().trim() !== '') {
     commissionRateC = convertCommissionRateToDecimal(commissionC.value);
-    if (commissionRateC < 0 || commissionRateC > 1) {
-      alert('수수료율 C는 0~100% 사이의 숫자여야 합니다.');
+      if (commissionRateC < 0 || commissionRateC > 1) {
+        showWarning('수수료율 C는 0~100% 사이의 숫자여야 합니다.');
       setTimeout(() => {
         const commissionCInput = document.getElementById('commissionC');
         if (commissionCInput) {
@@ -336,8 +312,8 @@ const handleSubmit = async () => {
   let commissionRateD = 0;
   if (commissionD.value && commissionD.value.toString().trim() !== '') {
     commissionRateD = convertCommissionRateToDecimal(commissionD.value);
-    if (commissionRateD < 0 || commissionRateD > 1) {
-      alert('수수료율 D는 0~100% 사이의 숫자여야 합니다.');
+      if (commissionRateD < 0 || commissionRateD > 1) {
+        showWarning('수수료율 D는 0~100% 사이의 숫자여야 합니다.');
       setTimeout(() => {
         const commissionDInput = document.getElementById('commissionD');
         if (commissionDInput) {
@@ -355,8 +331,8 @@ const handleSubmit = async () => {
   let commissionRateE = 0;
   if (commissionE.value && commissionE.value.toString().trim() !== '') {
     commissionRateE = convertCommissionRateToDecimal(commissionE.value);
-    if (commissionRateE < 0 || commissionRateE > 1) {
-      alert('수수료율 E는 0~100% 사이의 숫자여야 합니다.');
+      if (commissionRateE < 0 || commissionRateE > 1) {
+        showWarning('수수료율 E는 0~100% 사이의 숫자여야 합니다.');
       setTimeout(() => {
         const commissionEInput = document.getElementById('commissionE');
         if (commissionEInput) {
@@ -389,9 +365,9 @@ const handleSubmit = async () => {
     .update(dataToUpdate)
     .eq('id', route.params.id);
   if (error) {
-    alert('수정 실패: ' + error.message);
+    showError('수정 실패: ' + error.message);
   } else {
-    alert('수정되었습니다.');
+    showSuccess('수정되었습니다.');
     router.push('/admin/products');
   }
 };

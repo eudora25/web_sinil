@@ -316,6 +316,9 @@ import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
 import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 const clients = ref([])
 const loading = ref(false)
@@ -410,19 +413,19 @@ function formatBusinessNumberModal(event) {
 async function handleCreateSubmit() {
   // 필수 필드 검증
   if (!newClient.value.name || newClient.value.name.trim() === '') {
-    alert('병의원명은 필수 입력 항목입니다.')
+    showWarning('병의원명은 필수 입력 항목입니다.')
     return
   }
 
   if (!newClient.value.business_registration_number || newClient.value.business_registration_number.trim() === '') {
-    alert('사업자등록번호는 필수 입력 항목입니다.')
+    showWarning('사업자등록번호는 필수 입력 항목입니다.')
     return
   }
 
   // 사업자등록번호 형식 검증 (10자리 숫자)
   const businessNumberDigits = newClient.value.business_registration_number.replace(/[^0-9]/g, '')
   if (businessNumberDigits.length !== 10) {
-    alert('사업자등록번호는 10자리여야 합니다.')
+    showWarning('사업자등록번호는 10자리여야 합니다.')
     return
   }
 
@@ -435,12 +438,12 @@ async function handleCreateSubmit() {
       .single()
 
     if (codeCheckError && codeCheckError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
-      alert('병의원 코드 중복 확인 중 오류가 발생했습니다: ' + codeCheckError.message)
+      showError('병의원 코드 중복 확인 중 오류가 발생했습니다: ' + codeCheckError.message)
       return
     }
 
     if (existingClientByCode) {
-      alert(`이미 등록된 병의원 코드입니다.\n등록된 병의원: ${existingClientByCode.name}`)
+      showWarning(`이미 등록된 병의원 코드입니다.\n등록된 병의원: ${existingClientByCode.name}`)
       return
     }
   }
@@ -453,19 +456,19 @@ async function handleCreateSubmit() {
     .single()
 
   if (checkError && checkError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
-    alert('사업자등록번호 중복 확인 중 오류가 발생했습니다: ' + checkError.message)
+    showError('사업자등록번호 중복 확인 중 오류가 발생했습니다: ' + checkError.message)
     return
   }
 
   if (existingClient) {
-    alert(`이미 등록된 사업자등록번호입니다.\n등록된 병의원: ${existingClient.name}`)
+    showWarning(`이미 등록된 사업자등록번호입니다.\n등록된 병의원: ${existingClient.name}`)
     return
   }
 
   // 현재 사용자 정보 가져오기
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    alert('로그인 정보가 없습니다. 다시 로그인해주세요.')
+    showError('로그인 정보가 없습니다. 다시 로그인해주세요.')
     return
   }
 
@@ -483,9 +486,9 @@ async function handleCreateSubmit() {
 
   const { error } = await supabase.from('clients').insert([dataToInsert])
   if (error) {
-    alert('등록 실패: ' + error.message)
+    showError('등록 실패: ' + error.message)
   } else {
-    alert('등록되었습니다.')
+    showSuccess('등록되었습니다.')
     closeCreateModal()
     await fetchClients() // 목록 새로고침
   }
@@ -603,7 +606,7 @@ const saveEdit = async (row) => {
   try {
     // 필수 필드 검증
     if (!row.name || row.name.trim() === '') {
-      alert('병의원명은 필수 입력 항목입니다.');
+      showWarning('병의원명은 필수 입력 항목입니다.');
       setTimeout(() => {
         const nameInput = document.getElementById(`name_${row.id}`);
         if (nameInput) {
@@ -615,7 +618,7 @@ const saveEdit = async (row) => {
     }
 
     if (!row.business_registration_number || row.business_registration_number.trim() === '') {
-      alert('사업자등록번호는 필수 입력 항목입니다.');
+      showWarning('사업자등록번호는 필수 입력 항목입니다.');
       setTimeout(() => {
         const businessNumberInput = document.getElementById(`business_registration_number_${row.id}`);
         if (businessNumberInput) {
@@ -629,7 +632,7 @@ const saveEdit = async (row) => {
     // 사업자등록번호 형식 검증 (10자리 숫자)
     const businessNumberDigits = row.business_registration_number.replace(/[^0-9]/g, '');
     if (businessNumberDigits.length !== 10) {
-      alert('사업자등록번호는 10자리여야 합니다.');
+      showWarning('사업자등록번호는 10자리여야 합니다.');
       setTimeout(() => {
         const businessNumberInput = document.getElementById(`business_registration_number_${row.id}`);
         if (businessNumberInput) {
@@ -642,7 +645,7 @@ const saveEdit = async (row) => {
 
     // 상태 값 검증
     if (!['active', 'inactive'].includes(row.status)) {
-      alert('상태는 active 또는 inactive여야 합니다.')
+      showWarning('상태는 active 또는 inactive여야 합니다.')
       return
     }
 
@@ -666,11 +669,11 @@ const saveEdit = async (row) => {
           } else {
             // 다른 모든 오류 (HTTP 406, 500 등) - 중단
             console.error('병의원 코드 중복 검사 실패:', codeCheckError);
-            alert(`병의원 코드 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${codeCheckError.code}\n오류 메시지: ${codeCheckError.message}\n\n관리자에게 문의해주세요.`);
+            showError(`병의원 코드 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${codeCheckError.code}\n오류 메시지: ${codeCheckError.message}\n\n관리자에게 문의해주세요.`);
             return;
           }
         } else if (existingClientByCode) {
-          alert(`동일한 병의원 코드로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClientByCode.name}\n병의원 코드: ${existingClientByCode.client_code}`);
+          showWarning(`동일한 병의원 코드로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClientByCode.name}\n병의원 코드: ${existingClientByCode.client_code}`);
           setTimeout(() => {
             const clientCodeInput = document.getElementById(`client_code_${row.id}`);
             if (clientCodeInput) {
@@ -682,7 +685,7 @@ const saveEdit = async (row) => {
         }
       } catch (codeDuplicateCheckError) {
         console.error('병의원 코드 중복 검사 중 예외 발생:', codeDuplicateCheckError);
-        alert('병의원 코드 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
+        showError('병의원 코드 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
         return;
       }
     }
@@ -703,11 +706,11 @@ const saveEdit = async (row) => {
           } else {
             // 다른 모든 오류 (HTTP 406, 500 등) - 중단
             console.error('사업자등록번호 중복 검사 실패:', businessCheckError);
-            alert(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${businessCheckError.code}\n오류 메시지: ${businessCheckError.message}\n\n관리자에게 문의해주세요.`);
+            showError(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${businessCheckError.code}\n오류 메시지: ${businessCheckError.message}\n\n관리자에게 문의해주세요.`);
             return;
           }
         } else if (existingClientByBusiness) {
-          alert(`동일한 사업자등록번호로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClientByBusiness.name}\n사업자등록번호: ${existingClientByBusiness.business_registration_number}`);
+          showWarning(`동일한 사업자등록번호로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClientByBusiness.name}\n사업자등록번호: ${existingClientByBusiness.business_registration_number}`);
           setTimeout(() => {
             const businessNumberInput = document.getElementById(`business_registration_number_${row.id}`);
             if (businessNumberInput) {
@@ -719,7 +722,7 @@ const saveEdit = async (row) => {
         }
       } catch (businessDuplicateCheckError) {
         console.error('사업자등록번호 중복 검사 중 예외 발생:', businessDuplicateCheckError);
-        alert('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
+        showError('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
         return;
       }
     }
@@ -744,7 +747,7 @@ const saveEdit = async (row) => {
     const { error } = await supabase.from('clients').update(updateData).eq('id', row.id)
 
     if (error) {
-      alert('수정 실패: ' + error.message)
+      showError('수정 실패: ' + error.message)
       return
     }
 
@@ -757,16 +760,17 @@ const saveEdit = async (row) => {
       filterBackup.value = null
     }
 
-    alert('수정되었습니다.')
+    showSuccess('수정되었습니다.')
   } catch (error) {
     console.error('수정 오류:', error)
-    alert('수정 중 오류가 발생했습니다.')
+    showError('수정 중 오류가 발생했습니다.')
   }
 }
 
 // 삭제
 const deleteClient = async (row) => {
-  if (!confirm('정말 삭제하시겠습니까?')) {
+  const confirmed = await showConfirm('정말 삭제하시겠습니까?', '삭제 확인');
+  if (!confirmed) {
     return
   }
 
@@ -782,7 +786,7 @@ const deleteClient = async (row) => {
     }
 
     if (isReferenceExist != 0) {
-      alert(`이 병의원은(${row.name}) 이미 사용되고있어 삭제할 수 없습니다.`);
+      showWarning(`이 병의원은(${row.name}) 이미 사용되고있어 삭제할 수 없습니다.`);
       return;
     }
 
@@ -799,10 +803,10 @@ const deleteClient = async (row) => {
       clients.value.splice(index, 1)
     }
 
-    alert('삭제되었습니다.')
+    showSuccess('삭제되었습니다.')
   } catch (error) {
     console.error('삭제 오류:', error)
-    alert('삭제 중 오류가 발생했습니다.')
+    showError('삭제 중 오류가 발생했습니다.')
   }
 }
 
@@ -923,7 +927,7 @@ const handleFileUpload = async (event) => {
     const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
-      alert('엑셀 파일에 데이터가 없습니다.')
+      showWarning('엑셀 파일에 데이터가 없습니다.')
       return
     }
 
@@ -932,7 +936,8 @@ const handleFileUpload = async (event) => {
 
     // 1단계: 기존 데이터 존재 시 확인
     if (hasExistingData) {
-      if (!confirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?')) {
+      const confirmed = await showConfirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?', '데이터 확인');
+      if (!confirmed) {
         event.target.value = ''
         return
       }
@@ -1008,7 +1013,7 @@ const handleFileUpload = async (event) => {
     })
 
     if (errors.length > 0) {
-      alert('데이터 오류:\n' + errors.join('\n'))
+      showError('데이터 오류:\n' + errors.join('\n'))
       return
     }
 
@@ -1022,7 +1027,7 @@ const handleFileUpload = async (event) => {
       .select('client_code, business_registration_number, name')
 
     if (fetchError) {
-      alert('기존 데이터 조회 중 오류가 발생했습니다: ' + fetchError.message)
+      showError('기존 데이터 조회 중 오류가 발생했습니다: ' + fetchError.message)
       return
     }
 
@@ -1066,7 +1071,8 @@ const handleFileUpload = async (event) => {
       
       // 중복 발견 시 계속 진행 여부 확인
       const duplicateCount = duplicateErrors.length
-      if (!confirm(`중복 오류가 ${duplicateCount}건 발견되었습니다:\n\n` + duplicateErrors.join('\n') + `\n\n계속 등록 작업을 진행하시겠습니까?`)) {
+      const confirmed = await showConfirm(`중복 오류가 ${duplicateCount}건 발견되었습니다:\n\n` + duplicateErrors.join('\n') + `\n\n계속 등록 작업을 진행하시겠습니까?`, '중복 확인');
+      if (!confirmed) {
         return
       }
 
@@ -1084,7 +1090,7 @@ const handleFileUpload = async (event) => {
               .eq('client_code', duplicateClient.client_code.trim())
 
             if (deleteError) {
-              alert('기존 병의원 삭제 실패 (코드): ' + deleteError.message)
+              showError('기존 병의원 삭제 실패 (코드): ' + deleteError.message)
               return
             }
           }
@@ -1097,7 +1103,7 @@ const handleFileUpload = async (event) => {
               .eq('business_registration_number', duplicateClient.business_registration_number)
 
             if (deleteError) {
-              alert('기존 병의원 삭제 실패 (사업자번호): ' + deleteError.message)
+              showError('기존 병의원 삭제 실패 (사업자번호): ' + deleteError.message)
               return
             }
           }
@@ -1135,7 +1141,7 @@ const handleFileUpload = async (event) => {
     })
 
     if (insertData.length === 0) {
-      alert('등록할 데이터가 없습니다.')
+      showWarning('등록할 데이터가 없습니다.')
       return
     }
 
@@ -1219,11 +1225,15 @@ const handleFileUpload = async (event) => {
       message += `\n실패: ${insertErrors.length}건`
     }
 
-    alert(message)
+    if (insertErrors.length > 0) {
+      showError(message + '\n\n실패 상세:\n' + insertErrors.join('\n'))
+    } else {
+      showSuccess(message)
+    }
     await fetchClients() // 목록 새로고침
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    alert('파일 처리 중 오류가 발생했습니다.')
+    showError('파일 처리 중 오류가 발생했습니다.')
   } finally {
     // 엑셀 등록 로딩 종료
     excelLoading.value = false
@@ -1235,7 +1245,7 @@ const handleFileUpload = async (event) => {
 // 엑셀 다운로드 (현재 목록)
 const downloadExcel = async () => {
   if (clients.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.')
+    showWarning('다운로드할 데이터가 없습니다.')
     return
   }
 

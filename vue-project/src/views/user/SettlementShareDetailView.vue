@@ -256,6 +256,9 @@ import { supabase } from '@/supabase';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { getNoticeModalHidePreference, setNoticeModalHidePreference } from '@/utils/userPreferences';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const companyId = ref('');
 const availableMonths = ref([]);
@@ -1125,7 +1128,7 @@ async function downloadExcel() {
     
   } catch (err) {
     console.error('엑셀 다운로드 오류:', err);
-    alert('엑셀 다운로드 중 오류가 발생했습니다.');
+    showError('엑셀 다운로드 중 오류가 발생했습니다.');
   }
 }
 
@@ -1169,7 +1172,7 @@ const removeOverflowClass = (event) => {
 // 전달사항 관련 함수들
 async function showNoticePopup(isManualClick = false) {
   if (!selectedMonth.value || !companyId.value || !currentSettlementMonthId.value) {
-    alert('정산월을 선택해주세요.');
+    showWarning('정산월을 선택해주세요.');
     return;
   }
   
@@ -1212,7 +1215,7 @@ async function showNoticePopup(isManualClick = false) {
     showNoticeModal.value = true;
   } catch (err) {
     console.error('전달사항 조회 오류:', err);
-    alert('전달사항을 불러오는 중 오류가 발생했습니다.');
+    showError('전달사항을 불러오는 중 오류가 발생했습니다.');
   }
 }
 

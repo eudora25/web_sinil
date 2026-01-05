@@ -339,6 +339,9 @@ import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 // 메인 테이블 컬럼 너비
 const columnWidthsMain = {
@@ -739,7 +742,7 @@ const totalReviewPending = computed(() =>
 // 엑셀 다운로드
 const downloadExcel = async () => {
   if (filteredCompanyList.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.')
+    showWarning('다운로드할 데이터가 없습니다.')
     return
   }
 
@@ -1057,19 +1060,19 @@ const downloadFile = async (file, idx = 0) => {
       .from('performance-evidence')
       .download(file.file_path)
     if (error || !data) {
-      alert('파일 다운로드에 실패했습니다.')
+      showError('파일 다운로드에 실패했습니다.')
       return
     }
     saveAs(data, downloadName)
   } catch (err) {
-    alert('파일 다운로드 중 오류가 발생했습니다.')
+    showError('파일 다운로드 중 오류가 발생했습니다.')
   }
 }
 
 // 전체 다운로드 (zip, 옵션 적용)
 const downloadAllFiles = async () => {
   if (companyFiles.value.length === 0) {
-    alert('다운로드할 파일이 없습니다.')
+    showWarning('다운로드할 파일이 없습니다.')
     return
   }
   if (!confirm(`총 ${companyFiles.value.length}개의 파일을 압축하여 다운로드하시겠습니까?`)) {
@@ -1102,7 +1105,7 @@ const downloadAllFiles = async () => {
     }
   }
   if (successCount === 0) {
-    alert('다운로드할 파일이 없습니다.')
+    showWarning('다운로드할 파일이 없습니다.')
     return
   }
   zip.generateAsync({ type: 'blob' }).then((content) => {
@@ -1118,12 +1121,12 @@ const previewFile = async (file) => {
       .from('performance-evidence')
       .createSignedUrl(file.file_path, 60) // 60초 유효
     if (error || !data?.signedUrl) {
-      alert('미리보기 URL 생성에 실패했습니다.' + (error?.message ? '\n' + error.message : ''))
+      showError('미리보기 URL 생성에 실패했습니다.' + (error?.message ? '\n' + error.message : ''))
       return
     }
     window.open(data.signedUrl, '_blank')
   } catch (err) {
-    alert('미리보기 중 오류가 발생했습니다.')
+    showError('미리보기 중 오류가 발생했습니다.')
   }
 }
 

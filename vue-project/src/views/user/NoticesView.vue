@@ -87,6 +87,9 @@ import Column from 'primevue/column';
 import { useRouter } from 'vue-router';
 import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 const notices = ref([]);
 const loading = ref(true);
@@ -144,12 +147,13 @@ const filteredNotices = computed(() => {
 });
 
 async function handleDelete(id) {
-  if (!confirm('정말 삭제하시겠습니까?')) return;
+  const confirmed = await showConfirm('정말 삭제하시겠습니까?');
+  if (!confirmed) return;
   const { error } = await supabase.from('notices').delete().eq('id', id);
   if (error) {
-    alert('삭제 실패: ' + error.message);
+    showError('삭제 실패: ' + error.message);
   } else {
-    alert('삭제되었습니다.');
+    showSuccess('삭제되었습니다.');
     router.push('/admin/notices'); // 삭제 후 목록으로 이동
   }
 }

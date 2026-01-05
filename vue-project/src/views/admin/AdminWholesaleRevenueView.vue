@@ -267,6 +267,9 @@ import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
 import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 // console.log('supabase:', supabase);
 
@@ -527,7 +530,7 @@ const saveEdit = async (row) => {
   try {
     // 필수 필드 검증
     if (!row.business_registration_number || row.business_registration_number.trim() === '') {
-      alert('사업자등록번호는 필수 입력 항목입니다.');
+      showWarning('사업자등록번호는 필수 입력 항목입니다.');
       await nextTick();
       setTimeout(() => {
         const businessNumberInput = document.getElementById(`business_registration_number_${row.id}`);
@@ -540,7 +543,7 @@ const saveEdit = async (row) => {
     }
 
     if (!row.standard_code || row.standard_code.toString().trim() === '') {
-      alert('표준코드는 필수 입력 항목입니다.');
+      showWarning('표준코드는 필수 입력 항목입니다.');
       await nextTick();
       setTimeout(() => {
         const standardCodeInput = document.getElementById(`standard_code_${row.id}`);
@@ -553,7 +556,7 @@ const saveEdit = async (row) => {
     }
 
     if (!row.sales_amount || row.sales_amount.toString().trim() === '') {
-      alert('매출액은 필수 입력 항목입니다.');
+      showWarning('매출액은 필수 입력 항목입니다.');
       await nextTick();
       setTimeout(() => {
         const salesAmountInput = document.getElementById(`sales_amount_${row.id}`);
@@ -566,7 +569,7 @@ const saveEdit = async (row) => {
     }
 
     if (!row.sales_date || row.sales_date.toString().trim() === '') {
-      alert('매출일자는 필수 입력 항목입니다.');
+      showWarning('매출일자는 필수 입력 항목입니다.');
       await nextTick();
       setTimeout(() => {
         const salesDateInput = document.getElementById(`sales_date_${row.id}`);
@@ -581,7 +584,7 @@ const saveEdit = async (row) => {
     // 사업자등록번호 형식 검증 (10자리 숫자)
     const businessNumberDigits = row.business_registration_number.replace(/[^0-9]/g, '');
     if (businessNumberDigits.length !== 10) {
-      alert('사업자등록번호는 10자리여야 합니다.');
+      showWarning('사업자등록번호는 10자리여야 합니다.');
       await nextTick();
       setTimeout(() => {
         const businessNumberInput = document.getElementById(`business_registration_number_${row.id}`);
@@ -595,7 +598,7 @@ const saveEdit = async (row) => {
 
     // 표준코드 형식 검증 (13자리 숫자)
     if (row.standard_code.toString().length !== 13 || !/^\d{13}$/.test(row.standard_code.toString())) {
-      alert('표준코드는 13자리 숫자여야 합니다.');
+      showWarning('표준코드는 13자리 숫자여야 합니다.');
       await nextTick();
       setTimeout(() => {
         const standardCodeInput = document.getElementById(`standard_code_${row.id}`);
@@ -609,7 +612,7 @@ const saveEdit = async (row) => {
 
     // 매출액 형식 검증 (숫자, 마이너스 허용)
     if (isNaN(Number(row.sales_amount))) {
-      alert('매출액은 숫자여야 합니다.');
+      showWarning('매출액은 숫자여야 합니다.');
       await nextTick();
       setTimeout(() => {
         const salesAmountInput = document.getElementById(`sales_amount_${row.id}`);
@@ -624,7 +627,7 @@ const saveEdit = async (row) => {
     // 매출일자 형식 검증 (YYYY-MM-DD)
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(row.sales_date)) {
-      alert('매출일자는 YYYY-MM-DD 형식이어야 합니다.');
+      showWarning('매출일자는 YYYY-MM-DD 형식이어야 합니다.');
       await nextTick();
       setTimeout(() => {
         const salesDateInput = document.getElementById(`sales_date_${row.id}`);
@@ -653,7 +656,7 @@ const saveEdit = async (row) => {
     const { error } = await supabase.from('wholesale_sales').update(updateData).eq('id', row.id)
 
     if (error) {
-      alert('수정 실패: ' + error.message)
+      showError('수정 실패: ' + error.message)
       return
     }
 
@@ -664,10 +667,10 @@ const saveEdit = async (row) => {
     fetchSummary()
     fetchRevenues()
 
-    alert('수정되었습니다.')
+    showSuccess('수정되었습니다.')
   } catch (error) {
     console.error('수정 오류:', error)
-    alert('수정 중 오류가 발생했습니다.')
+    showError('수정 중 오류가 발생했습니다.')
   }
 }
 
@@ -681,7 +684,7 @@ const deleteRevenue = async (row) => {
     const { error } = await supabase.from('wholesale_sales').delete().eq('id', row.id)
 
     if (error) {
-      alert('삭제 실패: ' + error.message)
+      showError('삭제 실패: ' + error.message)
       return
     }
 
@@ -689,10 +692,10 @@ const deleteRevenue = async (row) => {
     fetchSummary()
     fetchRevenues()
 
-    alert('삭제되었습니다.')
+    showSuccess('삭제되었습니다.')
   } catch (error) {
     console.error('삭제 오류:', error)
-    alert('삭제 중 오류가 발생했습니다.')
+    showError('삭제 중 오류가 발생했습니다.')
   }
 }
 
@@ -818,7 +821,7 @@ const handleFileUpload = async (event) => {
     const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
-      alert('엑셀 파일에 데이터가 없습니다.')
+      showWarning('엑셀 파일에 데이터가 없습니다.')
       return
     }
 
@@ -909,7 +912,7 @@ const handleFileUpload = async (event) => {
     })
 
     if (errors.length > 0) {
-      alert('데이터 오류:\n' + errors.join('\n'))
+      showError('데이터 오류:\n' + errors.join('\n'))
       return
     }
 
@@ -917,16 +920,16 @@ const handleFileUpload = async (event) => {
     const { error } = await supabase.from('wholesale_sales').insert(uploadData)
 
     if (error) {
-      alert('업로드 실패: ' + error.message)
+      showError('업로드 실패: ' + error.message)
     } else {
-      alert(`${uploadData.length}건의 도매매출 데이터가 업로드되었습니다.`)
+      showSuccess(`${uploadData.length}건의 도매매출 데이터가 업로드되었습니다.`)
       // 데이터 새로고침
       fetchSummary()
       fetchRevenues()
     }
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    alert('파일 처리 중 오류가 발생했습니다.')
+    showError('파일 처리 중 오류가 발생했습니다.')
   } finally {
     // 엑셀 등록 로딩 종료
     excelLoading.value = false
@@ -991,7 +994,7 @@ const downloadExcel = async () => {
       const { data, error } = await query
 
       if (error) {
-        alert('데이터 조회 실패: ' + error.message)
+        showError('데이터 조회 실패: ' + error.message)
         return
       }
 
@@ -1010,7 +1013,7 @@ const downloadExcel = async () => {
     }
 
     if (allData.length === 0) {
-      alert('다운로드할 데이터가 없습니다.')
+      showWarning('다운로드할 데이터가 없습니다.')
       return
     }
 
@@ -1119,7 +1122,7 @@ const downloadExcel = async () => {
     window.URL.revokeObjectURL(url)
   } catch (error) {
     console.error('엑셀 다운로드 오류:', error)
-    alert('엑셀 다운로드 중 오류가 발생했습니다.')
+    showError('엑셀 다운로드 중 오류가 발생했습니다.')
   } finally {
     loading.value = false
   }

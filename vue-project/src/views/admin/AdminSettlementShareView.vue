@@ -242,7 +242,6 @@
         </div>
       </div>
     </div>
-    <Toast />
   </div>
 </template>
 
@@ -256,7 +255,6 @@ import { useRouter, onBeforeRouteLeave } from 'vue-router';
 import { supabase } from '@/supabase';
 import { formatBusinessNumber, convertCommissionRateToDecimal } from '@/utils/formatUtils';
 import { useNotifications } from '@/utils/notifications';
-import Toast from 'primevue/toast';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 

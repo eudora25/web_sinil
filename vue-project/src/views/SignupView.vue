@@ -62,6 +62,9 @@ import { supabase } from '@/supabase';
 import { useRouter } from 'vue-router';
 import { onMounted, onUnmounted } from 'vue';
 import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 const formData = ref({
   email: '',
@@ -107,7 +110,7 @@ const checkPasswordMatch = (event) => {
     if (formData.value.confirmPassword && formData.value.password !== formData.value.confirmPassword) {
       // 업체명 필드에서 포커스 제거
       event.target.blur();
-      alert('비밀번호가 일치하지 않습니다.');
+      showWarning('비밀번호가 일치하지 않습니다.');
       // 팝업 확인 후 비밀번호 확인 입력창으로 포커스
       setTimeout(() => {
         const confirmPasswordInput = document.getElementById('confirmPassword');
@@ -125,7 +128,7 @@ const checkPasswordMatch = (event) => {
     if (businessNumber.length !== 10) {
       // 대표자명 필드에서 포커스 제거
       event.target.blur();
-      alert('사업자등록번호는 10자리여야 합니다.');
+      showWarning('사업자등록번호는 10자리여야 합니다.');
       // 팝업 확인 후 사업자등록번호 입력창으로 포커스
       setTimeout(() => {
         const businessNumberInput = document.getElementById('businessRegistrationNumber');
@@ -231,20 +234,20 @@ const handleSignup = async () => {
   for (const field of requiredFields) {
     const value = formData.value[field.key];
     if (!value || value.trim() === '') {
-      alert(`${field.label}은(는) 필수 입력 항목입니다.`);
+      showWarning(`${field.label}은(는) 필수 입력 항목입니다.`);
       return;
     }
   }
   
   if (formData.value.password !== formData.value.confirmPassword) {
-    alert('비밀번호가 일치하지 않습니다.');
+    showWarning('비밀번호가 일치하지 않습니다.');
     return;
   }
   
   // 사업자등록번호 형식 검증
   const businessNumber = formData.value.businessRegistrationNumber.replace(/-/g, '');
   if (businessNumber.length !== 10) {
-    alert('사업자등록번호는 10자리 숫자여야 합니다.');
+    showWarning('사업자등록번호는 10자리 숫자여야 합니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessRegistrationNumber');
       if (businessNumberInput) {
@@ -256,7 +259,7 @@ const handleSignup = async () => {
   }
   
   if (!/^\d{10}$/.test(businessNumber)) {
-    alert('사업자등록번호는 숫자만 입력 가능합니다.');
+    showWarning('사업자등록번호는 숫자만 입력 가능합니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessRegistrationNumber');
       if (businessNumberInput) {
@@ -270,7 +273,7 @@ const handleSignup = async () => {
   // 이메일 형식 검증 (간단한 형식만 체크)
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(formData.value.email)) {
-    alert('이메일 형식이 올바르지 않습니다. (예: user@example.com)');
+    showWarning('이메일 형식이 올바르지 않습니다. (예: user@example.com)');
     setTimeout(() => {
       const emailInput = document.getElementById('email');
       if (emailInput) {
@@ -285,7 +288,7 @@ const handleSignup = async () => {
   if (formData.value.mobilePhone && formData.value.mobilePhone.trim() !== '') {
     const phoneNumber = formData.value.mobilePhone.replace(/[^0-9]/g, '');
     if (phoneNumber.length !== 11 || !phoneNumber.startsWith('010')) {
-      alert('휴대폰번호 형식이 올바르지 않습니다.');
+      showWarning('휴대폰번호 형식이 올바르지 않습니다.');
       // 팝업 확인 후 휴대폰번호 입력창으로 포커스
       setTimeout(() => {
         const mobilePhoneInput = document.getElementById('mobilePhone');
@@ -320,12 +323,12 @@ const handleSignup = async () => {
           console.error('사업자등록번호 중복 검사 실패:', checkError);
           console.error('오류 코드:', checkError.code);
           console.error('오류 메시지:', checkError.message);
-          alert(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
+          showError(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
           return;
         }
       } else if (existingCompany) {
         // 중복 발견
-        alert('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
+        showWarning('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
         setTimeout(() => {
           const businessNumberInput = document.getElementById('businessRegistrationNumber');
           if (businessNumberInput) {
@@ -338,7 +341,7 @@ const handleSignup = async () => {
       // console.log('사업자등록번호 중복 검사 통과');
     } catch (duplicateCheckError) {
       console.error('사업자등록번호 중복 검사 중 예외 발생:', duplicateCheckError);
-      alert('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
+      showError('사업자등록번호 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
       return;
     }
 
@@ -365,13 +368,13 @@ const handleSignup = async () => {
           console.error('이메일 중복 검사 실패:', emailCheckError);
           console.error('오류 코드:', emailCheckError.code);
           console.error('오류 메시지:', emailCheckError.message);
-          alert(`이메일 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${emailCheckError.code}\n오류 메시지: ${emailCheckError.message}\n\n관리자에게 문의해주세요.`);
+          showError(`이메일 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${emailCheckError.code}\n오류 메시지: ${emailCheckError.message}\n\n관리자에게 문의해주세요.`);
           return;
         }
       } else if (existingUser) {
         // 중복 발견
         // console.log('이메일 중복 발견:', existingUser);
-        alert(`동일한 이메일로 이미 가입된 이력이 있습니다.\n\n이메일: ${existingUser.email}\n회사명: ${existingUser.company_name}`);
+        showWarning(`동일한 이메일로 이미 가입된 이력이 있습니다.\n\n이메일: ${existingUser.email}\n회사명: ${existingUser.company_name}`);
         setTimeout(() => {
           const emailInput = document.getElementById('email');
           if (emailInput) {
@@ -384,7 +387,7 @@ const handleSignup = async () => {
       // console.log('이메일 중복 검사 통과');
     } catch (emailDuplicateCheckError) {
       console.error('이메일 중복 검사 중 예외 발생:', emailDuplicateCheckError);
-      alert('이메일 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
+      showError('이메일 중복 검사 중 예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
       return;
     }
 
@@ -410,7 +413,7 @@ const handleSignup = async () => {
       // 보안 관련 오류 (짧은 시간 내 재시도)
       if (error.message && (error.message.includes('For security purposes') || error.message.includes('rate limit'))) {
         const errorMessage = translateSupabaseError(error, '회원가입');
-        alert(errorMessage);
+        showError(errorMessage);
         return;
       }
       
@@ -420,11 +423,12 @@ const handleSignup = async () => {
           error.message.includes('Unable to validate email') ||
           error.message.includes('유효하지 않'))) {
         
-        const useTestEmail = confirm(
+        const useTestEmail = await showConfirm(
           '이메일 주소가 유효하지 않습니다.\n\n' +
           '테스트를 위해 다음 중 하나를 선택하세요:\n' +
           '1. "확인" - test@example.com으로 가입\n' +
-          '2. "취소" - 다른 이메일 주소 사용'
+          '2. "취소" - 다른 이메일 주소 사용',
+          '이메일 확인'
         );
         
         if (useTestEmail) {
@@ -447,12 +451,12 @@ const handleSignup = async () => {
           if (testError) {
             console.error('테스트 이메일 가입 실패:', testError);
             const errorMessage = translateSupabaseError(testError, '회원가입');
-            alert(errorMessage);
+            showError(errorMessage);
             return;
           }
           
           if (!testData.user) {
-            alert('사용자 ID를 가져올 수 없습니다. 관리자에게 문의해주세요.');
+            showError('사용자 ID를 가져올 수 없습니다. 관리자에게 문의해주세요.');
             return;
           }
           
@@ -489,15 +493,15 @@ const handleSignup = async () => {
           if (companyInsertError) {
             console.error('테스트 회사 정보 삽입 실패:', companyInsertError);
             const errorMessage = translateSupabaseError(companyInsertError, '회사 정보 등록');
-            alert(errorMessage);
+            showError(errorMessage);
             return;
           }
           
-          alert('테스트 이메일(test@example.com)로 가입이 완료되었습니다.');
+          showSuccess('테스트 이메일(test@example.com)로 가입이 완료되었습니다.');
           router.push('/login');
           return;
         } else {
-          alert('다른 이메일 주소를 사용해주세요.');
+          showWarning('다른 이메일 주소를 사용해주세요.');
           return;
         }
       }
@@ -530,7 +534,7 @@ const handleSignup = async () => {
       if (companyInsertError) {
         console.error('회사 정보 삽입 실패:', companyInsertError);
         const errorMessage = translateSupabaseError(companyInsertError, '회사 정보 등록');
-        alert(errorMessage);
+        showError(errorMessage);
         console.error('상세 오류 정보:', {
           message: companyInsertError.message,
           code: companyInsertError.code,
@@ -546,7 +550,7 @@ const handleSignup = async () => {
     // 회원가입 완료 - 자동 로그인 방지를 위해 세션 제거
     await supabase.auth.signOut();
     
-    alert('회원가입이 완료되었습니다. 로그인 페이지에서 로그인해주세요.');
+    showSuccess('회원가입이 완료되었습니다. 로그인 페이지에서 로그인해주세요.');
     router.push('/login');
     
   } catch (error) {
@@ -561,11 +565,11 @@ const handleSignup = async () => {
         error.message.includes('password') ||
         error.message.includes('For security purposes'))) {
       const errorMessage = translateSupabaseError(error, '회원가입');
-      alert(errorMessage);
+      showError(errorMessage);
     } else {
       // 일반 오류
       const errorMessage = translateGeneralError(error, '회원가입');
-      alert(errorMessage);
+      showError(errorMessage);
     }
   }
 };

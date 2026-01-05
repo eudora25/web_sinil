@@ -97,6 +97,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import TopNavigationBar from '@/components/TopNavigationBar.vue'
 import config from '@/config/app.js'
+import { formatBusinessNumber } from '@/utils/formatUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications()
 
 const route = useRoute()
 const router = useRouter()
@@ -126,19 +130,6 @@ function formatKST(dateStr) {
   return `${yyyy}. ${mm}. ${dd}. ${ampm} ${displayHourStr}:${min}:${sec}`;
 }
 
-// 사업자번호 형식 변환 함수
-function formatBusinessNumber(businessNumber) {
-  if (!businessNumber) return '-';
-  
-  // 숫자만 추출
-  const numbers = businessNumber.replace(/[^0-9]/g, '');
-  
-  // 10자리가 아니면 원본 반환
-  if (numbers.length !== 10) return businessNumber;
-  
-  // 형식 변환: ###-##-#####
-  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
-}
 
 const breadcrumbSubMenu = computed(() => {
   if (route.query?.from === 'pending') return '미승인 업체';
@@ -222,10 +213,11 @@ function goList() {
 
 async function handleResetPassword() {
   if (!company.value.email) {
-    alert('이메일 정보가 없습니다.');
+    showWarning('이메일 정보가 없습니다.');
     return;
   }
-  if (!confirm(`${company.value.email}로 비밀번호 재설정 이메일을 발송하시겠습니까?`)) return;
+  const confirmed = await showConfirm(`${company.value.email}로 비밀번호 재설정 이메일을 발송하시겠습니까?`);
+  if (!confirmed) return;
   
   try {
     // Supabase 이메일 비밀번호 재설정 기능 사용
@@ -242,10 +234,10 @@ async function handleResetPassword() {
       }
     }
     
-    alert(`${company.value.email}로 비밀번호 재설정 이메일이 발송되었습니다.\n해당 업체에서 이메일을 확인하여 비밀번호를 재설정하도록 안내해주세요.`);
+    showSuccess(`${company.value.email}로 비밀번호 재설정 이메일이 발송되었습니다.\n해당 업체에서 이메일을 확인하여 비밀번호를 재설정하도록 안내해주세요.`);
   } catch (error) {
     console.error('비밀번호 재설정 이메일 발송 실패:', error);
-    alert('이메일 발송 실패: ' + error.message);
+    showError('이메일 발송 실패: ' + error.message);
   }
 }
 </script>

@@ -114,6 +114,9 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { supabase } from '@/supabase';
 import TopNavigationBar from '@/components/TopNavigationBar.vue';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const email = ref('');
 const companyName = ref('');
@@ -372,7 +375,7 @@ function goDetail() {
 const handleSubmit = async () => {
 
   if (!companyName.value || companyName.value.trim() === '') {
-    alert('업체명은 필수 입력 항목입니다.');
+    showWarning('업체명은 필수 입력 항목입니다.');
     setTimeout(() => {
       const companyNameInput = document.getElementById('companyName');
       if (companyNameInput) {
@@ -384,7 +387,7 @@ const handleSubmit = async () => {
   }
 
   if (!businessNumber.value || businessNumber.value.trim() === '') {
-    alert('사업자등록번호는 필수 입력 항목입니다.');
+    showWarning('사업자등록번호는 필수 입력 항목입니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -396,7 +399,7 @@ const handleSubmit = async () => {
   }
 
   if (!representative.value || representative.value.trim() === '') {
-    alert('대표자는 필수 입력 항목입니다.');
+    showWarning('대표자는 필수 입력 항목입니다.');
     setTimeout(() => {
       const representativeInput = document.getElementById('representative');
       if (representativeInput) {
@@ -414,7 +417,7 @@ const handleSubmit = async () => {
   // 사업자등록번호 형식 검증 (10자리 숫자)
   const businessNumberDigits = businessNumber.value.replace(/[^0-9]/g, '');
   if (businessNumberDigits.length !== 10) {
-    alert('사업자등록번호는 10자리여야 합니다.');
+    showWarning('사업자등록번호는 10자리여야 합니다.');
     setTimeout(() => {
       const businessNumberInput = document.getElementById('businessNumber');
       if (businessNumberInput) {
@@ -429,7 +432,7 @@ const handleSubmit = async () => {
   if (landline.value && landline.value.trim() !== '') {
     const landlineNumber = landline.value.replace(/[^0-9]/g, '');
     if (!landlineNumber.startsWith('0')) {
-      alert('유선전화 형식이 올바르지 않습니다.');
+      showWarning('유선전화 형식이 올바르지 않습니다.');
       setTimeout(() => {
         const landlineInput = document.getElementById('landline');
         if (landlineInput) {
@@ -443,7 +446,7 @@ const handleSubmit = async () => {
     // 서울(02)은 10자리, 나머지는 11자리
     if (landlineNumber.startsWith('02')) {
       if (landlineNumber.length !== 10) {
-        alert('유선전화 번호 형식이 올바르지 않습니다.');
+        showWarning('유선전화 번호 형식이 올바르지 않습니다.');
         setTimeout(() => {
           const landlineInput = document.getElementById('landline');
           if (landlineInput) {
@@ -455,7 +458,7 @@ const handleSubmit = async () => {
       }
     } else {
       if (landlineNumber.length !== 11) {
-        alert('유선전화 번호 형식이 올바르지 않습니다.');
+        showWarning('유선전화 번호 형식이 올바르지 않습니다.');
         setTimeout(() => {
           const landlineInput = document.getElementById('landline');
           if (landlineInput) {
@@ -472,7 +475,7 @@ const handleSubmit = async () => {
   if (mobile.value && mobile.value.trim() !== '') {
     const mobileNumber = mobile.value.replace(/[^0-9]/g, '');
     if (mobileNumber.length !== 11 || !mobileNumber.startsWith('010')) {
-      alert('휴대폰번호 형식이 올바르지 않습니다.');
+      showWarning('휴대폰번호 형식이 올바르지 않습니다.');
       setTimeout(() => {
         const mobileInput = document.getElementById('mobile');
         if (mobileInput) {
@@ -488,7 +491,7 @@ const handleSubmit = async () => {
   if (mobile2.value && mobile2.value.trim() !== '') {
     const mobile2Number = mobile2.value.replace(/[^0-9]/g, '');
     if (mobile2Number.length !== 11 || !mobile2Number.startsWith('010')) {
-      alert('휴대폰번호2 형식이 올바르지 않습니다.');
+      showWarning('휴대폰번호2 형식이 올바르지 않습니다.');
       setTimeout(() => {
         const mobile2Input = document.getElementById('mobile2');
         if (mobile2Input) {
@@ -504,7 +507,7 @@ const handleSubmit = async () => {
   if (receiveEmail.value && receiveEmail.value.trim() !== '') {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(receiveEmail.value)) {
-      alert('수신용 이메일 형식이 올바르지 않습니다.');
+      showWarning('수신용 이메일 형식이 올바르지 않습니다.');
       setTimeout(() => {
         const receiveEmailInput = document.getElementById('receiveEmail');
         if (receiveEmailInput) {
@@ -520,7 +523,7 @@ const handleSubmit = async () => {
     loading.value = true;
     const currentUser = await supabase.auth.getUser();
     if (!currentUser.data.user) {
-      alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
+      showError('로그인 정보가 없습니다. 다시 로그인해주세요.');
       loading.value = false;
       return;
     }
@@ -542,7 +545,7 @@ const handleSubmit = async () => {
     }
     
     if (existingCompany) {
-      alert('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
+      showWarning('동일한 사업자등록번호로 이미 가입된 이력이 있습니다.');
       setTimeout(() => {
         const businessNumberInput = document.getElementById('businessNumber');
         if (businessNumberInput) {
@@ -576,11 +579,11 @@ const handleSubmit = async () => {
       .eq('id', route.params.id);
 
     if (error) throw error;
-    alert('수정되었습니다.');
+    showSuccess('수정되었습니다.');
     goDetail();
   } catch (err) {
     console.error('업체 정보 수정 중 오류가 발생했습니다.', err);
-    alert('업체 정보 수정에 실패했습니다.');
+    showError('업체 정보 수정에 실패했습니다.');
   } finally {
     loading.value = false;
   }

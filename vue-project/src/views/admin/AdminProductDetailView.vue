@@ -223,8 +223,6 @@
         <div class="loading-text">등록 진행중입니다...</div>
       </div>
     </div>
-
-
   </div>
 </template>
 
@@ -238,6 +236,9 @@ import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
 import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 // 컬럼 너비 한 곳에서 관리
 const columnWidths = {
@@ -480,7 +481,7 @@ const handleFileUpload = async (event) => {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      alert('로그인이 필요합니다.')
+      showError('로그인이 필요합니다.')
       return
     }
 
@@ -490,7 +491,7 @@ const handleFileUpload = async (event) => {
     const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
     if (jsonData.length === 0) {
-      alert('엑셀 파일에 데이터가 없습니다.')
+      showWarning('엑셀 파일에 데이터가 없습니다.')
       return
     }
 
@@ -557,7 +558,7 @@ const handleFileUpload = async (event) => {
     })
 
     if (errors.length > 0) {
-      alert('데이터 오류:\n' + errors.join('\n'))
+      showError('데이터 오류:\n' + errors.join('\n'))
       return
     }
 
@@ -590,7 +591,7 @@ const handleFileUpload = async (event) => {
       })
       duplicateMessage += '중복된 표준코드를 제거한 후 다시 업로드해주세요.'
 
-      alert(duplicateMessage)
+      showWarning(duplicateMessage)
       return
     }
 
@@ -600,7 +601,7 @@ const handleFileUpload = async (event) => {
     })
 
     if (insertData.length === 0) {
-      alert('등록할 데이터가 없습니다.')
+      showWarning('등록할 데이터가 없습니다.')
       return
     }
 
@@ -609,17 +610,17 @@ const handleFileUpload = async (event) => {
     if (error) {
       if (error.code === '23505' && error.message.includes('standard_code')) {
         // 중복된 표준코드 오류인 경우
-        alert('중복된 표준코드가 있습니다.\n\n엑셀 파일에서 중복된 표준코드를 확인하고 제거한 후 다시 업로드해주세요.')
+        showWarning('중복된 표준코드가 있습니다.\n\n엑셀 파일에서 중복된 표준코드를 확인하고 제거한 후 다시 업로드해주세요.')
       } else {
-        alert('업로드 실패: ' + error.message)
+        showError('업로드 실패: ' + error.message)
       }
     } else {
-      alert(`${insertData.length}건의 표준코드 데이터가 업로드되었습니다.`)
+      showSuccess(`${insertData.length}건의 표준코드 데이터가 업로드되었습니다.`)
       await fetchStandardCodes()
     }
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    alert('파일 처리 중 오류가 발생했습니다.')
+    showError('파일 처리 중 오류가 발생했습니다.')
   } finally {
     excelLoading.value = false
     event.target.value = ''
@@ -635,12 +636,12 @@ const downloadExcel = async () => {
       .order('insurance_code', { ascending: true })
 
     if (error) {
-      alert('데이터 조회 실패: ' + error.message)
+      showError('데이터 조회 실패: ' + error.message)
       return
     }
 
     if (!allStandardCodes || allStandardCodes.length === 0) {
-      alert('다운로드할 데이터가 없습니다.')
+      showWarning('다운로드할 데이터가 없습니다.')
       return
     }
 
@@ -793,7 +794,7 @@ const downloadExcel = async () => {
   window.URL.revokeObjectURL(url)
   } catch (error) {
     console.error('엑셀 다운로드 오류:', error)
-    alert('엑셀 다운로드 중 오류가 발생했습니다.')
+    showError('엑셀 다운로드 중 오류가 발생했습니다.')
   }
 }
 
@@ -835,7 +836,7 @@ const saveEdit = async (row) => {
   try {
     // 필수 필드 검증
     if (!row.insurance_code || row.insurance_code.toString().trim() === '') {
-      alert('보험코드는 필수 입력 항목입니다.');
+      showWarning('보험코드는 필수 입력 항목입니다.');
       setTimeout(() => {
         const insuranceCodeInput = document.getElementById(`insurance_code_${row.id}`);
         if (insuranceCodeInput) {
@@ -847,7 +848,7 @@ const saveEdit = async (row) => {
     }
 
     if (!row.standard_code || row.standard_code.toString().trim() === '') {
-      alert('표준코드는 필수 입력 항목입니다.');
+      showWarning('표준코드는 필수 입력 항목입니다.');
       setTimeout(() => {
         const standardCodeInput = document.getElementById(`standard_code_${row.id}`);
         if (standardCodeInput) {
@@ -860,7 +861,7 @@ const saveEdit = async (row) => {
 
     // 보험코드 형식 검증 (9자리 숫자)
     if (row.insurance_code.toString().length !== 9 || !/^\d{9}$/.test(row.insurance_code.toString())) {
-      alert('보험코드는 9자리 숫자여야 합니다.');
+      showWarning('보험코드는 9자리 숫자여야 합니다.');
       setTimeout(() => {
         const insuranceCodeInput = document.getElementById(`insurance_code_${row.id}`);
         if (insuranceCodeInput) {
@@ -873,7 +874,7 @@ const saveEdit = async (row) => {
 
     // 표준코드 형식 검증 (13자리 숫자)
     if (row.standard_code.toString().length !== 13 || !/^\d{13}$/.test(row.standard_code.toString())) {
-      alert('표준코드는 13자리 숫자여야 합니다.');
+      showWarning('표준코드는 13자리 숫자여야 합니다.');
       setTimeout(() => {
         const standardCodeInput = document.getElementById(`standard_code_${row.id}`);
         if (standardCodeInput) {
@@ -886,7 +887,7 @@ const saveEdit = async (row) => {
 
     // 단위수량 검증 (0 이상의 숫자)
     if (row.unit_quantity && (isNaN(Number(row.unit_quantity)) || Number(row.unit_quantity) < 0)) {
-      alert('단위수량은 0 이상의 숫자여야 합니다.');
+      showWarning('단위수량은 0 이상의 숫자여야 합니다.');
       setTimeout(() => {
         const unitQuantityInput = document.getElementById(`unit_quantity_${row.id}`);
         if (unitQuantityInput) {
@@ -898,7 +899,7 @@ const saveEdit = async (row) => {
     }
 
     if (!['active', 'inactive'].includes(row.status)) {
-      alert('상태는 active 또는 inactive여야 합니다.')
+      showWarning('상태는 active 또는 inactive여야 합니다.')
       return
     }
 
@@ -914,17 +915,17 @@ const saveEdit = async (row) => {
     const { error } = await supabase.from('products_standard_code').update(updateData).eq('id', row.id)
 
     if (error) {
-      alert('수정 실패: ' + error.message)
+      showError('수정 실패: ' + error.message)
       return
     }
 
     row.isEditing = false
     row.originalData = { ...row }
 
-    alert('수정되었습니다.')
+    showSuccess('수정되었습니다.')
   } catch (error) {
     console.error('수정 오류:', error)
-    alert('수정 중 오류가 발생했습니다.')
+    showError('수정 중 오류가 발생했습니다.')
   }
 }
 
@@ -937,7 +938,7 @@ const deleteStandardCode = async (row) => {
     const { error } = await supabase.from('products_standard_code').delete().eq('id', row.id)
 
     if (error) {
-      alert('삭제 실패: ' + error.message)
+      showError('삭제 실패: ' + error.message)
       return
     }
 
@@ -946,10 +947,10 @@ const deleteStandardCode = async (row) => {
       standardCodes.value.splice(index, 1)
     }
 
-    alert('삭제되었습니다.')
+    showSuccess('삭제되었습니다.')
   } catch (error) {
     console.error('삭제 오류:', error)
-    alert('삭제 중 오류가 발생했습니다.')
+    showError('삭제 중 오류가 발생했습니다.')
   }
 }
 

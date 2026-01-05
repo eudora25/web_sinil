@@ -42,6 +42,10 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
+import { formatBusinessNumber } from '@/utils/formatUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications()
 
 const router = useRouter()
 
@@ -71,7 +75,7 @@ onMounted(async () => {
       
     if (error) {
       console.error('사용자 정보 조회 오류:', error)
-      alert('사용자 정보를 불러올 수 없습니다.')
+      showError('사용자 정보를 불러올 수 없습니다.')
       return
     }
     
@@ -86,7 +90,7 @@ onMounted(async () => {
     }
   } catch (err) {
     console.error('사용자 정보 조회 예외:', err)
-    alert('사용자 정보를 불러오는 중 오류가 발생했습니다.')
+    showError('사용자 정보를 불러오는 중 오류가 발생했습니다.')
   }
 })
 
@@ -98,17 +102,4 @@ function goChangePassword() {
   router.push('/my-info/change-password')
 }
 
-// 사업자번호 형식 변환 함수
-function formatBusinessNumber(businessNumber) {
-  if (!businessNumber) return '-';
-  
-  // 숫자만 추출
-  const numbers = businessNumber.replace(/[^0-9]/g, '');
-  
-  // 10자리가 아니면 원본 반환
-  if (numbers.length !== 10) return businessNumber;
-  
-  // 형식 변환: ###-##-#####
-  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
-}
 </script> 

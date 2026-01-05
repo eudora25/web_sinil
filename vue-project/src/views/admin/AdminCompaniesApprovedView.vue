@@ -205,6 +205,10 @@ import TopNavigationBar from '@/components/TopNavigationBar.vue'
 import Dialog from 'primevue/dialog'
 import Dropdown from 'primevue/dropdown'
 import { generateExcelFileName } from '@/utils/excelUtils'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
+import { formatBusinessNumber } from '@/utils/formatUtils'
 
 // 컬럼 너비 관리
 const columnWidths = {
@@ -338,7 +342,7 @@ const saveCompanyDetail = async () => {
     loading.value = true
     const currentUser = await supabase.auth.getUser()
     if (!currentUser.data.user) {
-      alert('로그인 정보가 없습니다. 다시 로그인해주세요.')
+      showError('로그인 정보가 없습니다. 다시 로그인해주세요.')
       loading.value = false
       return
     }
@@ -364,7 +368,7 @@ const saveCompanyDetail = async () => {
       })
       .eq('id', selectedCompany.id)
     if (error) throw error
-    alert('업체 정보가 성공적으로 수정되었습니다.')
+    showSuccess('업체 정보가 성공적으로 수정되었습니다.')
     isEditing.value = false
     hasChanges.value = false
     originalCompanyDetail.value = JSON.parse(JSON.stringify(selectedCompany))
@@ -396,11 +400,11 @@ const confirmApprovalChange = async (company, newStatus) => {
     })
     
     if (error) throw error
-    alert('업체 상태가 성공적으로 변경되었습니다.')
+    showSuccess('업체 상태가 성공적으로 변경되었습니다.')
     await fetchCompanies()
     router.push('/admin/companies/approved')
   } catch (err) {
-    alert(err.message || '상태 변경 실패')
+    showError(err.message || '상태 변경 실패')
   } finally {
     loading.value = false
   }
@@ -448,7 +452,7 @@ function goToDetail(id) {
 
 const downloadExcel = async () => {
   if (filteredCompanies.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.')
+    showWarning('다운로드할 데이터가 없습니다.')
     return
   }
 
@@ -621,8 +625,12 @@ const removeOverflowClass = (event) => {
 const clientModalVisible = ref(false);
 const clientModalData = ref([]);
 
-function openCancelDialog(company) {
-  if (confirm(`정말 ${company.company_name} 업체를 승인 취소 처리하시겠습니까?`)) {
+async function openCancelDialog(company) {
+  const confirmed = await showConfirm(
+    `정말 ${company.company_name} 업체를 취소 처리하시겠습니까?`,
+    '취소 확인'
+  );
+  if (confirmed) {
     confirmApprovalChange(company, 'pending');
   }
 }
@@ -647,7 +655,7 @@ async function openClientModal(company) {
     
     if (error) {
       console.error('병의원 정보 조회 오류:', error);
-      alert('병의원 정보를 불러오는데 실패했습니다.');
+      showError('병의원 정보를 불러오는데 실패했습니다.');
       return;
     }
     
@@ -658,7 +666,7 @@ async function openClientModal(company) {
     clientModalVisible.value = true;
   } catch (err) {
     console.error('병의원 정보 조회 오류:', err);
-    alert('병의원 정보를 불러오는데 실패했습니다.');
+    showError('병의원 정보를 불러오는데 실패했습니다.');
   }
 }
 
@@ -667,19 +675,6 @@ function closeClientModal() {
   clientModalData.value = [];
 }
 
-// 사업자번호 형식 변환 함수
-function formatBusinessNumber(businessNumber) {
-  if (!businessNumber) return '-';
-  
-  // 숫자만 추출
-  const numbers = businessNumber.replace(/[^0-9]/g, '');
-  
-  // 10자리가 아니면 원본 반환
-  if (numbers.length !== 10) return businessNumber;
-  
-  // 형식 변환: ###-##-#####
-  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
-}
 
 </script>
 

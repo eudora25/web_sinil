@@ -76,6 +76,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
+import { useNotifications } from '@/utils/notifications'
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const router = useRouter()
 const loading = ref(false)
@@ -96,19 +99,19 @@ const handleSubmit = async () => {
 
   // 새 비밀번호와 확인 비밀번호 일치 확인
   if (newPassword.value !== confirmPassword.value) {
-    alert('새 비밀번호와 비밀번호 확인이 일치하지 않습니다.')
+    showWarning('새 비밀번호와 비밀번호 확인이 일치하지 않습니다.')
     return
   }
 
   // 새 비밀번호 길이 확인
   if (newPassword.value.length < 6) {
-    alert('새 비밀번호는 최소 6자 이상이어야 합니다.')
+    showWarning('새 비밀번호는 최소 6자 이상이어야 합니다.')
     return
   }
 
   // 현재 비밀번호와 새 비밀번호가 같은지 확인
   if (currentPassword.value === newPassword.value) {
-    alert('새 비밀번호는 현재 비밀번호와 달라야 합니다.')
+    showWarning('새 비밀번호는 현재 비밀번호와 달라야 합니다.')
     return
   }
 
@@ -118,7 +121,7 @@ const handleSubmit = async () => {
     // 먼저 현재 비밀번호가 맞는지 확인
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      alert('사용자 정보를 확인할 수 없습니다.')
+      showError('사용자 정보를 확인할 수 없습니다.')
       return
     }
 
@@ -129,7 +132,7 @@ const handleSubmit = async () => {
     })
 
     if (signInError) {
-      alert('현재 비밀번호가 올바르지 않습니다.')
+      showError('현재 비밀번호가 올바르지 않습니다.')
       return
     }
 
@@ -139,11 +142,11 @@ const handleSubmit = async () => {
     })
 
     if (updateError) {
-      alert('비밀번호 변경 실패: ' + updateError.message)
+      showError('비밀번호 변경 실패: ' + updateError.message)
       return
     }
 
-    alert('비밀번호가 성공적으로 변경되었습니다.')
+    showSuccess('비밀번호가 성공적으로 변경되었습니다.')
     
     // 폼 초기화
     currentPassword.value = ''
@@ -155,7 +158,7 @@ const handleSubmit = async () => {
 
   } catch (err) {
     console.error('비밀번호 변경 오류:', err)
-    alert('비밀번호 변경 중 오류가 발생했습니다: ' + (err.message || err))
+    showError('비밀번호 변경 중 오류가 발생했습니다: ' + (err.message || err))
   } finally {
     loading.value = false
   }

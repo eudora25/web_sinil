@@ -55,6 +55,9 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 const route = useRoute();
 const router = useRouter();
@@ -152,7 +155,8 @@ function goList() {
   }
 }
 async function handleDelete() {
-  if (!confirm('정말 삭제하시겠습니까?')) return;
+  const confirmed = await showConfirm('정말 삭제하시겠습니까?');
+  if (!confirmed) return;
 
   const pharmacyId = route.params.id;
 
@@ -168,7 +172,7 @@ async function handleDelete() {
     }
 
     if (isReferenceExist != 0) {
-      alert(`이 약국은 이미 사용되고 있어 삭제할 수 없습니다.`);
+      showWarning(`이 약국은 이미 사용되고 있어 삭제할 수 없습니다.`);
       return;
     }
 
@@ -178,12 +182,12 @@ async function handleDelete() {
       throw new Error(error.message);
     }
 
-    alert('삭제되었습니다.');
+    showSuccess('삭제되었습니다.');
     router.push('/admin/pharmacies');
 
   } catch (error) {
     console.error('삭제 오류:', error)
-    alert('삭제 중 오류가 발생했습니다.')
+    showError('삭제 중 오류가 발생했습니다.')
   }
 }
 </script>

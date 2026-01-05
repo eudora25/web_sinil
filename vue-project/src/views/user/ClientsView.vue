@@ -84,6 +84,10 @@ import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
+import { formatBusinessNumber } from '@/utils/formatUtils';
+import { useNotifications } from '@/utils/notifications';
+
+const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 const clients = ref([]);
 const filters = ref({ 'global': { value: null, matchMode: 'contains' } });
@@ -158,7 +162,7 @@ const fetchClients = async () => {
 // 엑셀 다운로드 함수
 async function downloadExcel() {
   if (!clients.value || clients.value.length === 0) {
-    alert('다운로드할 데이터가 없습니다.');
+    showWarning('다운로드할 데이터가 없습니다.');
     return;
   }
 
@@ -257,7 +261,7 @@ async function downloadExcel() {
     
   } catch (err) {
     console.error('엑셀 다운로드 오류:', err);
-    alert('엑셀 다운로드 중 오류가 발생했습니다.');
+    showError('엑셀 다운로드 중 오류가 발생했습니다.');
   }
 }
 
@@ -303,19 +307,6 @@ const removeOverflowClass = (event) => {
   // console.log('이용자 병의원 오버플로우 클래스 제거됨');
 }
 
-// 사업자번호 형식 변환 함수
-function formatBusinessNumber(businessNumber) {
-  if (!businessNumber) return '-';
-  
-  // 숫자만 추출
-  const numbers = businessNumber.replace(/[^0-9]/g, '');
-  
-  // 10자리가 아니면 원본 반환
-  if (numbers.length !== 10) return businessNumber;
-  
-  // 형식 변환: ###-##-#####
-  return numbers.substring(0, 3) + '-' + numbers.substring(3, 5) + '-' + numbers.substring(5);
-}
 
 onMounted(() => {
   fetchClients();
