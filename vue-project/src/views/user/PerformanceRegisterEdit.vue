@@ -160,14 +160,17 @@
                 </td>
                 <td style="text-align:right;position:relative; width:6%;">
                   <input
+                    type="text"
+                    inputmode="decimal"
                     v-model="row.prescription_qty"
                     :tabindex="isRowEditable(row) ? 0 : -1"
                     :readonly="!isRowEditable(row)"
                     @keydown.enter.prevent="addOrFocusNextRow(rowIdx)"
                     @keydown="onArrowKey($event, rowIdx, 'prescription_qty')"
-                    @input="onQtyInput(rowIdx)"
+                    @keypress="onQtyKeypress($event)"
+                    @input="onQtyInput(rowIdx, $event)"
                     @focus="handlePrescriptionQtyFocus(rowIdx)"
-                    @blur="row.prescription_qty = row.prescription_qty ? Number(row.prescription_qty.toString().replace(/,/g, '')).toLocaleString() : ''"
+                    @blur="formatPrescriptionQty(rowIdx)"
                     :disabled="!isRowEditable(row)"
                     :class="[
                       cellClass(rowIdx, 'prescription_qty'),
@@ -937,9 +940,40 @@ function handlePrescriptionQtyFocus(rowIdx) {
     return;
   }
   
-  // 포커스시 콤마 제거
-  inputRows.value[rowIdx].prescription_qty = inputRows.value[rowIdx].prescription_qty ? inputRows.value[rowIdx].prescription_qty.toString().replace(/,/g, '') : '';
+  // 포커스시 콤마 제거 (소수점은 유지)
+  const qty = inputRows.value[rowIdx].prescription_qty;
+  if (qty) {
+    const qtyStr = qty.toString().replace(/,/g, '');
+    inputRows.value[rowIdx].prescription_qty = qtyStr;
+  }
   currentCell.value = { row: rowIdx, col: 'prescription_qty' };
+}
+
+// 처방수량 필드 blur 핸들러 (소수점 유지)
+function formatPrescriptionQty(rowIdx) {
+  const row = inputRows.value[rowIdx];
+  if (!row.prescription_qty) {
+    row.prescription_qty = '';
+    return;
+  }
+  
+  const qtyStr = row.prescription_qty.toString().replace(/,/g, '');
+  const qty = parseFloat(qtyStr);
+  
+  if (isNaN(qty) || qty < 0) {
+    row.prescription_qty = '';
+    return;
+  }
+  
+  // 소수점이 있으면 그대로 유지, 없으면 숫자로 저장
+  if (qtyStr.includes('.')) {
+    row.prescription_qty = qtyStr;
+  } else {
+    row.prescription_qty = qty;
+  }
+  
+  // 처방액 재계산
+  calculateAmounts(rowIdx);
 }
 
 // 테이블 네비게이션 함수들
@@ -1050,23 +1084,32 @@ function onPrescriptionTypeInput(rowIdx) {
   }
 }
 
-function onQtyInput(rowIdx) {
+function onQtyInput(rowIdx, event) {
   const row = inputRows.value[rowIdx];
-  let qtyValue = row.prescription_qty.toString().replace(/,/g, '');
+  // 실제 입력된 값을 가져옴 (v-model보다 정확함)
+  let qtyValue = event ? event.target.value : row.prescription_qty.toString();
+  qtyValue = qtyValue.replace(/,/g, '');
   
-  // 숫자가 아닌 문자 제거 (소수점은 허용하지 않음)
-  qtyValue = qtyValue.replace(/[^0-9]/g, '');
+  // 숫자와 소수점만 허용 (소수점은 하나만 허용)
+  // 먼저 소수점이 여러 개인 경우 첫 번째 소수점만 유지
+  const parts = qtyValue.split('.');
+  if (parts.length > 2) {
+    qtyValue = parts[0] + '.' + parts.slice(1).join('');
+  }
   
-  // 빈 문자열이면 그대로 유지, 아니면 숫자로 변환
-  if (qtyValue === '') {
-    row.prescription_qty = '';
+  // 숫자와 소수점만 허용
+  qtyValue = qtyValue.replace(/[^0-9.]/g, '');
+  
+  // 빈 문자열이면 그대로 유지
+  if (qtyValue === '' || qtyValue === '.') {
+    row.prescription_qty = qtyValue;
     row.prescription_amount = '';
     row.payment_amount = '';
     return;
   }
   
-  // 숫자로 변환하여 저장
-  const qty = Number(qtyValue);
+  // 숫자로 변환하여 유효성 검사 (소수점 포함)
+  const qty = parseFloat(qtyValue);
   if (isNaN(qty) || qty < 0) {
     row.prescription_qty = '';
     row.prescription_amount = '';
@@ -1074,6 +1117,7 @@ function onQtyInput(rowIdx) {
     return;
   }
   
+  // 소수점이 있으면 그대로 유지, 없으면 숫자로 저장
   row.prescription_qty = qtyValue;
   
   const price = Number(row.price.toString().replace(/,/g, ''));
@@ -1087,10 +1131,24 @@ function onQtyInput(rowIdx) {
   }
 }
 
+// 처방수량 입력 필드 keypress 핸들러 (소수점 입력 허용)
+function onQtyKeypress(event) {
+  // 숫자, 소수점, 백스페이스, Delete, 화살표 키만 허용
+  const char = String.fromCharCode(event.which || event.keyCode);
+  if (!/[0-9.]/.test(char) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab'].includes(event.key)) {
+    // 이미 소수점이 있으면 추가 소수점 입력 방지
+    if (char === '.' && event.target.value.includes('.')) {
+      event.preventDefault();
+      return;
+    }
+    event.preventDefault();
+  }
+}
+
 // 처방액과 지급액을 모두 계산하는 함수
 function calculateAmounts(rowIdx) {
   const row = inputRows.value[rowIdx];
-  const qty = Number(row.prescription_qty.toString().replace(/,/g, ''));
+  const qty = parseFloat(row.prescription_qty.toString().replace(/,/g, ''));
   const price = Number(row.price.toString().replace(/,/g, ''));
   
   // 처방액 계산 (처방수량과 단가가 모두 있을 때만)
@@ -1325,7 +1383,7 @@ async function savePerformanceData() {
       }
 
       const qtyStr = String(row.prescription_qty || '').replace(/,/g, '');
-      const qtyNum = Number(qtyStr);
+      const qtyNum = parseFloat(qtyStr);
       
       if (isNaN(qtyNum) || qtyNum < 0) {
         throw new Error('처방 수량은 0 이상의 숫자여야 합니다.');
@@ -1415,7 +1473,7 @@ async function savePerformanceData() {
         .update({
           prescription_month: row.prescription_month,
           product_id: row.product_id,
-          prescription_qty: Number(row.prescription_qty),
+          prescription_qty: parseFloat(String(row.prescription_qty || '').replace(/,/g, '')),
           prescription_type: row.prescription_type,
           remarks: row.remarks,
           commission_rate: (() => {
@@ -1716,7 +1774,7 @@ const totalQty = computed(() => {
   const total = inputRows.value.reduce((sum, row) => {
     const prescriptionQty = row.prescription_qty;
     if (!prescriptionQty) return sum;
-    const qty = Number(prescriptionQty.toString().replace(/,/g, '')) || 0;
+    const qty = parseFloat(prescriptionQty.toString().replace(/,/g, '')) || 0;
     return sum + qty;
   }, 0);
   return total.toLocaleString();
@@ -2226,7 +2284,7 @@ async function updateProductInfoForMonthChange(rowIdx) {
 
     // 처방수량이 있으면 처방액 재계산
     if (row.prescription_qty) {
-      const qty = Number(row.prescription_qty.toString().replace(/,/g, ''));
+      const qty = parseFloat(row.prescription_qty.toString().replace(/,/g, ''));
       const price = Number(productData.price) || 0;
       if (!isNaN(qty) && !isNaN(price) && price > 0) {
         row.prescription_amount = (qty * price).toLocaleString();
