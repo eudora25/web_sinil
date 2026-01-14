@@ -928,6 +928,8 @@ const handleFileUpload = async (event) => {
 
     if (jsonData.length === 0) {
       showWarning('엑셀 파일에 데이터가 없습니다.')
+      excelLoading.value = false
+      event.target.value = ''
       return
     }
 
@@ -936,20 +938,31 @@ const handleFileUpload = async (event) => {
 
     // 1단계: 기존 데이터 존재 시 확인
     if (hasExistingData) {
+      // showConfirm을 호출하기 전에 로딩 오버레이 해제
+      excelLoading.value = false
+
       const confirmed = await showConfirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?', '데이터 확인');
       if (!confirmed) {
+        excelLoading.value = false
         event.target.value = ''
         return
       }
+
+      // PrimeVue ConfirmDialog가 완전히 닫힐 때까지 약간의 지연
+      await new Promise(resolve => setTimeout(resolve, 100))
 
       // 2단계: 추가 등록 확인
       const choice = await showUploadChoiceModal()
 
       if (choice !== 'append') {
         // cancel이거나 잘못된 입력
+        excelLoading.value = false
         event.target.value = ''
         return
       }
+
+      // 확인을 누른 경우 다시 로딩 시작
+      excelLoading.value = true
     }
 
     // 데이터 변환 및 검증
@@ -1014,6 +1027,8 @@ const handleFileUpload = async (event) => {
 
     if (errors.length > 0) {
       showError('데이터 오류:\n' + errors.join('\n'))
+      excelLoading.value = false
+      event.target.value = ''
       return
     }
 
@@ -1028,6 +1043,8 @@ const handleFileUpload = async (event) => {
 
     if (fetchError) {
       showError('기존 데이터 조회 중 오류가 발생했습니다: ' + fetchError.message)
+      excelLoading.value = false
+      event.target.value = ''
       return
     }
 
@@ -1069,15 +1086,33 @@ const handleFileUpload = async (event) => {
     // 4단계: 중복 발견 시 처리
     if (duplicateErrors.length > 0) {
       
+      // showConfirm을 호출하기 전에 로딩 오버레이 해제
+      excelLoading.value = false
+      
       // 중복 발견 시 계속 진행 여부 확인
       const duplicateCount = duplicateErrors.length
       const confirmed = await showConfirm(`중복 오류가 ${duplicateCount}건 발견되었습니다:\n\n` + duplicateErrors.join('\n') + `\n\n계속 등록 작업을 진행하시겠습니까?`, '중복 확인');
       if (!confirmed) {
+        excelLoading.value = false
+        event.target.value = ''
         return
       }
 
+      // PrimeVue ConfirmDialog가 완전히 닫힐 때까지 약간의 지연
+      await new Promise(resolve => setTimeout(resolve, 100))
+
       // 5단계: 중복 해결 방법 선택 (버튼 모달)
       const duplicateChoice = await showDuplicateChoiceModal()
+
+      if (duplicateChoice === 'cancel') {
+        // 취소한 경우
+        excelLoading.value = false
+        event.target.value = ''
+        return
+      }
+
+      // replace 또는 keep을 선택한 경우 다시 로딩 시작
+      excelLoading.value = true
 
       if (duplicateChoice === 'replace') {
         // 교체 모드: 중복되는 기존 병의원들 삭제
@@ -1091,6 +1126,8 @@ const handleFileUpload = async (event) => {
 
             if (deleteError) {
               showError('기존 병의원 삭제 실패 (코드): ' + deleteError.message)
+              excelLoading.value = false
+              event.target.value = ''
               return
             }
           }
@@ -1104,6 +1141,8 @@ const handleFileUpload = async (event) => {
 
             if (deleteError) {
               showError('기존 병의원 삭제 실패 (사업자번호): ' + deleteError.message)
+              excelLoading.value = false
+              event.target.value = ''
               return
             }
           }
@@ -1130,6 +1169,8 @@ const handleFileUpload = async (event) => {
         uploadData = uploadData.filter(item => !duplicateItems.includes(item.rowNum))
       } else {
         // cancel 모드: 업로드 취소
+        excelLoading.value = false
+        event.target.value = ''
         return
       }
     }
@@ -1142,6 +1183,8 @@ const handleFileUpload = async (event) => {
 
     if (insertData.length === 0) {
       showWarning('등록할 데이터가 없습니다.')
+      excelLoading.value = false
+      event.target.value = ''
       return
     }
 
@@ -1233,12 +1276,19 @@ const handleFileUpload = async (event) => {
     await fetchClients() // 목록 새로고침
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    showError('파일 처리 중 오류가 발생했습니다.')
+    showError('파일 처리 중 오류가 발생했습니다: ' + (error.message || error))
+    // 에러 발생 시에도 로딩 해제
+    excelLoading.value = false
+    if (event && event.target) {
+      event.target.value = ''
+    }
   } finally {
-    // 엑셀 등록 로딩 종료
+    // 엑셀 등록 로딩 종료 (안전장치)
     excelLoading.value = false
     // 파일 입력 초기화
-    event.target.value = ''
+    if (event && event.target) {
+      event.target.value = ''
+    }
   }
 }
 
@@ -1481,6 +1531,14 @@ const handleBackspace = (event) => {
 // 중복 선택 모달 함수
 function showDuplicateChoiceModal() {
   return new Promise((resolve) => {
+    // 타임아웃 설정 (5분)
+    const timeout = setTimeout(() => {
+      if (document.body.contains(modal)) {
+        document.body.removeChild(modal)
+      }
+      resolve('cancel')
+    }, 300000) // 5분
+
     // 모달 컨테이너 생성
     const modal = document.createElement('div')
     modal.style.cssText = `
@@ -1493,7 +1551,7 @@ function showDuplicateChoiceModal() {
       display: flex;
       justify-content: center;
       align-items: center;
-      z-index: 9999;
+      z-index: 10001;
     `
 
     // 모달 내용 생성
@@ -1554,26 +1612,35 @@ function showDuplicateChoiceModal() {
     document.body.appendChild(modal)
 
     // 버튼 이벤트 리스너
-    document.getElementById('replace-btn').addEventListener('click', () => {
-      document.body.removeChild(modal)
-      resolve('replace')
-    })
+    const handleResolve = (value) => {
+      clearTimeout(timeout)
+      if (document.body.contains(modal)) {
+        document.body.removeChild(modal)
+      }
+      resolve(value)
+    }
 
-    document.getElementById('keep-btn').addEventListener('click', () => {
-      document.body.removeChild(modal)
-      resolve('keep')
-    })
+    // DOM이 준비될 때까지 대기
+    setTimeout(() => {
+      const replaceBtn = document.getElementById('replace-btn')
+      const keepBtn = document.getElementById('keep-btn')
+      const cancelBtn = document.getElementById('cancel-btn')
 
-    document.getElementById('cancel-btn').addEventListener('click', () => {
-      document.body.removeChild(modal)
-      resolve('cancel')
-    })
+      if (replaceBtn) {
+        replaceBtn.addEventListener('click', () => handleResolve('replace'))
+      }
+      if (keepBtn) {
+        keepBtn.addEventListener('click', () => handleResolve('keep'))
+      }
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => handleResolve('cancel'))
+      }
+    }, 100)
 
     // 모달 외부 클릭 시 취소
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
-        document.body.removeChild(modal)
-        resolve('cancel')
+        handleResolve('cancel')
       }
     })
   })
@@ -1582,6 +1649,14 @@ function showDuplicateChoiceModal() {
 // 업로드 선택 모달 함수
 function showUploadChoiceModal() {
   return new Promise((resolve) => {
+    // 타임아웃 설정 (5분)
+    const timeout = setTimeout(() => {
+      if (document.body.contains(modal)) {
+        document.body.removeChild(modal)
+      }
+      resolve('cancel')
+    }, 300000) // 5분
+
     // 모달 컨테이너 생성
     const modal = document.createElement('div')
     modal.style.cssText = `
@@ -1594,7 +1669,7 @@ function showUploadChoiceModal() {
       display: flex;
       justify-content: center;
       align-items: center;
-      z-index: 9999;
+      z-index: 10001;
     `
 
     // 모달 내용 생성
@@ -1643,21 +1718,31 @@ function showUploadChoiceModal() {
     document.body.appendChild(modal)
 
     // 버튼 이벤트 리스너
-    document.getElementById('confirm-btn').addEventListener('click', () => {
-      document.body.removeChild(modal)
-      resolve('append')
-    })
+    const handleResolve = (value) => {
+      clearTimeout(timeout)
+      if (document.body.contains(modal)) {
+        document.body.removeChild(modal)
+      }
+      resolve(value)
+    }
 
-    document.getElementById('cancel-btn').addEventListener('click', () => {
-      document.body.removeChild(modal)
-      resolve('cancel')
-    })
+    // DOM이 준비될 때까지 대기
+    setTimeout(() => {
+      const confirmBtn = document.getElementById('confirm-btn')
+      const cancelBtn = document.getElementById('cancel-btn')
+
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => handleResolve('append'))
+      }
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => handleResolve('cancel'))
+      }
+    }, 100)
 
     // 모달 외부 클릭 시 취소
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
-        document.body.removeChild(modal)
-        resolve('cancel')
+        handleResolve('cancel')
       }
     })
   })
