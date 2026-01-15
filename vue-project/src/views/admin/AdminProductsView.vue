@@ -917,6 +917,8 @@ const handleFileUpload = async (event) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       showError('로그인이 필요합니다.')
+      excelLoading.value = false
+      event.target.value = ''
       return
     }
 
@@ -927,6 +929,8 @@ const handleFileUpload = async (event) => {
 
     if (jsonData.length === 0) {
       showWarning('엑셀 파일에 데이터가 없습니다.')
+      excelLoading.value = false
+      event.target.value = ''
       return
     }
 
@@ -935,19 +939,34 @@ const handleFileUpload = async (event) => {
 
     // 1단계: 기존 데이터 존재 시 확인
     if (hasExistingData) {
-      if (!confirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?')) {
+      // showConfirm을 호출하기 전에 로딩 오버레이 해제
+      excelLoading.value = false
+
+      const confirmed = await showConfirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?', '데이터 확인');
+      if (!confirmed) {
+        excelLoading.value = false
         event.target.value = ''
         return
       }
+
+      // PrimeVue ConfirmDialog가 완전히 닫힐 때까지 약간의 지연
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // 로딩 오버레이 해제 (모달이 표시되기 전에)
+      excelLoading.value = false
 
       // 2단계: 추가 등록 확인
       const choice = await showUploadChoiceModal()
 
       if (choice !== 'append') {
         // cancel이거나 잘못된 입력
+        excelLoading.value = false
         event.target.value = ''
         return
       }
+
+      // 확인을 누른 경우 다시 로딩 시작
+      excelLoading.value = true
     }
 
     // 데이터 변환 및 검증
@@ -1105,22 +1124,40 @@ const handleFileUpload = async (event) => {
       }
 
       if (duplicateErrors.length > 0) {
+        // showConfirm을 호출하기 전에 로딩 오버레이 해제
+        excelLoading.value = false
+
         // 4단계: 중복 발견 시 계속 진행 여부 확인
         const confirmed = await showConfirm('중복 오류:\n' + duplicateErrors.join('\n') + '\n\n계속 등록 작업을 진행하시겠습니까?', '중복 확인');
         if (!confirmed) {
+          excelLoading.value = false
+          event.target.value = ''
           return
         }
 
+        // PrimeVue ConfirmDialog가 완전히 닫힐 때까지 약간의 지연
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        // 로딩 오버레이 해제 (모달이 표시되기 전에)
+        excelLoading.value = false
+
         // 5단계: 중복 해결 방법 선택 (버튼 모달)
         const duplicateChoice = await showDuplicateChoiceModal()
+
+        if (duplicateChoice === 'cancel') {
+          // 취소한 경우
+          excelLoading.value = false
+          event.target.value = ''
+          return
+        }
+
+        // keep을 선택한 경우 다시 로딩 시작
+        excelLoading.value = true
 
         if (duplicateChoice === 'keep') {
           // 기존 유지 모드: 중복되는 신규 제품들 제외
           const duplicateInsuranceCodes = duplicateProducts.map(p => p.insurance_code)
           uploadData = uploadData.filter(item => !duplicateInsuranceCodes.includes(item.insurance_code))
-        } else {
-          // cancel 모드: 업로드 취소
-          return
         }
       }
     }
