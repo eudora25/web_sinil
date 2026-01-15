@@ -790,20 +790,34 @@ const handleFileUpload = async (event) => {
 
     // 1단계: 기존 데이터 존재 시 확인
     if (hasExistingData) {
+      // showConfirm을 호출하기 전에 로딩 오버레이 해제
+      excelLoading.value = false
+
       const confirmed = await showConfirm('기존 데이터가 있습니다.\n계속 등록하시겠습니까?', '데이터 확인');
       if (!confirmed) {
+        excelLoading.value = false
         event.target.value = ''
         return
       }
+
+      // PrimeVue ConfirmDialog가 완전히 닫힐 때까지 약간의 지연
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // 로딩 오버레이 해제 (모달이 표시되기 전에)
+      excelLoading.value = false
 
       // 2단계: 추가 등록 확인
       const choice = await showUploadChoiceModal()
 
       if (choice !== 'append') {
         // cancel이거나 잘못된 입력
+        excelLoading.value = false
         event.target.value = ''
         return
       }
+
+      // 확인을 누른 경우 다시 로딩 시작
+      excelLoading.value = true
     }
 
     // 데이터 변환 및 검증
@@ -922,15 +936,36 @@ const handleFileUpload = async (event) => {
     // 4단계: 중복 발견 시 처리
     if (duplicateErrors.length > 0) {
       
+      // showConfirm을 호출하기 전에 로딩 오버레이 해제
+      excelLoading.value = false
+      
       // 중복 발견 시 계속 진행 여부 확인
       const duplicateCount = duplicateErrors.length
       const confirmed = await showConfirm(`중복 오류가 ${duplicateCount}건 발견되었습니다:\n\n` + duplicateErrors.join('\n') + `\n\n계속 등록 작업을 진행하시겠습니까?`, '중복 확인');
       if (!confirmed) {
+        excelLoading.value = false
+        event.target.value = ''
         return
       }
 
+      // PrimeVue ConfirmDialog가 완전히 닫힐 때까지 약간의 지연
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // 로딩 오버레이 해제 (모달이 표시되기 전에)
+      excelLoading.value = false
+
       // 5단계: 중복 해결 방법 선택 (버튼 모달)
       const duplicateChoice = await showDuplicateChoiceModal()
+
+      if (duplicateChoice === 'cancel') {
+        // 취소한 경우
+        excelLoading.value = false
+        event.target.value = ''
+        return
+      }
+
+      // replace 또는 keep을 선택한 경우 다시 로딩 시작
+      excelLoading.value = true
 
       if (duplicateChoice === 'replace') {
         // 교체 모드: 중복되는 기존 약국들 삭제
