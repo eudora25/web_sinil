@@ -73,7 +73,7 @@
         <div class="table-body-scroll">
           <table class="input-table prime-like-table" style="table-layout: fixed; width: 100%;">
             <tbody>
-              <tr v-for="(row, rowIdx) in inputRows" :key="rowIdx">
+              <tr v-for="(row, rowIdx) in inputRows" :key="rowIdx" :class="{ 'duplicate-in-nearby-month-row': row.product_id && row.prescription_month && duplicateKeySet.has(`${row.prescription_month}|${row.product_id}`) }">
                 <td style="text-align:center;width:3%;">
                   <input 
                     type="checkbox" 
@@ -467,6 +467,25 @@ function getPrescriptionMonth(settlementMonth, offset) {
   while (mm <= 0) { mm += 12; yy -= 1; }
   return `${yy}-${String(mm).padStart(2, '0')}`;
 }
+
+// 현재 정산월 기준 이전 2개월 + 현재월 (총 3개월) 반환
+function getNearbySettlementMonths(settlementMonth) {
+  if (!settlementMonth) return [];
+  const [y, m] = settlementMonth.split('-');
+  const year = parseInt(y, 10);
+  const month = parseInt(m, 10);
+  const months = [];
+  for (let i = 2; i >= 0; i--) {
+    let mm = month - i;
+    let yy = year;
+    while (mm <= 0) { mm += 12; yy -= 1; }
+    months.push(`${yy}-${String(mm).padStart(2, '0')}`);
+  }
+  return months;
+}
+
+// 이전 2개월 동일 건 키 Set
+const duplicateKeySet = ref(new Set());
 
 function truncateText(text, maxLength) {
   if (!text) return '';
@@ -1733,6 +1752,48 @@ async function loadExistingData() {
       originalRows.value = getValidRows(inputRows.value).map(row => ({ ...row }));
       // *** MODIFICATION END ***
 
+      // === 이전 2개월 동일 건 판별 ===
+      const nearbyMonths = getNearbySettlementMonths(settlementMonth);
+      const otherMonths = nearbyMonths.filter(m => m !== settlementMonth);
+      duplicateKeySet.value = new Set();
+
+      if (otherMonths.length > 0) {
+        let nearbyData = [];
+        let nearbyFrom = 0;
+        const nearbyBatchSize = 1000;
+
+        while (true) {
+          const { data: batch, error: nearbyError } = await supabase
+            .from('performance_records')
+            .select('prescription_month, product_id')
+            .eq('company_id', myCompany.id)
+            .eq('client_id', clientId)
+            .in('settlement_month', otherMonths)
+            .range(nearbyFrom, nearbyFrom + nearbyBatchSize - 1);
+
+          if (nearbyError) {
+            console.error('이전 정산월 데이터 조회 실패:', nearbyError);
+            break;
+          }
+
+          nearbyData = nearbyData.concat(batch);
+          if (batch.length < nearbyBatchSize) break;
+          nearbyFrom += nearbyBatchSize;
+        }
+
+        const otherMonthKeySet = new Set();
+        nearbyData.forEach(item => {
+          otherMonthKeySet.add(`${item.prescription_month}|${item.product_id}`);
+        });
+
+        data.forEach(record => {
+          const key = `${record.prescription_month}|${record.product_id}`;
+          if (otherMonthKeySet.has(key)) {
+            duplicateKeySet.value.add(key);
+          }
+        });
+      }
+
       // 처방월도 기존 데이터에서 가져오기
       if (data[0].prescription_month) {
         const prescMonth = data[0].prescription_month;
@@ -2313,6 +2374,11 @@ async function handlePrescriptionMonthChange(rowIdx) {
 </script>
 
 <style scoped>
+
+/* 이전 2개월 동일 건 존재 행 기울임 표시 */
+.duplicate-in-nearby-month-row td {
+  font-style: italic;
+}
 
 /* 비활성화된 입력 필드 스타일 */
 .disabled-area {
