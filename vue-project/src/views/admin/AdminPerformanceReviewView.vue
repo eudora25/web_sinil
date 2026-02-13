@@ -1598,6 +1598,50 @@ async function loadPerformanceData() {
     }
 
 
+    // === 정산월 기준 이전 2개월 동일 건 판별 ===
+    const nearbyMonths = getNearbySettlementMonths(selectedSettlementMonth.value);
+    const duplicateKeySet = new Set();
+
+    // 이전 2개월(현재 월 제외)에 해당하는 데이터를 조회하여 키별 정산월 집계
+    const otherMonths = nearbyMonths.filter(m => m !== selectedSettlementMonth.value);
+    if (otherMonths.length > 0) {
+      let nearbyData = [];
+      let nearbyFrom = 0;
+      const nearbyBatchSize = 1000;
+
+      while (true) {
+        const { data: batch, error: nearbyError } = await supabase
+          .from('performance_records')
+          .select('settlement_month, company_id, client_id, prescription_month, product_id')
+          .in('settlement_month', otherMonths)
+          .range(nearbyFrom, nearbyFrom + nearbyBatchSize - 1);
+
+        if (nearbyError) {
+          console.error('이전 정산월 데이터 조회 실패:', nearbyError);
+          break;
+        }
+
+        nearbyData = nearbyData.concat(batch);
+        if (batch.length < nearbyBatchSize) break;
+        nearbyFrom += nearbyBatchSize;
+      }
+
+      // 이전 월 데이터의 키 Set 생성
+      const otherMonthKeySet = new Set();
+      nearbyData.forEach(item => {
+        const key = `${item.company_id}|${item.client_id}|${item.prescription_month}|${item.product_id}`;
+        otherMonthKeySet.add(key);
+      });
+
+      // 현재 월 데이터 중 이전 월에도 존재하는 키를 duplicateKeySet에 추가
+      allData.forEach(item => {
+        const key = `${item.company_id}|${item.client_id}|${item.prescription_month}|${item.product_id}`;
+        if (otherMonthKeySet.has(key)) {
+          duplicateKeySet.add(key);
+        }
+      });
+    }
+
     // 데이터 가공: Join된 객체를 펼치고, 화면 표시에 필요한 값을 설정
     rows.value = allData.map(item => {
       // 처방액 계산 (모든 건 포함)
@@ -1673,6 +1717,8 @@ async function loadPerformanceData() {
         }
       }
 
+      const dupKey = `${item.company_id}|${item.client_id}|${item.prescription_month}|${item.product_id}`;
+
       return {
         ...item,
         id: item.id,
@@ -1683,6 +1729,7 @@ async function loadPerformanceData() {
         price: item.products?.price ? Math.round(item.products.price).toLocaleString() : '0',
         commission_rate: commissionRate, // 프로모션 제품인 경우 final_commission_rate로 업데이트됨
         isPromotionRateApplied: isPromotionRateApplied, // 프로모션 수수료율 적용 여부
+        hasDuplicateInNearbyMonth: duplicateKeySet.has(dupKey), // 이전 2개월 동일 건 존재 여부
         prescription_amount: prescriptionAmount.toLocaleString(),
         payment_prescription_amount: paymentPrescriptionAmount.toLocaleString(),
         payment_amount: paymentAmount.toLocaleString(),
@@ -3092,7 +3139,8 @@ function getRowClass(data) {
     { 'added-row': data.review_action === '추가' },
     { 'modified-row': data.review_action === '수정' },
     { 'deleted-row': data.review_action === '삭제' },
-    { 'promotion-rate-row': data.isPromotionRateApplied } // 프로모션 수수료율 적용된 행
+    { 'promotion-rate-row': data.isPromotionRateApplied }, // 프로모션 수수료율 적용된 행
+    { 'duplicate-in-nearby-month-row': data.hasDuplicateInNearbyMonth } // 이전 2개월 동일 건
   ];
 }
 
@@ -3117,6 +3165,22 @@ function getPrescriptionMonth(settlementMonth, offset) {
   let yy = parseInt(y, 10);
   while (mm <= 0) { mm += 12; yy -= 1; }
   return `${yy}-${String(mm).padStart(2, '0')}`;
+}
+
+// 현재 정산월 기준 이전 2개월 + 현재월 (총 3개월) 반환
+function getNearbySettlementMonths(settlementMonth) {
+  if (!settlementMonth) return [];
+  const [y, m] = settlementMonth.split('-');
+  const year = parseInt(y, 10);
+  const month = parseInt(m, 10);
+  const months = [];
+  for (let i = 2; i >= 0; i--) {
+    let mm = month - i;
+    let yy = year;
+    while (mm <= 0) { mm += 12; yy -= 1; }
+    months.push(`${yy}-${String(mm).padStart(2, '0')}`);
+  }
+  return months;
 }
 
 function formatDateTime(dateTimeString) {
@@ -3547,6 +3611,11 @@ async function handleBulkChange() {
   background-color: #ffebee !important; /* 삭제 우선: 연한 붉은색 */
   color: #999 !important;
   text-decoration: line-through !important;
+}
+
+/* 이전 2개월 동일 건 존재 행 기울임 표시 */
+:deep(.p-datatable .p-datatable-tbody > tr.duplicate-in-nearby-month-row > td) {
+  font-style: italic;
 }
 
 :deep(.p-datatable-tfoot > tr > td) {
