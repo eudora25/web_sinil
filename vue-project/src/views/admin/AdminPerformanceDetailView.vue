@@ -304,6 +304,16 @@
                 {{ formatNumber(slotProps.data.payment_amount) }}
               </template>
             </Column>
+            <Column field="direct_revenue" header="직거래매출" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+              <template #body="slotProps">
+                {{ formatNumber(slotProps.data.direct_revenue) }}
+              </template>
+            </Column>
+            <Column field="wholesale_revenue" header="도매매출" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+              <template #body="slotProps">
+                {{ formatNumber(slotProps.data.wholesale_revenue) }}
+              </template>
+            </Column>
             <Column field="total_revenue" header="매출액" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.total_revenue) }}
@@ -320,6 +330,8 @@
                 <Column :footer="totalQty" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+                <Column :footer="totalDirectRevenue" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+                <Column :footer="totalWholesaleRevenue" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalRevenue" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalAbsorptionRate" footerClass="footer-cell" footerStyle="text-align:center !important;" />
               </Row>
@@ -1037,6 +1049,8 @@ const totals = computed(() => {
   let qty = 0;
   let amount = 0;
   let paymentAmount = 0;
+  let directRevenue = 0;
+  let wholesaleRevenue = 0;
   let totalRevenue = 0; // 총 매출액
   let hospitalCount = 0;
   let productCount = 0;
@@ -1046,6 +1060,8 @@ const totals = computed(() => {
     qty += Number(row.prescription_qty) || 0;
     amount += Number(row.prescription_amount) || 0;
     paymentAmount += Number(row.payment_amount) || 0;
+    directRevenue += Number(row.direct_revenue) || 0;
+    wholesaleRevenue += Number(row.wholesale_revenue) || 0;
     totalRevenue += Number(row.total_revenue) || 0;
     hospitalCount += Number(row.hospital_count) || 0;
     productCount += Number(row.product_count) || 0;
@@ -1067,6 +1083,8 @@ const totals = computed(() => {
     qty: formatNumber(qty, true),
     amount: formatNumber(amount),
     paymentAmount: formatNumber(paymentAmount),
+    directRevenue: formatNumber(directRevenue),
+    wholesaleRevenue: formatNumber(wholesaleRevenue),
     totalRevenue: formatNumber(totalRevenue),
     hospitalCount,
     productCount,
@@ -1078,6 +1096,8 @@ const totals = computed(() => {
 const totalQty = computed(() => totals.value.qty);
 const totalAmount = computed(() => totals.value.amount);
 const totalPaymentAmount = computed(() => totals.value.paymentAmount);
+const totalDirectRevenue = computed(() => totals.value.directRevenue);
+const totalWholesaleRevenue = computed(() => totals.value.wholesaleRevenue);
 const totalRevenue = computed(() => totals.value.totalRevenue);
 const totalHospitalCount = computed(() => totals.value.hospitalCount);
 const totalProductCount = computed(() => totals.value.productCount);
@@ -3389,7 +3409,7 @@ async function downloadExcel() {
   // 헤더 정의
   let headers = [];
   if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
-    headers = ['No', '구분', '업체명', '사업자번호', '대표자', '처방수량', '처방액', '지급액', '매출액', '흡수율'];
+    headers = ['No', '구분', '업체명', '사업자번호', '대표자', '처방수량', '처방액', '지급액', '직거래매출', '도매매출', '매출액', '흡수율'];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
     headers = ['No', '병의원명', '처방수량', '처방액', '제품 수'];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'product') {
@@ -3435,6 +3455,8 @@ async function downloadExcel() {
         Number(row.prescription_qty) || 0,
         Number(row.prescription_amount) || 0,
         Number(row.payment_amount) || 0,
+        Number(row.direct_revenue) || 0,
+        Number(row.wholesale_revenue) || 0,
         Number(row.total_revenue) || 0,
         row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
@@ -3596,6 +3618,8 @@ async function downloadExcel() {
       Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
       Number((totalAmount.value || '0').toString().replace(/,/g, '')),
       Number((totalPaymentAmount.value || '0').toString().replace(/,/g, '')),
+      Number((totalDirectRevenue.value || '0').toString().replace(/,/g, '')),
+      Number((totalWholesaleRevenue.value || '0').toString().replace(/,/g, '')),
       Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
       (avgAbsorptionRate * 100).toFixed(1) + '%'
     ];
@@ -3681,8 +3705,8 @@ async function downloadExcel() {
     if (statisticsType.value === 'company' && drillDownLevel.value === 0 && (colNumber === 2 || colNumber === 4 || colNumber === 5)) {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     }
-    // 흡수율 컬럼 (업체별 통계일 때만) - 매출액 추가로 10번째 컬럼
-    if (statisticsType.value === 'company' && drillDownLevel.value === 0 && colNumber === 10) {
+    // 흡수율 컬럼 (업체별 통계일 때만) - 직거래매출·도매매출 추가로 12번째 컬럼
+    if (statisticsType.value === 'company' && drillDownLevel.value === 0 && colNumber === 12) {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     }
     // 숫자 컬럼 정렬

@@ -26,9 +26,15 @@ const getSupabaseConfig = () => {
   }
   
   // 프로덕션 환경 (배포된 사이트)
+  const url = import.meta.env.VITE_SUPABASE_URL
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  if (!url || !anonKey) {
+    console.error('[Supabase] VITE_SUPABASE_URL 또는 VITE_SUPABASE_ANON_KEY가 설정되지 않았습니다. Vercel 대시보드 → 프로젝트 → Settings → Environment Variables에서 Production용 변수를 추가한 뒤 재배포해주세요.')
+    throw new Error('환경 변수 누락: Vercel에 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY를 설정하고 재배포해주세요.')
+  }
   return {
-    url: import.meta.env.VITE_SUPABASE_URL,
-    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+    url,
+    anonKey,
     environment: 'production'
   }
 }
