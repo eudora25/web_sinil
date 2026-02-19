@@ -316,7 +316,7 @@
             </Column>
             <Column field="total_revenue" header="매출액" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
-                {{ formatNumber(slotProps.data.total_revenue) }}
+                {{ formatNumber(combinedRevenueDisplay(slotProps.data)) }}
               </template>
             </Column>
             <Column field="absorption_rate" header="흡수율" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
@@ -450,7 +450,7 @@
             </Column>
             <Column field="total_revenue" header="매출액" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
-                {{ formatNumber(slotProps.data.total_revenue) }}
+                {{ formatNumber(combinedRevenueDisplay(slotProps.data)) }}
               </template>
             </Column>
             <Column field="absorption_rate" header="흡수율(%)" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
@@ -577,7 +577,7 @@
             </Column>
             <Column field="total_revenue" header="매출액" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
-                {{ formatNumber(slotProps.data.total_revenue) }}
+                {{ formatNumber(combinedRevenueDisplay(slotProps.data)) }}
               </template>
             </Column>
             <!-- 전체 필터일 때 흡수율 표시 -->
@@ -624,7 +624,7 @@
             </Column>
             <Column field="total_revenue" header="매출액" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
-                {{ formatNumber(slotProps.data.total_revenue) }}
+                {{ formatNumber(combinedRevenueDisplay(slotProps.data)) }}
               </template>
             </Column>
             <Column field="absorption_rate" header="흡수율" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
@@ -1044,6 +1044,16 @@ const displayRows = computed(() => {
   return statisticsData.value;
 });
 
+// 매출액 표시: 직거래매출·도매매출 반올림 합 (DB total_revenue와 1원 차이 방지). 직거래/도매 없으면 total_revenue 사용
+function combinedRevenueDisplay(row) {
+  if (!row) return 0;
+  const hasDirectOrWholesale = row.direct_revenue != null || row.wholesale_revenue != null;
+  if (hasDirectOrWholesale) {
+    return Math.round(Number(row.wholesale_revenue) || 0) + Math.round(Number(row.direct_revenue) || 0);
+  }
+  return Number(row.total_revenue) || 0;
+}
+
 // 합계 계산 (성능 최적화: 한 번의 순회로 모든 합계 계산)
 const totals = computed(() => {
   let qty = 0;
@@ -1051,7 +1061,7 @@ const totals = computed(() => {
   let paymentAmount = 0;
   let directRevenue = 0;
   let wholesaleRevenue = 0;
-  let totalRevenue = 0; // 총 매출액
+  let totalRevenue = 0; // 총 매출액 = 반올림(직거래) + 반올림(도매)
   let hospitalCount = 0;
   let productCount = 0;
   let companyCount = 0;
@@ -1062,7 +1072,7 @@ const totals = computed(() => {
     paymentAmount += Number(row.payment_amount) || 0;
     directRevenue += Number(row.direct_revenue) || 0;
     wholesaleRevenue += Number(row.wholesale_revenue) || 0;
-    totalRevenue += Number(row.total_revenue) || 0;
+    totalRevenue += combinedRevenueDisplay(row);
     hospitalCount += Number(row.hospital_count) || 0;
     productCount += Number(row.product_count) || 0;
     companyCount += Number(row.company_count) || 0;
@@ -1362,21 +1372,20 @@ async function fetchStatistics() {
           
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedData = Array.from(companyHospitalMap.values()).map(item => {
-            // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 0이면 흡수율도 0
+            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+            const revenue = combinedRevenueDisplay(item);
             let absorptionRate = 0;
-            if (item.total_revenue > 0 && item.prescription_amount > 0) {
-              absorptionRate = item.total_revenue / item.prescription_amount;
+            if (revenue > 0 && item.prescription_amount > 0) {
+              absorptionRate = revenue / item.prescription_amount;
             }
-            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
-            
+
             const { total_absorption_rate, total_prescription_amount, ...cleanItem } = item;
             return {
               ...cleanItem,
               absorption_rate: absorptionRate
             };
           });
-          
+
           // hospital_name이 없는 경우 clients 테이블에서 조회하여 채우기
           const itemsWithoutHospitalName = aggregatedData.filter(item => !item.hospital_name && item.hospital_id);
           if (itemsWithoutHospitalName.length > 0) {
@@ -1462,21 +1471,20 @@ async function fetchStatistics() {
           
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedData = Array.from(companyProductMap.values()).map(item => {
-            // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 0이면 흡수율도 0
+            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+            const revenue = combinedRevenueDisplay(item);
             let absorptionRate = 0;
-            if (item.total_revenue > 0 && item.prescription_amount > 0) {
-              absorptionRate = item.total_revenue / item.prescription_amount;
+            if (revenue > 0 && item.prescription_amount > 0) {
+              absorptionRate = revenue / item.prescription_amount;
             }
-            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
-            
+
             const { total_absorption_rate, total_prescription_amount, ...cleanItem } = item;
             return {
               ...cleanItem,
               absorption_rate: absorptionRate
             };
           });
-          
+
           statisticsData.value = aggregatedData;
         } else {
           // 업체별 통계: company_id로 GROUP BY하여 집계
@@ -1524,14 +1532,13 @@ async function fetchStatistics() {
           
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedData = Array.from(companyMap.values()).map(company => {
-            // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 0이면 흡수율도 0
+            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+            const revenue = combinedRevenueDisplay(company);
             let absorptionRate = 0;
-            if (company.total_revenue > 0 && company.prescription_amount > 0) {
-              absorptionRate = company.total_revenue / company.prescription_amount;
+            if (revenue > 0 && company.prescription_amount > 0) {
+              absorptionRate = revenue / company.prescription_amount;
             }
-            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
-            
+
             const { total_absorption_rate, total_prescription_amount, ...cleanCompany } = company;
             return {
               ...cleanCompany,
@@ -1566,6 +1573,9 @@ async function fetchStatistics() {
                   prescription_qty: 0,
                   prescription_amount: 0,
                   payment_amount: 0,
+                  wholesale_revenue: 0,
+                  direct_revenue: 0,
+                  total_revenue: 0,
                   absorption_rate: 0
                 }));
               
@@ -1643,14 +1653,13 @@ async function fetchStatistics() {
           
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedHospitalData = Array.from(hospitalProductMap.values()).map(item => {
-            // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 0이면 흡수율도 0
+            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+            const revenue = combinedRevenueDisplay(item);
             let absorptionRate = 0;
-            if (item.total_revenue > 0 && item.prescription_amount > 0) {
-              absorptionRate = item.total_revenue / item.prescription_amount;
+            if (revenue > 0 && item.prescription_amount > 0) {
+              absorptionRate = revenue / item.prescription_amount;
             }
-            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
-            
+
             const { total_absorption_rate, total_prescription_amount, companyGroups, companyNames, ...cleanItem } = item;
             return {
               ...cleanItem,
@@ -1780,14 +1789,13 @@ async function fetchStatistics() {
           
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedHospitalData = Array.from(hospitalMap.values()).map(hospital => {
-            // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 0이면 흡수율도 0
+            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+            const revenue = combinedRevenueDisplay(hospital);
             let absorptionRate = 0;
-            if (hospital.total_revenue > 0 && hospital.prescription_amount > 0) {
-              absorptionRate = hospital.total_revenue / hospital.prescription_amount;
+            if (revenue > 0 && hospital.prescription_amount > 0) {
+              absorptionRate = revenue / hospital.prescription_amount;
             }
-            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
-            
+
             const { total_absorption_rate, total_prescription_amount, companyGroups, companyNames, hospital_business_registration_number, ...cleanHospital } = hospital;
             return {
               ...cleanHospital,
@@ -1869,12 +1877,13 @@ async function fetchStatistics() {
           
           // 흡수율 계산 및 배열로 변환
           statisticsData.value = Array.from(productCompanyMap.values()).map(item => {
-            // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
+            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+            const revenue = combinedRevenueDisplay(item);
             let absorptionRate = 0;
-            if (item.total_revenue > 0 && item.prescription_amount > 0) {
-              absorptionRate = item.total_revenue / item.prescription_amount;
+            if (revenue > 0 && item.prescription_amount > 0) {
+              absorptionRate = revenue / item.prescription_amount;
             }
-            
+
             return {
               ...item,
               absorption_rate: absorptionRate
@@ -1916,12 +1925,13 @@ async function fetchStatistics() {
           
           // 흡수율 계산 및 배열로 변환
           statisticsData.value = Array.from(productHospitalMap.values()).map(item => {
-            // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
+            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+            const revenue = combinedRevenueDisplay(item);
             let absorptionRate = 0;
-            if (item.total_revenue > 0 && item.prescription_amount > 0) {
-              absorptionRate = item.total_revenue / item.prescription_amount;
+            if (revenue > 0 && item.prescription_amount > 0) {
+              absorptionRate = revenue / item.prescription_amount;
             }
-            
+
             return {
               ...item,
               absorption_rate: absorptionRate
@@ -1963,14 +1973,13 @@ async function fetchStatistics() {
           
           // 평균 흡수율 계산 및 배열로 변환
           statisticsData.value = Array.from(productMap.values()).map(product => {
-            // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-            // 매출액이 0이면 흡수율도 0
+            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+            const revenue = combinedRevenueDisplay(product);
             let absorptionRate = 0;
-            if (product.total_revenue > 0 && product.prescription_amount > 0) {
-              absorptionRate = product.total_revenue / product.prescription_amount;
+            if (revenue > 0 && product.prescription_amount > 0) {
+              absorptionRate = revenue / product.prescription_amount;
             }
-            // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
-            
+
             const { total_absorption_rate, total_prescription_amount, ...cleanProduct } = product;
             return {
               ...cleanProduct,
@@ -2025,14 +2034,13 @@ async function fetchStatistics() {
         
         // 평균 흡수율 계산 및 배열로 변환
         statisticsData.value = Array.from(companyMap.values()).map(company => {
-          // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-          // 매출액이 0이면 흡수율도 0
+          // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+          const revenue = combinedRevenueDisplay(company);
           let absorptionRate = 0;
-          if (company.total_revenue > 0 && company.prescription_amount > 0) {
-            absorptionRate = company.total_revenue / company.prescription_amount;
+          if (revenue > 0 && company.prescription_amount > 0) {
+            absorptionRate = revenue / company.prescription_amount;
           }
-          // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
-          
+
           const { total_absorption_rate, total_prescription_amount, ...cleanCompany } = company;
           return {
             ...cleanCompany,
@@ -2147,15 +2155,13 @@ function aggregateByCompany(data, absorptionRates = {}) {
   devLog(`집계 완료: 처리됨 ${processedCount}개, 건너뜀 ${skippedCount}개`);
 
   return Array.from(map.values()).map(item => {
-    // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-    // 매출액이 0이면 흡수율도 0
+    // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+    const revenue = combinedRevenueDisplay(item);
     let absorptionRate = 0;
-    if (item.total_revenue > 0 && item.prescription_amount > 0) {
-      // 매출액 기반 흡수율 계산 (올바른 방식)
-      absorptionRate = item.total_revenue / item.prescription_amount;
+    if (revenue > 0 && item.prescription_amount > 0) {
+      absorptionRate = revenue / item.prescription_amount;
     }
-    // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
-    
+
     const result = {
       company_id: item.company_id,
       company_name: item.company_name,
@@ -2241,20 +2247,18 @@ function aggregateByHospital(data, absorptionRates = {}) {
   });
 
   return Array.from(map.values()).map(item => {
-    // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-    // 매출액이 0이면 흡수율도 0
+    // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+    const revenue = combinedRevenueDisplay(item);
     let absorptionRate = 0;
-    if (item.total_revenue > 0 && item.prescription_amount > 0) {
-      // 매출액 기반 흡수율 계산 (올바른 방식)
-      absorptionRate = item.total_revenue / item.prescription_amount;
+    if (revenue > 0 && item.prescription_amount > 0) {
+      absorptionRate = revenue / item.prescription_amount;
     }
-    // 매출액이 0이면 흡수율도 0으로 설정 (지급액 기반 계산 제거)
-    
+
     // 담당업체 목록을 콤마로 구분
     const companyNames = Array.from(item.companies).sort().join(', ');
     // 담당업체 구분 목록을 콤마로 구분
     const companyGroups = Array.from(item.companyGroups).sort().join(', ');
-    
+
     const result = {
       hospital_id: item.hospital_id,
       hospital_name: item.hospital_name,
@@ -2332,15 +2336,13 @@ function aggregateByProduct(data, absorptionRates = {}) {
   });
 
   return Array.from(map.values()).map(item => {
-    // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-    // 매출액이 0이면 흡수율도 0
+    // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
+    const revenue = combinedRevenueDisplay(item);
     let absorptionRate = 0;
-    if (item.total_revenue > 0 && item.prescription_amount > 0) {
-      // 매출액 기반 흡수율 계산 (올바른 방식)
-      absorptionRate = item.total_revenue / item.prescription_amount;
+    if (revenue > 0 && item.prescription_amount > 0) {
+      absorptionRate = revenue / item.prescription_amount;
     }
-    // 매출액이 0이면 흡수율도 0으로 설정 (가중 평균 방식 제거)
-    
+
     const result = {
       product_id: item.product_id,
       product_name: item.product_name,
@@ -3609,9 +3611,9 @@ async function downloadExcel() {
   // 합계 행 추가
   let totalRowData = [];
   if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
-    // 평균 흡수율 계산 (매출액 기반)
+    // 평균 흡수율 계산 (매출액 기반: 반올림 직거래+도매 합)
     const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
+    const totalRevenue = displayRows.value.reduce((sum, row) => sum + combinedRevenueDisplay(row), 0);
     const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
     
     totalRowData = ['합계', '', '', '', '', 
@@ -3636,9 +3638,9 @@ async function downloadExcel() {
       totalHospitalCount.value || 0
     ];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-    // 평균 흡수율 계산 (매출액 기반)
+    // 평균 흡수율 계산 (매출액 기반: 반올림 직거래+도매 합)
     const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
+    const totalRevenue = displayRows.value.reduce((sum, row) => sum + combinedRevenueDisplay(row), 0);
     const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
     
     totalRowData = ['합계', '', '', '', '', '', 
@@ -3676,9 +3678,9 @@ async function downloadExcel() {
       ];
     }
   } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
-    // 평균 흡수율 계산 (매출액 기반)
+    // 평균 흡수율 계산 (매출액 기반: 반올림 직거래+도매 합)
     const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
+    const totalRevenue = displayRows.value.reduce((sum, row) => sum + combinedRevenueDisplay(row), 0);
     const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
     
     totalRowData = ['합계', '', 
