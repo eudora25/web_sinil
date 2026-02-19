@@ -3613,9 +3613,17 @@ async function handleBulkChange() {
   text-decoration: line-through !important;
 }
 
-/* 이전 2개월 동일 건 존재 행 기울임 표시 */
+/* 이전 2개월 동일 건 존재 행 기울임 표시 (배경색 클래스와 함께 있어도 적용되도록 !important 및 조합 선택자) */
 :deep(.p-datatable .p-datatable-tbody > tr.duplicate-in-nearby-month-row > td) {
-  font-style: italic;
+  font-style: italic !important;
+}
+:deep(.p-datatable .p-datatable-tbody > tr.duplicate-in-nearby-month-row.added-row > td),
+:deep(.p-datatable .p-datatable-tbody > tr.duplicate-in-nearby-month-row.modified-row > td),
+:deep(.p-datatable .p-datatable-tbody > tr.duplicate-in-nearby-month-row.deleted-row > td),
+:deep(.p-datatable .p-datatable-tbody > tr.duplicate-in-nearby-month-row.promotion-rate-row > td),
+:deep(.p-datatable .p-datatable-tbody > tr.duplicate-in-nearby-month-row.promotion-rate-row.added-row > td),
+:deep(.p-datatable .p-datatable-tbody > tr.duplicate-in-nearby-month-row.promotion-rate-row.modified-row > td) {
+  font-style: italic !important;
 }
 
 :deep(.p-datatable-tfoot > tr > td) {
