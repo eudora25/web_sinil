@@ -634,7 +634,7 @@ async function loadSettlementData() {
         // 관리자 상세 뷰 및 일반 사용자 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율
         // 상세 페이지와 완전히 동일한 로직: 반영 흡수율을 그대로 사용 (데이터베이스에 저장된 형식 그대로)
         // 0도 유효한 값이므로 키 존재 여부를 먼저 확인하고, 값이 null/undefined인 경우만 기본값 사용
-        let appliedAbsorptionRate = 1.0; // 기본값 (100%)
+        let appliedAbsorptionRate = 0; // 기본값 (0%, 흡수율 미설정 시)
         if (record.id in absorptionRates) {
           // 키가 존재하면 해당 값을 사용 (0도 포함)
           const rateValue = absorptionRates[record.id];
