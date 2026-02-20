@@ -1240,98 +1240,63 @@ async function fetchStatistics() {
 
   try {
     devLog('데이터 조회 시작, 정산월:', selectedSettlementMonth.value);
-    
-    // 먼저 통계 테이블에서 조회 시도
-    // 새로운 구조: (company_id, client_id, product_id) 조합별로 저장되어 있음
-    // Supabase는 기본적으로 1000개까지만 반환하므로, 배치 처리로 모든 데이터 조회
-    let statisticsDataFromTable = []
-    let from = 0
-    const batchSize = 1000
-    let batchCount = 0
-    
-    while (true) {
-      batchCount++
-      let query = supabase
-        .from('performance_statistics')
-        .select('*')
-        .eq('settlement_month', selectedSettlementMonth.value)
-      
-      // 필터 적용 (range 전에 필터 적용)
-      if (selectedCompanyId.value) {
-        query = query.eq('company_id', selectedCompanyId.value)
-      }
-      if (selectedHospitalId.value) {
-        query = query.eq('client_id', selectedHospitalId.value)
-      }
-      if (selectedProductId.value) {
-        query = query.eq('product_id', selectedProductId.value)
-      }
-      
-      // 필터 적용 후 range 적용
-      query = query
-        .range(from, from + batchSize - 1)
-        .order('id', { ascending: true })
-      
-      const { data: batchData, error: batchError } = await query
-      
-      if (batchError) {
-        console.error(`통계 테이블 배치 ${batchCount} 조회 오류:`, batchError)
-        break
-      }
-      
-      if (!batchData || batchData.length === 0) {
-        devLog(`통계 테이블 배치 ${batchCount}: 데이터 없음, 조회 종료`)
-        break
-      }
-      
-      statisticsDataFromTable = statisticsDataFromTable.concat(batchData)
-      devLog(`통계 테이블 배치 ${batchCount}: ${batchData.length}개 조회 (누적: ${statisticsDataFromTable.length}개)`)
-      
-      if (batchData.length < batchSize) {
-        devLog(`통계 테이블 마지막 배치 (${batchData.length}개 < ${batchSize}개), 조회 종료`)
-        break
-      }
-      from += batchSize
-    }
-    
-    const statisticsError = null // 배치 조회이므로 에러는 각 배치에서 처리
 
-    // 업체별 통계 1단계: 흡수율 분석과 동일한 소스(performance_records_absorption)로 실시간 집계 → 수량·합계 일치
-    if (statisticsType.value === 'company' && drillDownLevel.value === 0 && companyStatisticsFilter.value === 'all') {
-      let absorptionFrom = 0;
-      const absorptionBatchSize = 1000;
-      let absorptionRows = [];
+    // 업체별 통계 1단계(전체): 실적 검수와 동일 소스(performance_records)로 집계 → 수량 1,603.8 일치
+    // 통계=병의원별/제품별이 아니면 항상 performance_records 사용 (전체·미설정 포함)
+    const isCompanyMainList = statisticsType.value === 'company' && drillDownLevel.value === 0 && companyStatisticsFilter.value !== 'hospital' && companyStatisticsFilter.value !== 'product';
+    if (isCompanyMainList) {
+      devLog('업체별 통계: performance_records 경로 사용 (삭제 제외, 반영 흡수율 적용)');
+      let recordsFrom = 0;
+      const recordsBatchSize = 1000;
+      let rawRecords = [];
       while (true) {
-        let absorptionQuery = supabase
-          .from('performance_records_absorption')
+        let recordsQuery = supabase
+          .from('performance_records')
           .select(`
             id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action,
-            total_revenue, wholesale_revenue, direct_revenue, absorption_rate,
-            company:companies!performance_records_absorption_company_id_fkey(company_name, company_group, business_registration_number, representative_name),
-            product:products(price)
+            companies!inner(company_name, company_group, business_registration_number, representative_name),
+            products(price)
           `)
           .eq('settlement_month', selectedSettlementMonth.value)
-          .range(absorptionFrom, absorptionFrom + absorptionBatchSize - 1)
+          .range(recordsFrom, recordsFrom + recordsBatchSize - 1)
           .order('id', { ascending: true });
-        if (selectedCompanyId.value) absorptionQuery = absorptionQuery.eq('company_id', selectedCompanyId.value);
-        const { data: batch, error: absorptionError } = await absorptionQuery;
-        if (absorptionError) {
-          console.error('업체별 실시간 집계(performance_records_absorption) 조회 오류:', absorptionError);
+        if (selectedCompanyId.value) recordsQuery = recordsQuery.eq('company_id', selectedCompanyId.value);
+        const { data: batch, error: recordsError } = await recordsQuery;
+        if (recordsError) {
+          console.error('업체별 실시간 집계(performance_records) 조회 오류:', recordsError);
           break;
         }
         if (!batch || batch.length === 0) break;
-        absorptionRows = absorptionRows.concat(batch);
-        if (batch.length < absorptionBatchSize) break;
-        absorptionFrom += absorptionBatchSize;
+        rawRecords = rawRecords.concat(batch);
+        if (batch.length < recordsBatchSize) break;
+        recordsFrom += recordsBatchSize;
       }
-      const filtered = (absorptionRows || []).filter(r => r.review_action !== '삭제');
-      const mapped = filtered.map(r => ({
-        ...r,
-        companies: r.company,
-        products: r.product
-      }));
+      const filtered = (rawRecords || []).filter(r => r.review_action !== '삭제');
+      const recordIds = filtered.map(r => r.id);
       const absorptionRatesMap = {};
-      filtered.forEach(r => { absorptionRatesMap[r.id] = r.absorption_rate; });
+      if (recordIds.length > 0) {
+        const rateBatchSize = 500;
+        for (let i = 0; i < recordIds.length; i += rateBatchSize) {
+          const batchIds = recordIds.slice(i, i + rateBatchSize);
+          const { data: rates } = await supabase
+            .from('applied_absorption_rates')
+            .select('performance_record_id, applied_absorption_rate')
+            .in('performance_record_id', batchIds);
+          (rates || []).forEach(item => { absorptionRatesMap[item.performance_record_id] = item.applied_absorption_rate; });
+        }
+      }
+      const mapped = filtered.map(r => {
+        const price = Number(r.products?.price) || 0;
+        const amount = (Number(r.prescription_qty) || 0) * price;
+        return {
+          ...r,
+          companies: r.companies,
+          products: r.products,
+          total_revenue: amount,
+          wholesale_revenue: 0,
+          direct_revenue: 0
+        };
+      });
       const aggregated = aggregateByCompany(mapped, absorptionRatesMap);
       let result = aggregated;
       if (selectedCompanyGroup.value) {
@@ -1340,6 +1305,149 @@ async function fetchStatistics() {
       statisticsData.value = result;
       loading.value = false;
       return;
+    }
+
+    // 병원별 통계 1단계: 실적 검수와 동일 소스(performance_records)로 집계 → 수량 일치
+    if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
+      let recFrom = 0;
+      const recBatchSize = 1000;
+      let rawRecs = [];
+      while (true) {
+        let q = supabase
+          .from('performance_records')
+          .select(`
+            id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action,
+            companies!inner(company_name, company_group),
+            products(price),
+            clients!inner(name, business_registration_number, address)
+          `)
+          .eq('settlement_month', selectedSettlementMonth.value)
+          .range(recFrom, recFrom + recBatchSize - 1)
+          .order('id', { ascending: true });
+        if (selectedCompanyId.value) q = q.eq('company_id', selectedCompanyId.value);
+        if (selectedHospitalId.value) q = q.eq('client_id', selectedHospitalId.value);
+        const { data: batch, error: e } = await q;
+        if (e) { console.error('병원별 실시간 집계 조회 오류:', e); break; }
+        if (!batch || batch.length === 0) break;
+        rawRecs = rawRecs.concat(batch);
+        if (batch.length < recBatchSize) break;
+        recFrom += recBatchSize;
+      }
+      let filteredH = (rawRecs || []).filter(r => r.review_action !== '삭제');
+      if (selectedCompanyGroup.value) {
+        filteredH = filteredH.filter(r => r.companies?.company_group === selectedCompanyGroup.value);
+      }
+      const idsH = filteredH.map(r => r.id);
+      const ratesH = {};
+      if (idsH.length > 0) {
+        for (let i = 0; i < idsH.length; i += 500) {
+          const part = idsH.slice(i, i + 500);
+          const { data: dr } = await supabase.from('applied_absorption_rates').select('performance_record_id, applied_absorption_rate').in('performance_record_id', part);
+          (dr || []).forEach(item => { ratesH[item.performance_record_id] = item.applied_absorption_rate; });
+        }
+      }
+      const mappedH = filteredH.map(r => {
+        const price = Number(r.products?.price) || 0;
+        const amount = (Number(r.prescription_qty) || 0) * price;
+        return {
+          ...r,
+          companies: r.companies,
+          products: r.products,
+          clients: r.clients,
+          total_revenue: amount,
+          wholesale_revenue: 0,
+          direct_revenue: 0
+        };
+      });
+      const aggH = aggregateByHospital(mappedH, ratesH);
+      statisticsData.value = aggH;
+      loading.value = false;
+      return;
+    }
+
+    // 제품별 통계 1단계(전체): 실적 검수와 동일 소스(performance_records)로 집계 → 수량 일치
+    if (statisticsType.value === 'product' && drillDownLevel.value === 0 && productStatisticsFilter.value === 'all') {
+      let recFrom = 0;
+      const recBatchSize = 1000;
+      let rawRecs = [];
+      while (true) {
+        let q = supabase
+          .from('performance_records')
+          .select(`
+            id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action,
+            companies!inner(company_name, company_group),
+            products!inner(product_name, insurance_code, price)
+          `)
+          .eq('settlement_month', selectedSettlementMonth.value)
+          .range(recFrom, recFrom + recBatchSize - 1)
+          .order('id', { ascending: true });
+        if (selectedCompanyId.value) q = q.eq('company_id', selectedCompanyId.value);
+        if (selectedProductId.value) q = q.eq('product_id', selectedProductId.value);
+        const { data: batch, error: e } = await q;
+        if (e) { console.error('제품별 실시간 집계 조회 오류:', e); break; }
+        if (!batch || batch.length === 0) break;
+        rawRecs = rawRecs.concat(batch);
+        if (batch.length < recBatchSize) break;
+        recFrom += recBatchSize;
+      }
+      let filteredP = (rawRecs || []).filter(r => r.review_action !== '삭제');
+      if (selectedCompanyGroup.value) {
+        filteredP = filteredP.filter(r => r.companies?.company_group === selectedCompanyGroup.value);
+      }
+      const idsP = filteredP.map(r => r.id);
+      const ratesP = {};
+      if (idsP.length > 0) {
+        for (let i = 0; i < idsP.length; i += 500) {
+          const part = idsP.slice(i, i + 500);
+          const { data: dr } = await supabase.from('applied_absorption_rates').select('performance_record_id, applied_absorption_rate').in('performance_record_id', part);
+          (dr || []).forEach(item => { ratesP[item.performance_record_id] = item.applied_absorption_rate; });
+        }
+      }
+      const mappedP = filteredP.map(r => {
+        const price = Number(r.products?.price) || 0;
+        const amount = (Number(r.prescription_qty) || 0) * price;
+        return {
+          ...r,
+          companies: r.companies,
+          products: r.products,
+          total_revenue: amount,
+          wholesale_revenue: 0,
+          direct_revenue: 0
+        };
+      });
+      const aggP = aggregateByProduct(mappedP, ratesP);
+      statisticsData.value = aggP;
+      loading.value = false;
+      return;
+    }
+
+    // 그 외: 통계 테이블(performance_statistics)에서 조회
+    // 새로운 구조: (company_id, client_id, product_id) 조합별로 저장되어 있음
+    let statisticsDataFromTable = [];
+    let from = 0;
+    const batchSize = 1000;
+    let batchCount = 0;
+
+    while (true) {
+      batchCount++;
+      let query = supabase
+        .from('performance_statistics')
+        .select('*')
+        .eq('settlement_month', selectedSettlementMonth.value);
+      if (selectedCompanyId.value) query = query.eq('company_id', selectedCompanyId.value);
+      if (selectedHospitalId.value) query = query.eq('client_id', selectedHospitalId.value);
+      if (selectedProductId.value) query = query.eq('product_id', selectedProductId.value);
+      query = query.range(from, from + batchSize - 1).order('id', { ascending: true });
+
+      const { data: batchData, error: batchError } = await query;
+      if (batchError) {
+        console.error(`통계 테이블 배치 ${batchCount} 조회 오류:`, batchError);
+        break;
+      }
+      if (!batchData || batchData.length === 0) break;
+      statisticsDataFromTable = statisticsDataFromTable.concat(batchData);
+      if (batchData.length < batchSize) break;
+      from += batchSize;
     }
 
     // 통계 테이블에 데이터가 있으면 사용 (업체별 통계일 때는 모든 업체 포함)
