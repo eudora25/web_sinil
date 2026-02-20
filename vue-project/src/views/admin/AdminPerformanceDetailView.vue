@@ -217,6 +217,7 @@
           >
             {{ calculatingStatistics ? '통계 계산 중...' : '통계 갱신' }}
           </button>
+          <!-- 데이터 검증 버튼 주석 처리
           <button 
             class="btn-excell-download" 
             @click="validateData" 
@@ -226,6 +227,7 @@
           >
             데이터 검증
           </button>
+          -->
           <button class="btn-excell-download" @click="downloadExcel" :disabled="displayRows.length === 0">
             엑셀 다운로드
           </button>
