@@ -1295,7 +1295,53 @@ async function fetchStatistics() {
     }
     
     const statisticsError = null // 배치 조회이므로 에러는 각 배치에서 처리
-    
+
+    // 업체별 통계 1단계: 흡수율 분석과 동일한 소스(performance_records_absorption)로 실시간 집계 → 수량·합계 일치
+    if (statisticsType.value === 'company' && drillDownLevel.value === 0 && companyStatisticsFilter.value === 'all') {
+      let absorptionFrom = 0;
+      const absorptionBatchSize = 1000;
+      let absorptionRows = [];
+      while (true) {
+        let absorptionQuery = supabase
+          .from('performance_records_absorption')
+          .select(`
+            id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action,
+            total_revenue, wholesale_revenue, direct_revenue, absorption_rate,
+            company:companies!performance_records_absorption_company_id_fkey(company_name, company_group, business_registration_number, representative_name),
+            product:products(price)
+          `)
+          .eq('settlement_month', selectedSettlementMonth.value)
+          .range(absorptionFrom, absorptionFrom + absorptionBatchSize - 1)
+          .order('id', { ascending: true });
+        if (selectedCompanyId.value) absorptionQuery = absorptionQuery.eq('company_id', selectedCompanyId.value);
+        const { data: batch, error: absorptionError } = await absorptionQuery;
+        if (absorptionError) {
+          console.error('업체별 실시간 집계(performance_records_absorption) 조회 오류:', absorptionError);
+          break;
+        }
+        if (!batch || batch.length === 0) break;
+        absorptionRows = absorptionRows.concat(batch);
+        if (batch.length < absorptionBatchSize) break;
+        absorptionFrom += absorptionBatchSize;
+      }
+      const filtered = (absorptionRows || []).filter(r => r.review_action !== '삭제');
+      const mapped = filtered.map(r => ({
+        ...r,
+        companies: r.company,
+        products: r.product
+      }));
+      const absorptionRatesMap = {};
+      filtered.forEach(r => { absorptionRatesMap[r.id] = r.absorption_rate; });
+      const aggregated = aggregateByCompany(mapped, absorptionRatesMap);
+      let result = aggregated;
+      if (selectedCompanyGroup.value) {
+        result = aggregated.filter(c => c.company_group === selectedCompanyGroup.value);
+      }
+      statisticsData.value = result;
+      loading.value = false;
+      return;
+    }
+
     // 통계 테이블에 데이터가 있으면 사용 (업체별 통계일 때는 모든 업체 포함)
     // ⚠️ 주의: 통계 갱신 버튼을 누르면 실시간 계산하므로, 통계 테이블은 초기 로드 시에만 사용
     // 병원별 통계와 제품별 드릴다운, 제품별 통계에서 업체별 필터는 항상 performance_statistics 테이블 사용
