@@ -1044,12 +1044,12 @@ const displayRows = computed(() => {
   return statisticsData.value;
 });
 
-// 매출액 표시: 직거래매출·도매매출 반올림 합 (DB total_revenue와 1원 차이 방지). 직거래/도매 없으면 total_revenue 사용
+// 매출액 표시: 직거래매출 + 도매매출 합계 후 반올림. 직거래/도매 없으면 total_revenue 사용
 function combinedRevenueDisplay(row) {
   if (!row) return 0;
   const hasDirectOrWholesale = row.direct_revenue != null || row.wholesale_revenue != null;
   if (hasDirectOrWholesale) {
-    return Math.round(Number(row.wholesale_revenue) || 0) + Math.round(Number(row.direct_revenue) || 0);
+    return Math.round((Number(row.wholesale_revenue) || 0) + (Number(row.direct_revenue) || 0));
   }
   return Number(row.total_revenue) || 0;
 }
@@ -1061,7 +1061,7 @@ const totals = computed(() => {
   let paymentAmount = 0;
   let directRevenue = 0;
   let wholesaleRevenue = 0;
-  let totalRevenue = 0; // 총 매출액 = 반올림(직거래) + 반올림(도매)
+  let totalRevenue = 0; // 총 매출액 = round(직거래 + 도매)
   let hospitalCount = 0;
   let productCount = 0;
   let companyCount = 0;
@@ -3459,7 +3459,7 @@ async function downloadExcel() {
         Number(row.payment_amount) || 0,
         Number(row.direct_revenue) || 0,
         Number(row.wholesale_revenue) || 0,
-        Number(row.total_revenue) || 0,
+        combinedRevenueDisplay(row),
         row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
     } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
@@ -3489,7 +3489,7 @@ async function downloadExcel() {
         row.company_names || '',
         Number(row.prescription_qty) || 0,
         Number(row.prescription_amount) || 0,
-        Number(row.total_revenue) || 0,
+        combinedRevenueDisplay(row),
         row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
     } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
@@ -3542,7 +3542,7 @@ async function downloadExcel() {
         row.company_name || '',
         Number(row.prescription_qty) || 0,
         Number(row.prescription_amount) || 0,
-        Number(row.total_revenue) || 0,
+        combinedRevenueDisplay(row),
         row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
     } else if (statisticsType.value === 'product' && drillDownType.value === 'hospital') {

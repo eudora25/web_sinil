@@ -505,7 +505,7 @@ const totalDirectRevenue = computed(() => {
 const totalCombinedRevenue = computed(() => {
   if (!displayRows.value || displayRows.value.length === 0) return '0';
   const total = displayRows.value.reduce((sum, row) => {
-    return sum + Math.round(row.wholesale_revenue || 0) + Math.round(row.direct_revenue || 0);
+    return sum + Math.round((row.wholesale_revenue || 0) + (row.direct_revenue || 0));
   }, 0);
   return total.toLocaleString();
 });
@@ -555,7 +555,7 @@ const averageAbsorptionRate = computed(() => {
   const totalCombinedRevenue = displayRows.value.reduce((sum, row) => {
     // 삭제된 건은 합산액을 0으로 계산
     if (row.review_action === '삭제') return sum;
-    return sum + Math.round(row.wholesale_revenue || 0) + Math.round(row.direct_revenue || 0);
+    return sum + Math.round((row.wholesale_revenue || 0) + (row.direct_revenue || 0));
   }, 0);
 
   if (totalPrescriptionAmount === 0) return '- %';
@@ -1976,7 +1976,7 @@ function applySorting() {
 
 /** 합산액 표시용: 반올림한 도매매출 + 반올림한 직거래매출 (1 차이 방지) */
 function combinedRevenueDisplay(row) {
-  return Math.round(row?.wholesale_revenue || 0) + Math.round(row?.direct_revenue || 0);
+  return Math.round((row?.wholesale_revenue || 0) + (row?.direct_revenue || 0));
 }
 
 function formatAbsorptionRate(value) {
@@ -2039,7 +2039,7 @@ async function downloadExcel() {
       '처방구분': row.prescription_type,
       '도매매출': Math.round(row.wholesale_revenue || 0),
       '직거래매출': Math.round(row.direct_revenue || 0),
-      '합산액': Math.round(row.wholesale_revenue || 0) + Math.round(row.direct_revenue || 0),
+      '합산액': Math.round((row.wholesale_revenue || 0) + (row.direct_revenue || 0)),
       '흡수율': (row.absorption_rate ? parseFloat(row.absorption_rate) : 0),
       '수수료율': (row.commission_rate ? parseFloat(String(row.commission_rate).replace('%', '')) / 100 : 0),
       '지급액': Math.round(Number(String(row.payment_amount).replace(/,/g, '')) || 0),
@@ -2062,7 +2062,7 @@ async function downloadExcel() {
     const totalCombinedRevenueForExcel = displayRows.value.reduce((sum, row) => {
       // 삭제된 건은 합산액을 0으로 계산 (합산액 = 반올림 도매매출 + 반올림 직거래매출)
       if (row.review_action === '삭제') return sum;
-      return sum + Math.round(row.wholesale_revenue || 0) + Math.round(row.direct_revenue || 0);
+      return sum + Math.round((row.wholesale_revenue || 0) + (row.direct_revenue || 0));
     }, 0);
     
     const totalPaymentAmountForExcel = displayRows.value.reduce((sum, row) => {
