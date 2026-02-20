@@ -1729,7 +1729,7 @@ async function loadPerformanceData() {
         price: item.products?.price ? Math.round(item.products.price).toLocaleString() : '0',
         commission_rate: commissionRate, // 프로모션 제품인 경우 final_commission_rate로 업데이트됨
         isPromotionRateApplied: isPromotionRateApplied, // 프로모션 수수료율 적용 여부
-        hasDuplicateInNearbyMonth: duplicateKeySet.has(dupKey), // 이전 2개월 동일 건 존재 여부
+        hasDuplicateInNearbyMonth: item.review_action !== '삭제' && duplicateKeySet.has(dupKey), // 삭제 상태면 확인 생략, 이전 2개월 동일 건 존재 여부
         prescription_amount: prescriptionAmount.toLocaleString(),
         payment_prescription_amount: paymentPrescriptionAmount.toLocaleString(),
         payment_amount: paymentAmount.toLocaleString(),
@@ -3140,7 +3140,7 @@ function getRowClass(data) {
     { 'modified-row': data.review_action === '수정' },
     { 'deleted-row': data.review_action === '삭제' },
     { 'promotion-rate-row': data.isPromotionRateApplied }, // 프로모션 수수료율 적용된 행
-    { 'duplicate-in-nearby-month-row': data.hasDuplicateInNearbyMonth } // 이전 2개월 동일 건
+    { 'duplicate-in-nearby-month-row': data.review_action !== '삭제' && data.hasDuplicateInNearbyMonth } // 삭제 상태면 이탤릭 미적용, 이전 2개월 동일 건
   ];
 }
 

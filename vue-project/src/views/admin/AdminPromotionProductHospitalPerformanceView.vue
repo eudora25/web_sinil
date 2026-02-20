@@ -428,12 +428,12 @@ async function fetchHospitalPerformance() {
         after_promotion_amount,
         created_at,
         updated_at,
-        clients:hospital_id (
+        clients!hospital_id (
           id,
           name,
           business_registration_number
         ),
-        companies:first_performance_cso_id (
+        companies!first_performance_cso_id (
           id,
           company_name
         )
@@ -527,7 +527,7 @@ async function fetchExcludedHospitals() {
       .from('promotion_product_excluded_hospitals')
       .select(`
         hospital_id,
-        clients:hospital_id (
+        clients!hospital_id (
           id,
           name,
           business_registration_number

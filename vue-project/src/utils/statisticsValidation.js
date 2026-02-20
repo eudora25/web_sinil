@@ -3,8 +3,23 @@
  */
 
 /**
+ * 화면 표시와 동일한 매출액 계산 (직거래·도매 반올림 합). 검증 시 UI와 일치시키기 위함.
+ * @param {Object} row - 통계 행
+ * @returns {number}
+ */
+function combinedRevenueForValidation(row) {
+  if (!row) return 0;
+  const hasDirectOrWholesale = row.direct_revenue != null || row.wholesale_revenue != null;
+  if (hasDirectOrWholesale) {
+    return Math.round(Number(row.wholesale_revenue) || 0) + Math.round(Number(row.direct_revenue) || 0);
+  }
+  return Number(row.total_revenue) || 0;
+}
+
+/**
  * 흡수율 계산 검증
  * 개별 행의 흡수율(가중 평균)과 합계 행의 흡수율(단순 나눗셈)이 일치하는지 확인
+ * (매출액은 화면과 동일하게 직거래·도매 반올림 합으로 계산)
  * 
  * @param {Array} rows - 통계 데이터 행 배열
  * @returns {Object} 검증 결과
@@ -30,10 +45,10 @@ export function validateAbsorptionRate(rows) {
     ? totalWeightedAbsorption / totalPrescriptionAmount 
     : 0;
 
-  // 방법 2: 매출액 기반 흡수율 계산 (총 매출액 / 총 처방액) - 올바른 방식
+  // 방법 2: 매출액 기반 흡수율 (총 매출액 / 총 처방액). 화면과 동일하게 직거래+도매 반올림 합 사용
   let totalRevenue = 0;
   rows.forEach(row => {
-    totalRevenue += Number(row.total_revenue) || 0;
+    totalRevenue += combinedRevenueForValidation(row);
   });
   
   // 매출액이 없으면 지급액 기반으로 계산 (하위 호환성)
