@@ -196,7 +196,7 @@
           <Column field="price" header="약가" :headerStyle="{ width: columnWidths.price }" :sortable="true" />
           <Column field="prescription_qty" header="수량" :headerStyle="{ width: columnWidths.prescription_qty }" :sortable="true">
             <template #body="slotProps">
-              {{ Number(slotProps.data.prescription_qty).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }}
+              {{ formatNumber(slotProps.data.prescription_qty, true) }}
             </template>
           </Column>
           <Column field="prescription_amount" header="처방액" :headerStyle="{ width: columnWidths.prescription_amount }" :sortable="true">
@@ -384,7 +384,7 @@ import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
 import { useNotifications } from '@/utils/notifications';
-import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
+import { convertCommissionRateToDecimal, formatNumber } from '@/utils/formatUtils';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -540,7 +540,8 @@ const totalQuantity = computed(() => {
     if (row.review_action === '삭제') return sum;
     return sum + (Number(row.prescription_qty) || 0);
   }, 0);
-  return total.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  // 소수점 1자리로 통일 (업체별 통계와 동일한 formatNumber 사용)
+  return formatNumber(total, true);
 });
 
 const averageAbsorptionRate = computed(() => {

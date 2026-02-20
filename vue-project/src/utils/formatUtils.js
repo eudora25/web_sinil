@@ -9,11 +9,13 @@
  * @returns {string} 포맷팅된 문자열
  */
 export function formatNumber(value, isQty = false) {
-  if (value === null || value === undefined) return '0';
+  if (value === null || value === undefined) return '0.0';
   const num = Number(value);
-  if (isNaN(num)) return '0';
+  if (isNaN(num)) return '0.0';
   if (isQty) {
-    return num.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    // 수량: 소수점 1자리로 반올림 후 포맷 (흡수율 분석·업체별 통계 등 표시 통일)
+    const rounded = Math.round(num * 10) / 10;
+    return rounded.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   }
   return Math.round(num).toLocaleString('ko-KR');
 }

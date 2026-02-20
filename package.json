@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
+    "build": "npm run build --prefix vue-project",
     "open:statistics": "node scripts/open-url.js http://localhost:5173/admin/statistics/company",
     "open:statistics:playwright": "SHOW_BROWSER=1 node scripts/open-statistics-page.js"
   },

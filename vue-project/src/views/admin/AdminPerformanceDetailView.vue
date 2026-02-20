@@ -2381,9 +2381,9 @@ function aggregateByCompanyAndHospital(data, absorptionRates = {}) {
   
   data.forEach((record, index) => {
     try {
-      // 삭제 처리된 건도 포함 (업체별 등록 현황과 동일한 조건)
-      // if (record.review_action === '삭제') return;
-      
+      // 흡수율 분석과 동일: 삭제 처리된 건 제외
+      if (record.review_action === '삭제') return;
+
       const companyId = record.company_id;
       const hospitalId = record.client_id;
       if (!companyId || !hospitalId) {
@@ -2485,9 +2485,9 @@ function aggregateByCompanyAndProduct(data, absorptionRates = {}) {
   
   data.forEach((record, index) => {
     try {
-      // 삭제 처리된 건도 포함 (업체별 등록 현황과 동일한 조건)
-      // if (record.review_action === '삭제') return;
-      
+      // 흡수율 분석과 동일: 삭제 처리된 건 제외
+      if (record.review_action === '삭제') return;
+
       const companyId = record.company_id;
       const productId = record.product_id;
       if (!companyId || !productId) {
