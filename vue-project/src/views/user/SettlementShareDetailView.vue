@@ -1229,35 +1229,35 @@ async function closeNoticeModal() {
   hideNoticeModal.value = false; // 체크박스 초기화
 }
 
-// 엑셀용 반영 흡수율 수치 (0~1, 미설정/없음 = 0 → 0% 표시). 화면 formatAppliedAbsorptionRate와 동일하게 0-1/0-100 스케일 모두 처리
+// 엑셀용 반영 흡수율 수치 (0~1, 미설정/없음 = 1.0 → 100% 표시). 화면 formatAppliedAbsorptionRate와 동일하게 0-1/0-100 스케일 모두 처리
 function appliedAbsorptionRateForExcel(value) {
-  if (value === null || value === undefined) return 0;
+  if (value === null || value === undefined) return 1.0;
   const num = Number(value);
   if (isNaN(num)) return 0;
   // Excel 퍼센트 포맷(0.0%)은 0~1 기준: 1이면 100% 표시. 0-100 스케일이 오면 0-1로 변환
   return num > 1 ? num / 100 : num;
 }
 
-// 반영 흡수율 포맷팅 함수 (미설정/없음 = 0%)
+// 반영 흡수율 포맷팅 함수 (미설정/없음 = 100.0%)
 function formatAppliedAbsorptionRate(value) {
   try {
     if (value === null || value === undefined) {
-      return '0%';
+      return '100.0%';
     }
-    
+
     const numValue = Number(value);
     if (isNaN(numValue)) {
       return '0%';
     }
-    
+
     // 값이 1보다 크면 이미 퍼센트 형태로 저장된 것
     // 값이 1 이하면 소수점 형태로 저장된 것
     const percentage = numValue > 1 ? numValue : numValue * 100;
-    
+
     return `${percentage.toFixed(1)}%`;
   } catch (error) {
     console.error('반영 흡수율 포맷 오류:', error, value);
-    return '0%';
+    return '100.0%';
   }
 }
 </script>
