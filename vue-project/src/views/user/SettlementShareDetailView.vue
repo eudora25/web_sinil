@@ -988,7 +988,7 @@ async function downloadExcel() {
         row._raw_qty || 0,
         row._raw_prescription_amount || 0,
         Number(String(row.commission_rate).replace('%', '')) / 100,
-        (row.applied_absorption_rate !== null && row.applied_absorption_rate !== undefined) ? Number(row.applied_absorption_rate) : 0,
+        appliedAbsorptionRateForExcel(row.applied_absorption_rate),
         row._raw_payment_amount || 0,
         row.remarks || ''
       ]);
@@ -1228,6 +1228,13 @@ async function closeNoticeModal() {
   hideNoticeModal.value = false; // 체크박스 초기화
 }
 
+// 엑셀용 반영 흡수율 수치 (0~1, 미설정/없음 = 0 → 0% 표시)
+function appliedAbsorptionRateForExcel(value) {
+  if (value === null || value === undefined) return 0;
+  const num = Number(value);
+  return isNaN(num) ? 0 : num;
+}
+
 // 반영 흡수율 포맷팅 함수 (미설정/없음 = 0%)
 function formatAppliedAbsorptionRate(value) {
   try {
@@ -1247,7 +1254,7 @@ function formatAppliedAbsorptionRate(value) {
     return `${percentage.toFixed(1)}%`;
   } catch (error) {
     console.error('반영 흡수율 포맷 오류:', error, value);
-    return '100.0%';
+    return '0%';
   }
 }
 </script>
