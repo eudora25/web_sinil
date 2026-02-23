@@ -632,8 +632,8 @@ async function fetchAllDataForMonth() {
     }
     
     // 반영 흡수율 적용하여 최종 지급액 계산 (정수 반올림)
-    // 관리자 상세 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율. 미설정 시 0% (기본값 0)
-    const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 0;
+    // 관리자 상세 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율. 미설정 시 100% (기본값 1)
+    const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1;
     const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
     
     return {

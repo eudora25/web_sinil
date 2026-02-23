@@ -425,8 +425,8 @@ async function loadDetailData() {
       
       const paymentAmount = Math.round(prescriptionAmount * commissionRate);
       
-      // 반영 흡수율 처리 (별도 조회한 applied_absorption_rates 사용. 미설정 시 0%)
-      const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 0;
+      // 반영 흡수율 처리 (별도 조회한 applied_absorption_rates 사용. 미설정 시 100%)
+      const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1;
       
       // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
       const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);

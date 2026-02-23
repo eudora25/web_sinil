@@ -2407,8 +2407,8 @@ function aggregateByCompany(data, absorptionRates = {}) {
     const price = Number(record.products?.price) || 0;
     const amount = qty * price;
     
-    // 반영 흡수율 가져오기 (기본값 0, 미설정 시)
-    let appliedAbsorptionRate = 0;
+    // 반영 흡수율 가져오기 (기본값 1, 미설정 시 100%)
+    let appliedAbsorptionRate = 1;
     if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
       const rateValue = Number(absorptionRates[record.id]);
       if (!isNaN(rateValue)) {
@@ -2504,8 +2504,8 @@ function aggregateByHospital(data, absorptionRates = {}) {
     const productId = record.product_id;
     const commissionRate = Number(record.commission_rate) || 0;
     
-    // 반영 흡수율 가져오기 (기본값 0, 미설정 시)
-    let appliedAbsorptionRate = 0;
+    // 반영 흡수율 가져오기 (기본값 1, 미설정 시 100%)
+    let appliedAbsorptionRate = 1;
     if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
       const rateValue = Number(absorptionRates[record.id]);
       if (!isNaN(rateValue)) {
@@ -2610,8 +2610,8 @@ function aggregateByProduct(data, absorptionRates = {}) {
     const hospitalId = record.client_id;
     const commissionRate = Number(record.commission_rate) || 0;
     
-    // 반영 흡수율 가져오기 (기본값 0, 미설정 시)
-    let appliedAbsorptionRate = 0;
+    // 반영 흡수율 가져오기 (기본값 1, 미설정 시 100%)
+    let appliedAbsorptionRate = 1;
     if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
       const rateValue = Number(absorptionRates[record.id]);
       if (!isNaN(rateValue)) {
@@ -2737,8 +2737,8 @@ function aggregateByCompanyAndHospital(data, absorptionRates = {}) {
       const price = Number(record.products?.price) || 0;
       const amount = qty * price;
       
-      // 반영 흡수율 가져오기 (기본값 0, 미설정 시)
-      let appliedAbsorptionRate = 0;
+      // 반영 흡수율 가져오기 (기본값 1, 미설정 시 100%)
+      let appliedAbsorptionRate = 1;
       if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
         const rateValue = Number(absorptionRates[record.id]);
         if (!isNaN(rateValue)) {
@@ -2841,8 +2841,8 @@ function aggregateByCompanyAndProduct(data, absorptionRates = {}) {
       const price = Number(record.products?.price) || 0;
       const amount = qty * price;
       
-      // 반영 흡수율 가져오기 (기본값 0, 미설정 시)
-      let appliedAbsorptionRate = 0;
+      // 반영 흡수율 가져오기 (기본값 1, 미설정 시 100%)
+      let appliedAbsorptionRate = 1;
       if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
         const rateValue = Number(absorptionRates[record.id]);
         if (!isNaN(rateValue)) {
@@ -2956,8 +2956,8 @@ function aggregateByProductAndCompany(data, absorptionRates = {}) {
       const amount = qty * price;
       const commissionRate = Number(record.commission_rate) || 0;
       
-      // 반영 흡수율 가져오기 (기본값 0, 미설정 시)
-      let appliedAbsorptionRate = 0;
+      // 반영 흡수율 가져오기 (기본값 1, 미설정 시 100%)
+      let appliedAbsorptionRate = 1;
       if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
         const rateValue = Number(absorptionRates[record.id]);
         if (!isNaN(rateValue)) {
@@ -3051,8 +3051,8 @@ function aggregateByProductAndHospital(data, absorptionRates = {}) {
       const amount = qty * price;
       const commissionRate = Number(record.commission_rate) || 0;
       
-      // 반영 흡수율 가져오기 (기본값 0, 미설정 시)
-      let appliedAbsorptionRate = 0;
+      // 반영 흡수율 가져오기 (기본값 1, 미설정 시 100%)
+      let appliedAbsorptionRate = 1;
       if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
         const rateValue = Number(absorptionRates[record.id]);
         if (!isNaN(rateValue)) {
@@ -3145,8 +3145,8 @@ function aggregateByHospitalAndProduct(data, absorptionRates = {}) {
       const amount = qty * price;
       const commissionRate = Number(record.commission_rate) || 0;
       
-      // 반영 흡수율 가져오기 (기본값 0, 미설정 시)
-      let appliedAbsorptionRate = 0;
+      // 반영 흡수율 가져오기 (기본값 1, 미설정 시 100%)
+      let appliedAbsorptionRate = 1;
       if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
         const rateValue = Number(absorptionRates[record.id]);
         if (!isNaN(rateValue)) {
