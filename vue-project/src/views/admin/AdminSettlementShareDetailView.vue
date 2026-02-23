@@ -425,8 +425,8 @@ async function loadDetailData() {
       
       const paymentAmount = Math.round(prescriptionAmount * commissionRate);
       
-      // 반영 흡수율 처리 (별도 조회한 applied_absorption_rates 사용. 미설정 시 100%)
-      const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1;
+      // 반영 흡수율 처리 (별도 조회한 performance_records_absorption 테이블에서 가져온 값 사용)
+      const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1.0;
       
       // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
       const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
@@ -832,11 +832,11 @@ const removeOverflowClass = (event) => {
   element.classList.remove('overflowed');
 }
 
-// 반영 흡수율 포맷팅 함수 (미설정/없음 = 0%, 사용자 페이지와 동일)
+// 반영 흡수율 포맷팅 함수
 function formatAppliedAbsorptionRate(value) {
   try {
     if (value === null || value === undefined) {
-      return '0%';
+      return '100.0%';
     }
     
     const numValue = Number(value);
@@ -851,15 +851,15 @@ function formatAppliedAbsorptionRate(value) {
     return `${percentage.toFixed(1)}%`;
   } catch (error) {
     console.error('반영 흡수율 포맷 오류:', error, value);
-    return '0%';
+    return '100.0%';
   }
 }
 
-// 엑셀용 반영 흡수율 포맷팅 함수 (소수점 형태로 반환, 미설정/없음 = 0 → 0%)
+// 엑셀용 반영 흡수율 포맷팅 함수 (소수점 형태로 반환)
 function formatAppliedAbsorptionRateForExcel(value) {
   try {
     if (value === null || value === undefined) {
-      return 0;
+      return 1.0; // 100% = 1.0
     }
     
     const numValue = Number(value);
@@ -874,7 +874,7 @@ function formatAppliedAbsorptionRateForExcel(value) {
     return decimalValue;
   } catch (error) {
     console.error('엑셀용 반영 흡수율 포맷 오류:', error, value);
-    return 0;
+    return 1.0;
   }
 }
 </script>
