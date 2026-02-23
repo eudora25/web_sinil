@@ -3710,7 +3710,7 @@ async function downloadExcel() {
         Number(row.direct_revenue) || 0,
         Number(row.wholesale_revenue) || 0,
         Number(row.total_revenue) || 0,
-        row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
+        formatAbsorptionRate(row.absorption_rate)
       ];
     } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
       rowData = [
@@ -3742,7 +3742,7 @@ async function downloadExcel() {
         Number(row.direct_revenue) || 0,
         Number(row.wholesale_revenue) || 0,
         Number(row.total_revenue) || 0,
-        row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
+        formatAbsorptionRate(row.absorption_rate)
       ];
     } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
       rowData = [
@@ -3794,7 +3794,7 @@ async function downloadExcel() {
           Number(row.direct_revenue) || 0,
           Number(row.wholesale_revenue) || 0,
           Number(row.total_revenue) || 0,
-          row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
+          formatAbsorptionRate(row.absorption_rate)
         ];
       }
     } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
@@ -3806,7 +3806,7 @@ async function downloadExcel() {
         Number(row.direct_revenue) || 0,
         Number(row.wholesale_revenue) || 0,
         Number(row.total_revenue) || 0,
-        row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
+        formatAbsorptionRate(row.absorption_rate)
       ];
     } else if (statisticsType.value === 'product' && drillDownType.value === 'hospital') {
       rowData = [
@@ -3838,10 +3838,21 @@ async function downloadExcel() {
       
       if (colNumber >= numStartCol) {
         cell.alignment = { horizontal: 'right', vertical: 'middle' };
-        if (colNumber === numStartCol) {
-          cell.numFmt = '#,##0.0';
+        // 흡수율 컬럼은 숫자 포맷 적용 제외(문자열 '0.0%' 등이 숫자로 해석되어 100%로 보이는 현상 방지)
+        const isAbsorptionCol =
+          (statisticsType.value === 'company' && drillDownLevel.value === 0 && colNumber === 12) ||
+          (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && colNumber === 12) ||
+          (statisticsType.value === 'product' && drillDownLevel.value === 0 && productStatisticsFilter.value === 'all' && colNumber === 10) ||
+          (statisticsType.value === 'product' && drillDownType.value === 'company' && colNumber === 8);
+        if (!isAbsorptionCol) {
+          if (colNumber === numStartCol) {
+            cell.numFmt = '#,##0.0';
+          } else {
+            cell.numFmt = '#,##0';
+          }
         } else {
-          cell.numFmt = '#,##0';
+          cell.numFmt = '@';
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
         }
       }
       

@@ -975,8 +975,9 @@ async function downloadExcel() {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     });
     
-    // 데이터 추가
+    // 데이터 추가 (삭제 행은 화면과 동일하게 상태 '삭제', 처방액·지급액·반영 흡수율 0으로 표시)
     detailRows.value.forEach((row, index) => {
+      const isDeleted = row.review_action === '삭제';
       const dataRow = detailSheet.addRow([
         index + 1,
         row.review_action || '정상',
@@ -986,10 +987,10 @@ async function downloadExcel() {
         row.insurance_code,
         row._raw_price || 0,
         row._raw_qty || 0,
-        row._raw_prescription_amount || 0,
+        isDeleted ? 0 : (row._raw_prescription_amount || 0),
         Number(String(row.commission_rate).replace('%', '')) / 100,
-        appliedAbsorptionRateForExcel(row.applied_absorption_rate),
-        row._raw_payment_amount || 0,
+        isDeleted ? 0 : appliedAbsorptionRateForExcel(row.applied_absorption_rate),
+        isDeleted ? 0 : (row._raw_payment_amount || 0),
         row.remarks || ''
       ]);
       
@@ -1228,11 +1229,13 @@ async function closeNoticeModal() {
   hideNoticeModal.value = false; // 체크박스 초기화
 }
 
-// 엑셀용 반영 흡수율 수치 (0~1, 미설정/없음 = 0 → 0% 표시)
+// 엑셀용 반영 흡수율 수치 (0~1, 미설정/없음 = 0 → 0% 표시). 화면 formatAppliedAbsorptionRate와 동일하게 0-1/0-100 스케일 모두 처리
 function appliedAbsorptionRateForExcel(value) {
   if (value === null || value === undefined) return 0;
   const num = Number(value);
-  return isNaN(num) ? 0 : num;
+  if (isNaN(num)) return 0;
+  // Excel 퍼센트 포맷(0.0%)은 0~1 기준: 1이면 100% 표시. 0-100 스케일이 오면 0-1로 변환
+  return num > 1 ? num / 100 : num;
 }
 
 // 반영 흡수율 포맷팅 함수 (미설정/없음 = 0%)
