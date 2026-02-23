@@ -702,61 +702,6 @@
     </div>
     
     
-    <!-- 데이터 검증 결과 모달 -->
-    <Dialog 
-      v-model:visible="showValidationResultModal" 
-      :modal="true" 
-      :closable="true"
-      :draggable="false"
-      :style="{ width: '600px', maxWidth: '90vw' }"
-      class="validation-result-dialog"
-      @update:visible="(val) => showValidationResultModal = val"
-    >
-      <template #header>
-        <div class="dialog-header">
-          <div class="dialog-header-left">
-            <div class="dialog-icon-wrapper" :class="validationResult.isValid ? 'success' : 'warning'">
-              <i :class="validationResult.isValid ? 'pi pi-check-circle' : 'pi pi-exclamation-triangle'"></i>
-            </div>
-            <div class="dialog-title-message">
-              <strong>검증 결과</strong>
-            </div>
-          </div>
-        </div>
-      </template>
-      
-      <div class="dialog-content">
-        <div class="validation-summary" :class="validationResult.isValid ? 'success' : 'warning'">
-          <p>{{ validationResult.summary }}</p>
-        </div>
-        
-        <div v-if="validationResult.details.length > 0" class="validation-details">
-          <div class="details-header">
-            <strong>발견된 문제:</strong>
-          </div>
-          <div class="details-list">
-            <div 
-              v-for="(detail, index) in validationResult.details" 
-              :key="index"
-              class="detail-item"
-            >
-              <i class="pi pi-circle-fill"></i>
-              <span>{{ detail }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <template #footer>
-        <Button 
-          label="확인" 
-          icon="pi pi-check" 
-          @click="showValidationResultModal = false"
-          class="p-button-primary"
-        />
-      </template>
-    </Dialog>
-    
     <!-- 통계 계산 확인 모달 -->
     <Dialog 
       v-model:visible="showStatisticsConfirmModal" 
@@ -947,7 +892,6 @@ import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
 import { formatNumber, formatAbsorptionRate, formatBusinessNumber } from '@/utils/formatUtils';
-import { validateAbsorptionRate, validateTotals, validateDataIntegrity, detectOutliers } from '@/utils/statisticsValidation';
 import { useNotifications } from '@/utils/notifications';
 
 // Props
@@ -970,15 +914,6 @@ const statisticsResult = ref({
   settlement_month: '',
   inserted: 0,
   updated: 0
-});
-
-// 데이터 검증 결과 모달
-const showValidationResultModal = ref(false);
-const validationResult = ref({
-  isValid: true,
-  issues: [],
-  summary: '',
-  details: []
 });
 
 // 개발 모드 체크
@@ -1310,16 +1245,38 @@ async function fetchStatistics() {
           (rates || []).forEach(item => { absorptionRatesMap[item.performance_record_id] = item.applied_absorption_rate; });
         }
       }
+      const revenueByRecordIdCompany = {};
+      if (recordIds.length > 0) {
+        for (let i = 0; i < recordIds.length; i += 500) {
+          const part = recordIds.slice(i, i + 500);
+          const { data: absRows } = await supabase
+            .from('performance_records_absorption')
+            .select('id, direct_revenue, wholesale_revenue, total_revenue')
+            .eq('settlement_month', selectedSettlementMonth.value)
+            .in('id', part);
+          (absRows || []).forEach((row) => {
+            revenueByRecordIdCompany[row.id] = {
+              direct_revenue: Number(row.direct_revenue) || 0,
+              wholesale_revenue: Number(row.wholesale_revenue) || 0,
+              total_revenue: Number(row.total_revenue) != null && !isNaN(Number(row.total_revenue)) ? Number(row.total_revenue) : null
+            };
+          });
+        }
+      }
       const mapped = filtered.map(r => {
         const price = Number(r.products?.price) || 0;
         const amount = (Number(r.prescription_qty) || 0) * price;
+        const rev = revenueByRecordIdCompany[r.id];
+        const direct = rev ? rev.direct_revenue : 0;
+        const wholesale = rev ? rev.wholesale_revenue : 0;
+        const totalRev = rev && rev.total_revenue != null ? rev.total_revenue : amount;
         return {
           ...r,
           companies: r.companies,
           products: r.products,
-          total_revenue: amount,
-          wholesale_revenue: 0,
-          direct_revenue: 0
+          total_revenue: totalRev,
+          wholesale_revenue: wholesale,
+          direct_revenue: direct
         };
       });
       const aggregated = aggregateByCompany(mapped, absorptionRatesMap);
@@ -1428,16 +1385,39 @@ async function fetchStatistics() {
           (dr || []).forEach(item => { ratesP[item.performance_record_id] = item.applied_absorption_rate; });
         }
       }
+      // 직거래/도매매출: performance_records_absorption 테이블에 있으면 사용 (id = performance_records.id)
+      const revenueByRecordId = {};
+      if (idsP.length > 0) {
+        for (let i = 0; i < idsP.length; i += 500) {
+          const part = idsP.slice(i, i + 500);
+          const { data: absRows } = await supabase
+            .from('performance_records_absorption')
+            .select('id, direct_revenue, wholesale_revenue, total_revenue')
+            .eq('settlement_month', selectedSettlementMonth.value)
+            .in('id', part);
+          (absRows || []).forEach((row) => {
+            revenueByRecordId[row.id] = {
+              direct_revenue: Number(row.direct_revenue) || 0,
+              wholesale_revenue: Number(row.wholesale_revenue) || 0,
+              total_revenue: Number(row.total_revenue) != null && !isNaN(Number(row.total_revenue)) ? Number(row.total_revenue) : null
+            };
+          });
+        }
+      }
       const mappedP = filteredP.map(r => {
         const price = Number(r.products?.price) || 0;
         const amount = (Number(r.prescription_qty) || 0) * price;
+        const rev = revenueByRecordId[r.id];
+        const direct = rev ? rev.direct_revenue : 0;
+        const wholesale = rev ? rev.wholesale_revenue : 0;
+        const totalRev = rev && rev.total_revenue != null ? rev.total_revenue : amount;
         return {
           ...r,
           companies: r.companies,
           products: r.products,
-          total_revenue: amount,
-          wholesale_revenue: 0,
-          direct_revenue: 0
+          total_revenue: totalRev,
+          wholesale_revenue: wholesale,
+          direct_revenue: direct
         };
       });
       const aggP = aggregateByProduct(mappedP, ratesP);
@@ -2389,6 +2369,8 @@ function aggregateByHospital(data, absorptionRates = {}) {
         prescription_qty: 0,
         prescription_amount: 0,
         payment_amount: 0,
+        wholesale_revenue: 0,
+        direct_revenue: 0,
         total_revenue: 0,
         total_absorption_rate: 0,
         total_prescription_amount: 0,
@@ -2402,6 +2384,8 @@ function aggregateByHospital(data, absorptionRates = {}) {
     item.prescription_qty += qty;
     item.prescription_amount += amount;
     item.payment_amount += paymentAmount;
+    item.wholesale_revenue += Number(record.wholesale_revenue) || 0;
+    item.direct_revenue += Number(record.direct_revenue) || 0;
     item.total_revenue += Number(record.total_revenue) || 0;
     // 흡수율 계산을 위한 누적값
     item.total_absorption_rate += amount * appliedAbsorptionRate;
@@ -2439,6 +2423,8 @@ function aggregateByHospital(data, absorptionRates = {}) {
       prescription_qty: item.prescription_qty,
       prescription_amount: item.prescription_amount,
       payment_amount: item.payment_amount,
+      wholesale_revenue: item.wholesale_revenue,
+      direct_revenue: item.direct_revenue,
       total_revenue: item.total_revenue,
       absorption_rate: absorptionRate,
       product_count: item.products.size
@@ -2485,6 +2471,8 @@ function aggregateByProduct(data, absorptionRates = {}) {
         prescription_qty: 0,
         prescription_amount: 0,
         payment_amount: 0,
+        wholesale_revenue: 0,
+        direct_revenue: 0,
         total_revenue: 0,
         total_absorption_rate: 0,
         total_prescription_amount: 0,
@@ -2497,6 +2485,8 @@ function aggregateByProduct(data, absorptionRates = {}) {
     item.prescription_qty += qty;
     item.prescription_amount += amount;
     item.payment_amount += paymentAmount;
+    item.wholesale_revenue += Number(record.wholesale_revenue) || 0;
+    item.direct_revenue += Number(record.direct_revenue) || 0;
     item.total_revenue += Number(record.total_revenue) || 0;
     // 흡수율 계산을 위한 누적값
     item.total_absorption_rate += amount * appliedAbsorptionRate;
@@ -2521,6 +2511,8 @@ function aggregateByProduct(data, absorptionRates = {}) {
       prescription_qty: item.prescription_qty,
       prescription_amount: item.prescription_amount,
       payment_amount: item.payment_amount,
+      wholesale_revenue: item.wholesale_revenue,
+      direct_revenue: item.direct_revenue,
       total_revenue: item.total_revenue,
       absorption_rate: absorptionRate,
       company_count: item.companies.size,
@@ -3483,81 +3475,6 @@ function onPageChange(event) {
   currentPageFirstIndex.value = event.first;
 }
 
-// 데이터 정확성 검증
-async function validateData() {
-  if (displayRows.value.length === 0) {
-    showWarning('검증할 데이터가 없습니다.');
-    return;
-  }
-
-  try {
-    const issues = [];
-    
-    // 1. 흡수율 검증
-    const absorptionValidation = validateAbsorptionRate(displayRows.value);
-    if (!absorptionValidation.isValid) {
-      issues.push({
-        type: '흡수율 계산 불일치',
-        message: absorptionValidation.message
-      });
-    }
-
-    // 2. 합계 검증
-    const totalsValidation = validateTotals(displayRows.value);
-    if (!totalsValidation.isValid) {
-      issues.push({
-        type: '합계 불일치',
-        message: totalsValidation.message
-      });
-    }
-
-    // 3. 데이터 무결성 검증 (통계 타입 전달)
-    const integrityValidation = validateDataIntegrity(displayRows.value, statisticsType.value);
-    if (!integrityValidation.isValid) {
-      issues.push(...integrityValidation.issues.map(issue => ({
-        type: issue.type,
-        message: issue.message
-      })));
-    }
-
-    // 4. 이상치 감지
-    const outliersValidation = detectOutliers(displayRows.value);
-    if (!outliersValidation.isValid) {
-      issues.push(...outliersValidation.outliers.map(outlier => ({
-        type: outlier.type,
-        message: outlier.message
-      })));
-    }
-
-    // 결과 표시
-    const details = issues.map(issue => `${issue.type}: ${issue.message}`);
-    
-    validationResult.value = {
-      isValid: issues.length === 0,
-      issues: issues,
-      summary: issues.length === 0 
-        ? '모든 데이터가 정확합니다.' 
-        : `${issues.length}개의 문제가 발견되었습니다.`,
-      details: details
-    };
-    
-    showValidationResultModal.value = true;
-    
-    // 개발 모드에서만 상세 로그 출력
-    if (isDevelopment) {
-      console.group('데이터 검증 결과');
-      console.log('흡수율 검증:', absorptionValidation);
-      console.log('합계 검증:', totalsValidation);
-      console.log('무결성 검증:', integrityValidation);
-      console.log('이상치 감지:', outliersValidation);
-      console.groupEnd();
-    }
-  } catch (err) {
-    console.error('데이터 검증 오류:', err);
-    showError('데이터 검증 중 오류가 발생했습니다: ' + (err.message || err));
-  }
-}
-
 // 엑셀 다운로드
 async function downloadExcel() {
   if (displayRows.value.length === 0) {
@@ -4405,113 +4322,6 @@ onUnmounted(() => {
 
 :deep(.statistics-confirm-dialog .p-button-label) {
   font-weight: 600;
-}
-
-/* 데이터 검증 결과 모달 스타일 */
-.validation-result-dialog .dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.validation-result-dialog .dialog-header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.validation-result-dialog .dialog-icon-wrapper {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-}
-
-.validation-result-dialog .dialog-icon-wrapper.success {
-  background-color: #d4edda;
-  color: #155724;
-}
-
-.validation-result-dialog .dialog-icon-wrapper.warning {
-  background-color: #fff3cd;
-  color: #856404;
-}
-
-.validation-result-dialog .dialog-title-message {
-  font-size: 18px;
-  font-weight: 600;
-  color: #212529;
-}
-
-.validation-result-dialog .dialog-content {
-  padding: 24px;
-}
-
-.validation-result-dialog .validation-summary {
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.validation-result-dialog .validation-summary.success {
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-}
-
-.validation-result-dialog .validation-summary.warning {
-  background-color: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffeaa7;
-}
-
-.validation-result-dialog .validation-details {
-  margin-top: 20px;
-}
-
-.validation-result-dialog .details-header {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: #212529;
-}
-
-.validation-result-dialog .details-list {
-  max-height: 400px;
-  overflow-y: auto;
-  padding: 12px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #dee2e6;
-}
-
-.validation-result-dialog .detail-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 0;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #495057;
-}
-
-.validation-result-dialog .detail-item i {
-  color: #dc3545;
-  font-size: 6px;
-  margin-top: 8px;
-  flex-shrink: 0;
-}
-
-.validation-result-dialog .detail-item span {
-  flex: 1;
-  word-break: break-word;
 }
 
 :deep(.validation-result-dialog .p-dialog-footer) {

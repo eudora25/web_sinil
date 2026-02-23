@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
-    "test:excel": "node ../test-scripts/test-excel-upload.js"
+    "test:excel": "node ../test-scripts/test-excel-upload.js",
+    "verify:company-statistics": "node scripts/verify-company-statistics.mjs"
   },
   "dependencies": {
     "@ckeditor/ckeditor5-build-classic": "^41.4.2",
