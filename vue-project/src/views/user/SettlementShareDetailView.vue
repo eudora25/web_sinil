@@ -632,8 +632,8 @@ async function fetchAllDataForMonth() {
     }
     
     // 반영 흡수율 적용하여 최종 지급액 계산 (정수 반올림)
-    // 관리자 상세 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율
-    const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1.0;
+    // 관리자 상세 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율. 미설정 시 0% (기본값 0)
+    const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 0;
     const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
     
     return {
@@ -988,7 +988,7 @@ async function downloadExcel() {
         row._raw_qty || 0,
         row._raw_prescription_amount || 0,
         Number(String(row.commission_rate).replace('%', '')) / 100,
-        row.applied_absorption_rate || 1.0,
+        (row.applied_absorption_rate !== null && row.applied_absorption_rate !== undefined) ? Number(row.applied_absorption_rate) : 0,
         row._raw_payment_amount || 0,
         row.remarks || ''
       ]);
@@ -1228,16 +1228,16 @@ async function closeNoticeModal() {
   hideNoticeModal.value = false; // 체크박스 초기화
 }
 
-// 반영 흡수율 포맷팅 함수
+// 반영 흡수율 포맷팅 함수 (미설정/없음 = 0%)
 function formatAppliedAbsorptionRate(value) {
   try {
     if (value === null || value === undefined) {
-      return '100.0%';
+      return '0%';
     }
     
     const numValue = Number(value);
     if (isNaN(numValue)) {
-      return '100.0%';
+      return '0%';
     }
     
     // 값이 1보다 크면 이미 퍼센트 형태로 저장된 것

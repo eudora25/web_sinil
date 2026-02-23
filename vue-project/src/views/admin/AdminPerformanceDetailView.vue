@@ -434,17 +434,27 @@
                 {{ formatNumber(slotProps.data.prescription_qty, true) }}
               </template>
             </Column>
-            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.prescription_amount) }}
               </template>
             </Column>
-            <Column field="total_revenue" header="매출액" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="direct_revenue" header="직거래매출" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+              <template #body="slotProps">
+                {{ formatNumber(slotProps.data.direct_revenue) }}
+              </template>
+            </Column>
+            <Column field="wholesale_revenue" header="도매매출" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+              <template #body="slotProps">
+                {{ formatNumber(slotProps.data.wholesale_revenue) }}
+              </template>
+            </Column>
+            <Column field="total_revenue" header="매출액" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(combinedRevenueDisplay(slotProps.data)) }}
               </template>
             </Column>
-            <Column field="absorption_rate" header="흡수율(%)" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+            <Column field="absorption_rate" header="흡수율(%)" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ formatAbsorptionRate(slotProps.data.absorption_rate) }}
               </template>
@@ -454,6 +464,8 @@
                 <Column footer="합계" :colspan="hospitalStatisticsFilter === 'all' ? 6 : 7" footerClass="footer-cell" footerStyle="text-align:center !important;" />
                 <Column :footer="totalQty" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+                <Column :footer="totalDirectRevenue" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+                <Column :footer="totalWholesaleRevenue" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalRevenue" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalAbsorptionRate" footerClass="footer-cell" footerStyle="text-align:center !important;" />
               </Row>
@@ -561,24 +573,34 @@
                 {{ formatNumber(slotProps.data.prescription_qty, true) }}
               </template>
             </Column>
-            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.prescription_amount) }}
               </template>
             </Column>
-            <Column field="total_revenue" header="매출액" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="direct_revenue" header="직거래매출" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+              <template #body="slotProps">
+                {{ formatNumber(slotProps.data.direct_revenue) }}
+              </template>
+            </Column>
+            <Column field="wholesale_revenue" header="도매매출" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+              <template #body="slotProps">
+                {{ formatNumber(slotProps.data.wholesale_revenue) }}
+              </template>
+            </Column>
+            <Column field="total_revenue" header="매출액" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(combinedRevenueDisplay(slotProps.data)) }}
               </template>
             </Column>
             <!-- 전체 필터일 때 흡수율 표시 -->
-            <Column v-if="productStatisticsFilter === 'all'" field="absorption_rate" header="흡수율(%)" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+            <Column v-if="productStatisticsFilter === 'all'" field="absorption_rate" header="흡수율(%)" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ formatAbsorptionRate(slotProps.data.absorption_rate) }}
               </template>
             </Column>
             <!-- 업체별, 병의원별 필터일 때 지급액 표시 -->
-            <Column v-if="productStatisticsFilter === 'company' || productStatisticsFilter === 'hospital'" field="payment_amount" header="지급액" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column v-if="productStatisticsFilter === 'company' || productStatisticsFilter === 'hospital'" field="payment_amount" header="지급액" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.payment_amount) }}
               </template>
@@ -588,6 +610,8 @@
                 <Column footer="합계" :colspan="productStatisticsFilter === 'all' ? 4 : productStatisticsFilter === 'company' ? 7 : 6" footerClass="footer-cell" footerStyle="text-align:center !important;" />
                 <Column :footer="totalQty" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+                <Column :footer="totalDirectRevenue" footerClass="footer-cell" footerStyle="text-align:right !important;" />
+                <Column :footer="totalWholesaleRevenue" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalRevenue" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column v-if="productStatisticsFilter === 'all'" :footer="totalAbsorptionRate" footerClass="footer-cell" footerStyle="text-align:center !important;" />
                 <Column v-if="productStatisticsFilter === 'company' || productStatisticsFilter === 'hospital'" :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
@@ -1038,10 +1062,11 @@ const displayRows = computed(() => {
 // 매출액 표시: 직거래매출 + 도매매출 합계 후 반올림. 직거래/도매 없으면 total_revenue 사용
 function combinedRevenueDisplay(row) {
   if (!row) return 0;
-  const hasDirectOrWholesale = row.direct_revenue != null || row.wholesale_revenue != null;
-  if (hasDirectOrWholesale) {
-    return Math.round((Number(row.wholesale_revenue) || 0) + (Number(row.direct_revenue) || 0));
-  }
+  const wholesale = Number(row.wholesale_revenue) || 0;
+  const direct = Number(row.direct_revenue) || 0;
+  const sum = wholesale + direct;
+  // 직거래/도매 합이 0이면 total_revenue 사용 (performance_records 경로는 매출을 total_revenue만 씀)
+  if (sum > 0) return Math.round(sum);
   return Number(row.total_revenue) || 0;
 }
 
@@ -3562,16 +3587,16 @@ async function downloadExcel() {
   } else if (statisticsType.value === 'company' && drillDownType.value === 'product') {
     headers = ['No', '제품명', '처방수량', '처방액', '병원 수'];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-    headers = ['No', '병의원명', '사업자등록번호', '주소', '담당업체 구분', '담당업체', '처방수량', '처방액', '매출액', '흡수율(%)'];
+    headers = ['No', '병의원명', '사업자등록번호', '주소', '담당업체 구분', '담당업체', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '흡수율(%)'];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
     headers = ['No', '제품명', '처방수량', '처방액'];
   } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
     if (productStatisticsFilter.value === 'company') {
-      headers = ['No', '제품명', '보험코드', '구분', '업체명', '사업자등록번호', '대표자', '처방수량', '처방액', '지급액'];
+      headers = ['No', '제품명', '보험코드', '구분', '업체명', '사업자등록번호', '대표자', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '지급액'];
     } else if (productStatisticsFilter.value === 'hospital') {
-      headers = ['No', '제품명', '보험코드', '병의원명', '사업자등록번호', '주소', '처방수량', '처방액', '지급액'];
+      headers = ['No', '제품명', '보험코드', '병의원명', '사업자등록번호', '주소', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '지급액'];
     } else {
-      headers = ['No', '제품명', '보험코드', '약가', '처방수량', '처방액', '흡수율(%)'];
+      headers = ['No', '제품명', '보험코드', '약가', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '흡수율(%)'];
     }
   } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
     headers = ['No', '업체명', '처방수량', '처방액', '매출액', '흡수율(%)'];
@@ -3634,6 +3659,8 @@ async function downloadExcel() {
         row.company_names || '',
         Number(row.prescription_qty) || 0,
         Number(row.prescription_amount) || 0,
+        Number(row.direct_revenue) || 0,
+        Number(row.wholesale_revenue) || 0,
         combinedRevenueDisplay(row),
         row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
@@ -3656,6 +3683,9 @@ async function downloadExcel() {
           row.representative_name || '',
           Number(row.prescription_qty) || 0,
           Number(row.prescription_amount) || 0,
+          Number(row.direct_revenue) || 0,
+          Number(row.wholesale_revenue) || 0,
+          combinedRevenueDisplay(row),
           Number(row.payment_amount) || 0
         ];
       } else if (productStatisticsFilter.value === 'hospital') {
@@ -3668,6 +3698,9 @@ async function downloadExcel() {
           row.address || '',
           Number(row.prescription_qty) || 0,
           Number(row.prescription_amount) || 0,
+          Number(row.direct_revenue) || 0,
+          Number(row.wholesale_revenue) || 0,
+          combinedRevenueDisplay(row),
           Number(row.payment_amount) || 0
         ];
       } else {
@@ -3678,6 +3711,9 @@ async function downloadExcel() {
           Number(row.price) || 0,
           Number(row.prescription_qty) || 0,
           Number(row.prescription_amount) || 0,
+          Number(row.direct_revenue) || 0,
+          Number(row.wholesale_revenue) || 0,
+          combinedRevenueDisplay(row),
           row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
         ];
       }
@@ -3738,7 +3774,7 @@ async function downloadExcel() {
       
       // 흡수율 컬럼 정렬
       if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-        const absorptionCol = 10; // 병원별 통계: 10번째 컬럼 (흡수율, 매출액 추가로 변경)
+        const absorptionCol = 12; // 병원별 통계: 12번째 컬럼 (직거래매출·도매매출 추가로 변경)
         if (colNumber === absorptionCol) {
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
         }
@@ -3787,10 +3823,12 @@ async function downloadExcel() {
     const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
     const totalRevenue = displayRows.value.reduce((sum, row) => sum + combinedRevenueDisplay(row), 0);
     const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
-    
-    totalRowData = ['합계', '', '', '', '', '', 
+
+    totalRowData = ['합계', '', '', '', '', '',
       Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
       Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+      Number((totalDirectRevenue.value || '0').toString().replace(/,/g, '')),
+      Number((totalWholesaleRevenue.value || '0').toString().replace(/,/g, '')),
       Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
       (avgAbsorptionRate * 100).toFixed(1) + '%'
     ];
@@ -3801,24 +3839,33 @@ async function downloadExcel() {
     ];
   } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
     if (productStatisticsFilter.value === 'company') {
-      totalRowData = ['합계', '', '', '', '', '', 
+      totalRowData = ['합계', '', '', '', '', '', '',
         Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
         Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+        Number((totalDirectRevenue.value || '0').toString().replace(/,/g, '')),
+        Number((totalWholesaleRevenue.value || '0').toString().replace(/,/g, '')),
+        Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
         Number((totalPaymentAmount.value || '0').toString().replace(/,/g, ''))
       ];
     } else if (productStatisticsFilter.value === 'hospital') {
-      totalRowData = ['합계', '', '', '', '', '', 
+      totalRowData = ['합계', '', '', '', '', '',
         Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
         Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+        Number((totalDirectRevenue.value || '0').toString().replace(/,/g, '')),
+        Number((totalWholesaleRevenue.value || '0').toString().replace(/,/g, '')),
+        Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
         Number((totalPaymentAmount.value || '0').toString().replace(/,/g, ''))
       ];
     } else {
       const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-      const totalPaymentAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.payment_amount) || 0), 0);
-      const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalPaymentAmount / totalPrescriptionAmount) : 0;
-      totalRowData = ['합계', '', '', 
+      const totalRevenueVal = displayRows.value.reduce((sum, row) => sum + combinedRevenueDisplay(row), 0);
+      const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenueVal / totalPrescriptionAmount) : 0;
+      totalRowData = ['합계', '', '', '',
         Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
         Number((totalAmount.value || '0').toString().replace(/,/g, '')),
+        Number((totalDirectRevenue.value || '0').toString().replace(/,/g, '')),
+        Number((totalWholesaleRevenue.value || '0').toString().replace(/,/g, '')),
+        Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
         (avgAbsorptionRate * 100).toFixed(1) + '%'
       ];
     }
@@ -3879,7 +3926,7 @@ async function downloadExcel() {
     
     // 흡수율 컬럼 정렬
     if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-      const absorptionCol = 10; // 병원별 통계: 10번째 컬럼 (흡수율, 매출액 추가로 변경)
+      const absorptionCol = 12; // 병원별 통계: 12번째 컬럼 (직거래매출·도매매출 추가로 변경)
       if (colNumber === absorptionCol) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
