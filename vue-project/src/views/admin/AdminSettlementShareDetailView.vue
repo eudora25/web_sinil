@@ -425,8 +425,8 @@ async function loadDetailData() {
       
       const paymentAmount = Math.round(prescriptionAmount * commissionRate);
       
-      // 반영 흡수율 처리 (별도 조회한 performance_records_absorption 테이블에서 가져온 값 사용)
-      const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1.0;
+      // 반영 흡수율 처리 (별도 조회한 applied_absorption_rates 사용. 미설정 시 0%)
+      const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 0;
       
       // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
       const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
@@ -832,16 +832,16 @@ const removeOverflowClass = (event) => {
   element.classList.remove('overflowed');
 }
 
-// 반영 흡수율 포맷팅 함수
+// 반영 흡수율 포맷팅 함수 (미설정/없음 = 0%, 사용자 페이지와 동일)
 function formatAppliedAbsorptionRate(value) {
   try {
     if (value === null || value === undefined) {
-      return '100.0%';
+      return '0%';
     }
     
     const numValue = Number(value);
     if (isNaN(numValue)) {
-      return '100.0%';
+      return '0%';
     }
     
     // 값이 1보다 크면 이미 퍼센트 형태로 저장된 것
@@ -851,20 +851,20 @@ function formatAppliedAbsorptionRate(value) {
     return `${percentage.toFixed(1)}%`;
   } catch (error) {
     console.error('반영 흡수율 포맷 오류:', error, value);
-    return '100.0%';
+    return '0%';
   }
 }
 
-// 엑셀용 반영 흡수율 포맷팅 함수 (소수점 형태로 반환)
+// 엑셀용 반영 흡수율 포맷팅 함수 (소수점 형태로 반환, 미설정/없음 = 0 → 0%)
 function formatAppliedAbsorptionRateForExcel(value) {
   try {
     if (value === null || value === undefined) {
-      return 1.0; // 100% = 1.0
+      return 0;
     }
     
     const numValue = Number(value);
     if (isNaN(numValue)) {
-      return 1.0;
+      return 0;
     }
     
     // 값이 1보다 크면 이미 퍼센트 형태로 저장된 것 -> 소수점으로 변환
@@ -874,7 +874,7 @@ function formatAppliedAbsorptionRateForExcel(value) {
     return decimalValue;
   } catch (error) {
     console.error('엑셀용 반영 흡수율 포맷 오류:', error, value);
-    return 1.0;
+    return 0;
   }
 }
 </script>
