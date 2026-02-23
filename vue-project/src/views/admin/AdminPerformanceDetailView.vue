@@ -307,7 +307,7 @@
             </Column>
             <Column field="total_revenue" header="매출액" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
-                {{ formatNumber(combinedRevenueDisplay(slotProps.data)) }}
+                {{ formatNumber(slotProps.data.total_revenue) }}
               </template>
             </Column>
             <Column field="absorption_rate" header="흡수율" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
@@ -451,7 +451,7 @@
             </Column>
             <Column field="total_revenue" header="매출액" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
-                {{ formatNumber(combinedRevenueDisplay(slotProps.data)) }}
+                {{ formatNumber(slotProps.data.total_revenue) }}
               </template>
             </Column>
             <Column field="absorption_rate" header="흡수율(%)" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
@@ -590,7 +590,7 @@
             </Column>
             <Column field="total_revenue" header="매출액" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
-                {{ formatNumber(combinedRevenueDisplay(slotProps.data)) }}
+                {{ formatNumber(slotProps.data.total_revenue) }}
               </template>
             </Column>
             <!-- 전체 필터일 때 흡수율 표시 -->
@@ -649,7 +649,7 @@
             </Column>
             <Column field="total_revenue" header="매출액" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
-                {{ formatNumber(combinedRevenueDisplay(slotProps.data)) }}
+                {{ formatNumber(slotProps.data.total_revenue) }}
               </template>
             </Column>
             <Column field="absorption_rate" header="흡수율" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
@@ -1035,7 +1035,7 @@ const totals = computed(() => {
     paymentAmount += Number(row.payment_amount) || 0;
     directRevenue += Number(row.direct_revenue) || 0;
     wholesaleRevenue += Number(row.wholesale_revenue) || 0;
-    totalRevenue += combinedRevenueDisplay(row);
+    totalRevenue += Number(row.total_revenue) || 0;
     hospitalCount += Number(row.hospital_count) || 0;
     productCount += Number(row.product_count) || 0;
     companyCount += Number(row.company_count) || 0;
@@ -1618,11 +1618,12 @@ async function fetchStatistics() {
                 wholesale_revenue: 0,
                 direct_revenue: 0,
                 total_revenue: 0,
+                computed_revenue: 0,
                 total_absorption_rate: 0,
                 total_prescription_amount: 0
               });
             }
-            
+
             const companyHospital = companyHospitalMap.get(key);
             companyHospital.prescription_qty += item.prescription_qty || 0;
             companyHospital.prescription_amount += item.prescription_amount || 0;
@@ -1630,27 +1631,29 @@ async function fetchStatistics() {
             companyHospital.wholesale_revenue += Number(item.wholesale_revenue) || 0;
             companyHospital.direct_revenue += Number(item.direct_revenue) || 0;
             companyHospital.total_revenue += Number(item.total_revenue) || 0;
+            companyHospital.computed_revenue += combinedRevenueDisplay(item);
             companyHospital.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
             companyHospital.total_prescription_amount += item.prescription_amount || 0;
-            
+
             // hospital_name이 없으면 현재 항목의 hospital_name으로 업데이트
             if (!companyHospital.hospital_name && item.hospital_name) {
               companyHospital.hospital_name = item.hospital_name;
             }
           });
-          
+
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedData = Array.from(companyHospitalMap.values()).map(item => {
-            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-            const revenue = combinedRevenueDisplay(item);
+            // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+            const revenue = item.computed_revenue;
             let absorptionRate = 0;
             if (revenue > 0 && item.prescription_amount > 0) {
               absorptionRate = revenue / item.prescription_amount;
             }
 
-            const { total_absorption_rate, total_prescription_amount, ...cleanItem } = item;
+            const { total_absorption_rate, total_prescription_amount, computed_revenue, ...cleanItem } = item;
             return {
               ...cleanItem,
+              total_revenue: computed_revenue,
               absorption_rate: absorptionRate
             };
           });
@@ -1714,11 +1717,12 @@ async function fetchStatistics() {
                 wholesale_revenue: 0,
                 direct_revenue: 0,
                 total_revenue: 0,
+                computed_revenue: 0,
                 total_absorption_rate: 0,
                 total_prescription_amount: 0
               });
             }
-            
+
             const companyProduct = companyProductMap.get(key);
             companyProduct.prescription_qty += item.prescription_qty || 0;
             companyProduct.prescription_amount += item.prescription_amount || 0;
@@ -1726,9 +1730,10 @@ async function fetchStatistics() {
             companyProduct.wholesale_revenue += Number(item.wholesale_revenue) || 0;
             companyProduct.direct_revenue += Number(item.direct_revenue) || 0;
             companyProduct.total_revenue += Number(item.total_revenue) || 0;
+            companyProduct.computed_revenue += combinedRevenueDisplay(item);
             companyProduct.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
             companyProduct.total_prescription_amount += item.prescription_amount || 0;
-            
+
             // product_name이 없으면 현재 항목의 product_name으로 업데이트
             if (!companyProduct.product_name && item.product_name) {
               companyProduct.product_name = item.product_name;
@@ -1737,19 +1742,20 @@ async function fetchStatistics() {
               companyProduct.insurance_code = item.insurance_code;
             }
           });
-          
+
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedData = Array.from(companyProductMap.values()).map(item => {
-            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-            const revenue = combinedRevenueDisplay(item);
+            // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+            const revenue = item.computed_revenue;
             let absorptionRate = 0;
             if (revenue > 0 && item.prescription_amount > 0) {
               absorptionRate = revenue / item.prescription_amount;
             }
 
-            const { total_absorption_rate, total_prescription_amount, ...cleanItem } = item;
+            const { total_absorption_rate, total_prescription_amount, computed_revenue, ...cleanItem } = item;
             return {
               ...cleanItem,
+              total_revenue: computed_revenue,
               absorption_rate: absorptionRate
             };
           });
@@ -1783,11 +1789,12 @@ async function fetchStatistics() {
                 wholesale_revenue: 0,
                 direct_revenue: 0,
                 total_revenue: 0,
+                computed_revenue: 0,
                 total_absorption_rate: 0,
                 total_prescription_amount: 0
               });
             }
-            
+
             const company = companyMap.get(companyId);
             company.prescription_qty += item.prescription_qty || 0;
             company.prescription_amount += item.prescription_amount || 0;
@@ -1795,22 +1802,24 @@ async function fetchStatistics() {
             company.wholesale_revenue += Number(item.wholesale_revenue) || 0;
             company.direct_revenue += Number(item.direct_revenue) || 0;
             company.total_revenue += Number(item.total_revenue) || 0;
+            company.computed_revenue += combinedRevenueDisplay(item);
             company.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
             company.total_prescription_amount += item.prescription_amount || 0;
           });
-          
+
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedData = Array.from(companyMap.values()).map(company => {
-            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-            const revenue = combinedRevenueDisplay(company);
+            // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+            const revenue = company.computed_revenue;
             let absorptionRate = 0;
             if (revenue > 0 && company.prescription_amount > 0) {
               absorptionRate = revenue / company.prescription_amount;
             }
 
-            const { total_absorption_rate, total_prescription_amount, ...cleanCompany } = company;
+            const { total_absorption_rate, total_prescription_amount, computed_revenue, ...cleanCompany } = company;
             return {
               ...cleanCompany,
+              total_revenue: computed_revenue,
               absorption_rate: absorptionRate
             };
           });
@@ -1878,13 +1887,14 @@ async function fetchStatistics() {
                 wholesale_revenue: 0,
                 direct_revenue: 0,
                 total_revenue: 0,
+                computed_revenue: 0,
                 total_absorption_rate: 0,
                 total_prescription_amount: 0,
                 companyGroups: new Set(),
                 companyNames: new Set()
               });
             }
-            
+
             const hospitalProduct = hospitalProductMap.get(key);
             hospitalProduct.prescription_qty += item.prescription_qty || 0;
             hospitalProduct.prescription_amount += item.prescription_amount || 0;
@@ -1892,6 +1902,7 @@ async function fetchStatistics() {
             hospitalProduct.wholesale_revenue += Number(item.wholesale_revenue) || 0;
             hospitalProduct.direct_revenue += Number(item.direct_revenue) || 0;
             hospitalProduct.total_revenue += Number(item.total_revenue) || 0;
+            hospitalProduct.computed_revenue += combinedRevenueDisplay(item);
             hospitalProduct.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
             hospitalProduct.total_prescription_amount += item.prescription_amount || 0;
             
@@ -1922,16 +1933,17 @@ async function fetchStatistics() {
           
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedHospitalData = Array.from(hospitalProductMap.values()).map(item => {
-            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-            const revenue = combinedRevenueDisplay(item);
+            // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+            const revenue = item.computed_revenue;
             let absorptionRate = 0;
             if (revenue > 0 && item.prescription_amount > 0) {
               absorptionRate = revenue / item.prescription_amount;
             }
 
-            const { total_absorption_rate, total_prescription_amount, companyGroups, companyNames, ...cleanItem } = item;
+            const { total_absorption_rate, total_prescription_amount, companyGroups, companyNames, computed_revenue, ...cleanItem } = item;
             return {
               ...cleanItem,
+              total_revenue: computed_revenue,
               absorption_rate: absorptionRate,
               company_groups: Array.from(companyGroups).sort().join(', '),
               company_names: Array.from(companyNames).sort().join(', ')
@@ -2016,6 +2028,7 @@ async function fetchStatistics() {
                 wholesale_revenue: 0,
                 direct_revenue: 0,
                 total_revenue: 0,
+                computed_revenue: 0,
                 total_absorption_rate: 0,
                 total_prescription_amount: 0,
                 companyGroups: new Set(),
@@ -2026,7 +2039,7 @@ async function fetchStatistics() {
                 companyNames: new Set()
               });
             }
-            
+
             const hospital = hospitalMap.get(clientId);
             hospital.prescription_qty += item.prescription_qty || 0;
             hospital.prescription_amount += item.prescription_amount || 0;
@@ -2034,6 +2047,7 @@ async function fetchStatistics() {
             hospital.wholesale_revenue += Number(item.wholesale_revenue) || 0;
             hospital.direct_revenue += Number(item.direct_revenue) || 0;
             hospital.total_revenue += Number(item.total_revenue) || 0;
+            hospital.computed_revenue += combinedRevenueDisplay(item);
             hospital.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
             hospital.total_prescription_amount += item.prescription_amount || 0;
             
@@ -2058,16 +2072,17 @@ async function fetchStatistics() {
           
           // 평균 흡수율 계산 및 배열로 변환
           let aggregatedHospitalData = Array.from(hospitalMap.values()).map(hospital => {
-            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-            const revenue = combinedRevenueDisplay(hospital);
+            // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+            const revenue = hospital.computed_revenue;
             let absorptionRate = 0;
             if (revenue > 0 && hospital.prescription_amount > 0) {
               absorptionRate = revenue / hospital.prescription_amount;
             }
 
-            const { total_absorption_rate, total_prescription_amount, companyGroups, companyNames, hospital_business_registration_number, ...cleanHospital } = hospital;
+            const { total_absorption_rate, total_prescription_amount, companyGroups, companyNames, hospital_business_registration_number, computed_revenue, ...cleanHospital } = hospital;
             return {
               ...cleanHospital,
+              total_revenue: computed_revenue,
               business_registration_number: hospital_business_registration_number || '',
               absorption_rate: absorptionRate,
               company_groups: Array.from(companyGroups).sort().join(', '),
@@ -2131,10 +2146,11 @@ async function fetchStatistics() {
                 wholesale_revenue: 0,
                 direct_revenue: 0,
                 total_revenue: 0,
+                computed_revenue: 0,
                 absorption_rate: 0
               });
             }
-            
+
             const productCompany = productCompanyMap.get(key);
             productCompany.prescription_qty += item.prescription_qty || 0;
             productCompany.prescription_amount += item.prescription_amount || 0;
@@ -2142,19 +2158,22 @@ async function fetchStatistics() {
             productCompany.wholesale_revenue += Number(item.wholesale_revenue) || 0;
             productCompany.direct_revenue += Number(item.direct_revenue) || 0;
             productCompany.total_revenue += Number(item.total_revenue) || 0;
+            productCompany.computed_revenue += combinedRevenueDisplay(item);
           });
-          
+
           // 흡수율 계산 및 배열로 변환
           statisticsData.value = Array.from(productCompanyMap.values()).map(item => {
-            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-            const revenue = combinedRevenueDisplay(item);
+            // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+            const revenue = item.computed_revenue;
             let absorptionRate = 0;
             if (revenue > 0 && item.prescription_amount > 0) {
               absorptionRate = revenue / item.prescription_amount;
             }
 
+            const { computed_revenue, ...cleanItem } = item;
             return {
-              ...item,
+              ...cleanItem,
+              total_revenue: computed_revenue,
               absorption_rate: absorptionRate
             };
           });
@@ -2179,10 +2198,11 @@ async function fetchStatistics() {
                 wholesale_revenue: 0,
                 direct_revenue: 0,
                 total_revenue: 0,
+                computed_revenue: 0,
                 absorption_rate: 0
               });
             }
-            
+
             const productHospital = productHospitalMap.get(key);
             productHospital.prescription_qty += item.prescription_qty || 0;
             productHospital.prescription_amount += item.prescription_amount || 0;
@@ -2190,19 +2210,22 @@ async function fetchStatistics() {
             productHospital.wholesale_revenue += Number(item.wholesale_revenue) || 0;
             productHospital.direct_revenue += Number(item.direct_revenue) || 0;
             productHospital.total_revenue += Number(item.total_revenue) || 0;
+            productHospital.computed_revenue += combinedRevenueDisplay(item);
           });
-          
+
           // 흡수율 계산 및 배열로 변환
           statisticsData.value = Array.from(productHospitalMap.values()).map(item => {
-            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-            const revenue = combinedRevenueDisplay(item);
+            // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+            const revenue = item.computed_revenue;
             let absorptionRate = 0;
             if (revenue > 0 && item.prescription_amount > 0) {
               absorptionRate = revenue / item.prescription_amount;
             }
 
+            const { computed_revenue, ...cleanItem } = item;
             return {
-              ...item,
+              ...cleanItem,
+              total_revenue: computed_revenue,
               absorption_rate: absorptionRate
             };
           });
@@ -2224,11 +2247,12 @@ async function fetchStatistics() {
                 wholesale_revenue: 0,
                 direct_revenue: 0,
                 total_revenue: 0,
+                computed_revenue: 0,
                 total_absorption_rate: 0,
                 total_prescription_amount: 0
               });
             }
-            
+
             const product = productMap.get(productId);
             product.prescription_qty += item.prescription_qty || 0;
             product.prescription_amount += item.prescription_amount || 0;
@@ -2236,22 +2260,24 @@ async function fetchStatistics() {
             product.wholesale_revenue += Number(item.wholesale_revenue) || 0;
             product.direct_revenue += Number(item.direct_revenue) || 0;
             product.total_revenue += Number(item.total_revenue) || 0;
+            product.computed_revenue += combinedRevenueDisplay(item);
             product.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
             product.total_prescription_amount += item.prescription_amount || 0;
           });
-          
+
           // 평균 흡수율 계산 및 배열로 변환
           statisticsData.value = Array.from(productMap.values()).map(product => {
-            // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-            const revenue = combinedRevenueDisplay(product);
+            // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+            const revenue = product.computed_revenue;
             let absorptionRate = 0;
             if (revenue > 0 && product.prescription_amount > 0) {
               absorptionRate = revenue / product.prescription_amount;
             }
 
-            const { total_absorption_rate, total_prescription_amount, ...cleanProduct } = product;
+            const { total_absorption_rate, total_prescription_amount, computed_revenue, ...cleanProduct } = product;
             return {
               ...cleanProduct,
+              total_revenue: computed_revenue,
               absorption_rate: absorptionRate
             };
           });
@@ -2285,11 +2311,12 @@ async function fetchStatistics() {
               wholesale_revenue: 0,
               direct_revenue: 0,
               total_revenue: 0,
+              computed_revenue: 0,
               total_absorption_rate: 0,
               total_prescription_amount: 0
             });
           }
-          
+
           const company = companyMap.get(companyId);
           company.prescription_qty += item.prescription_qty || 0;
           company.prescription_amount += item.prescription_amount || 0;
@@ -2297,22 +2324,24 @@ async function fetchStatistics() {
           company.wholesale_revenue += Number(item.wholesale_revenue) || 0;
           company.direct_revenue += Number(item.direct_revenue) || 0;
           company.total_revenue += Number(item.total_revenue) || 0;
+          company.computed_revenue += combinedRevenueDisplay(item);
           company.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
           company.total_prescription_amount += item.prescription_amount || 0;
         });
-        
+
         // 평균 흡수율 계산 및 배열로 변환
         statisticsData.value = Array.from(companyMap.values()).map(company => {
-          // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-          const revenue = combinedRevenueDisplay(company);
+          // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+          const revenue = company.computed_revenue;
           let absorptionRate = 0;
           if (revenue > 0 && company.prescription_amount > 0) {
             absorptionRate = revenue / company.prescription_amount;
           }
 
-          const { total_absorption_rate, total_prescription_amount, ...cleanCompany } = company;
+          const { total_absorption_rate, total_prescription_amount, computed_revenue, ...cleanCompany } = company;
           return {
             ...cleanCompany,
+            total_revenue: computed_revenue,
             absorption_rate: absorptionRate
           };
         });
@@ -2403,6 +2432,7 @@ function aggregateByCompany(data, absorptionRates = {}) {
         wholesale_revenue: 0,
         direct_revenue: 0,
         total_revenue: 0,
+        computed_revenue: 0,
         total_absorption_rate: 0,
         total_prescription_amount: 0
       });
@@ -2415,6 +2445,8 @@ function aggregateByCompany(data, absorptionRates = {}) {
     item.wholesale_revenue += Number(record.wholesale_revenue) || 0;
     item.direct_revenue += Number(record.direct_revenue) || 0;
     item.total_revenue += Number(record.total_revenue) || 0;
+    // 레코드별 매출액 계산 후 누적 (집계 후 계산하면 혼합 레코드에서 오차 발생)
+    item.computed_revenue += combinedRevenueDisplay(record);
     // 흡수율 계산을 위한 누적값
     item.total_absorption_rate += amount * appliedAbsorptionRate;
     item.total_prescription_amount += amount;
@@ -2428,8 +2460,8 @@ function aggregateByCompany(data, absorptionRates = {}) {
   devLog(`집계 완료: 처리됨 ${processedCount}개, 건너뜀 ${skippedCount}개`);
 
   return Array.from(map.values()).map(item => {
-    // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-    const revenue = combinedRevenueDisplay(item);
+    // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+    const revenue = item.computed_revenue;
     let absorptionRate = 0;
     if (revenue > 0 && item.prescription_amount > 0) {
       absorptionRate = revenue / item.prescription_amount;
@@ -2446,7 +2478,7 @@ function aggregateByCompany(data, absorptionRates = {}) {
       payment_amount: item.payment_amount,
       wholesale_revenue: item.wholesale_revenue,
       direct_revenue: item.direct_revenue,
-      total_revenue: item.total_revenue,
+      total_revenue: item.computed_revenue,
       absorption_rate: absorptionRate
     };
     return result;
@@ -2497,6 +2529,7 @@ function aggregateByHospital(data, absorptionRates = {}) {
         wholesale_revenue: 0,
         direct_revenue: 0,
         total_revenue: 0,
+        computed_revenue: 0,
         total_absorption_rate: 0,
         total_prescription_amount: 0,
         companies: new Set(), // 담당업체 목록
@@ -2512,6 +2545,8 @@ function aggregateByHospital(data, absorptionRates = {}) {
     item.wholesale_revenue += Number(record.wholesale_revenue) || 0;
     item.direct_revenue += Number(record.direct_revenue) || 0;
     item.total_revenue += Number(record.total_revenue) || 0;
+    // 레코드별 매출액 계산 후 누적
+    item.computed_revenue += combinedRevenueDisplay(record);
     // 흡수율 계산을 위한 누적값
     item.total_absorption_rate += amount * appliedAbsorptionRate;
     item.total_prescription_amount += amount;
@@ -2526,8 +2561,8 @@ function aggregateByHospital(data, absorptionRates = {}) {
   });
 
   return Array.from(map.values()).map(item => {
-    // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-    const revenue = combinedRevenueDisplay(item);
+    // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+    const revenue = item.computed_revenue;
     let absorptionRate = 0;
     if (revenue > 0 && item.prescription_amount > 0) {
       absorptionRate = revenue / item.prescription_amount;
@@ -2550,7 +2585,7 @@ function aggregateByHospital(data, absorptionRates = {}) {
       payment_amount: item.payment_amount,
       wholesale_revenue: item.wholesale_revenue,
       direct_revenue: item.direct_revenue,
-      total_revenue: item.total_revenue,
+      total_revenue: item.computed_revenue,
       absorption_rate: absorptionRate,
       product_count: item.products.size
     };
@@ -2599,6 +2634,7 @@ function aggregateByProduct(data, absorptionRates = {}) {
         wholesale_revenue: 0,
         direct_revenue: 0,
         total_revenue: 0,
+        computed_revenue: 0,
         total_absorption_rate: 0,
         total_prescription_amount: 0,
         companies: new Set(),
@@ -2613,6 +2649,8 @@ function aggregateByProduct(data, absorptionRates = {}) {
     item.wholesale_revenue += Number(record.wholesale_revenue) || 0;
     item.direct_revenue += Number(record.direct_revenue) || 0;
     item.total_revenue += Number(record.total_revenue) || 0;
+    // 레코드별 매출액 계산 후 누적
+    item.computed_revenue += combinedRevenueDisplay(record);
     // 흡수율 계산을 위한 누적값
     item.total_absorption_rate += amount * appliedAbsorptionRate;
     item.total_prescription_amount += amount;
@@ -2621,8 +2659,8 @@ function aggregateByProduct(data, absorptionRates = {}) {
   });
 
   return Array.from(map.values()).map(item => {
-    // 흡수율 계산: 매출액 표시값(combinedRevenueDisplay) 기반
-    const revenue = combinedRevenueDisplay(item);
+    // 흡수율 계산: 레코드별 누적 매출액(computed_revenue) 기반
+    const revenue = item.computed_revenue;
     let absorptionRate = 0;
     if (revenue > 0 && item.prescription_amount > 0) {
       absorptionRate = revenue / item.prescription_amount;
@@ -2638,7 +2676,7 @@ function aggregateByProduct(data, absorptionRates = {}) {
       payment_amount: item.payment_amount,
       wholesale_revenue: item.wholesale_revenue,
       direct_revenue: item.direct_revenue,
-      total_revenue: item.total_revenue,
+      total_revenue: item.computed_revenue,
       absorption_rate: absorptionRate,
       company_count: item.companies.size,
       hospital_count: item.hospitals.size
@@ -3671,7 +3709,7 @@ async function downloadExcel() {
         Number(row.payment_amount) || 0,
         Number(row.direct_revenue) || 0,
         Number(row.wholesale_revenue) || 0,
-        combinedRevenueDisplay(row),
+        Number(row.total_revenue) || 0,
         row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
     } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
@@ -3703,7 +3741,7 @@ async function downloadExcel() {
         Number(row.prescription_amount) || 0,
         Number(row.direct_revenue) || 0,
         Number(row.wholesale_revenue) || 0,
-        combinedRevenueDisplay(row),
+        Number(row.total_revenue) || 0,
         row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
     } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
@@ -3727,7 +3765,7 @@ async function downloadExcel() {
           Number(row.prescription_amount) || 0,
           Number(row.direct_revenue) || 0,
           Number(row.wholesale_revenue) || 0,
-          combinedRevenueDisplay(row),
+          Number(row.total_revenue) || 0,
           Number(row.payment_amount) || 0
         ];
       } else if (productStatisticsFilter.value === 'hospital') {
@@ -3742,7 +3780,7 @@ async function downloadExcel() {
           Number(row.prescription_amount) || 0,
           Number(row.direct_revenue) || 0,
           Number(row.wholesale_revenue) || 0,
-          combinedRevenueDisplay(row),
+          Number(row.total_revenue) || 0,
           Number(row.payment_amount) || 0
         ];
       } else {
@@ -3755,7 +3793,7 @@ async function downloadExcel() {
           Number(row.prescription_amount) || 0,
           Number(row.direct_revenue) || 0,
           Number(row.wholesale_revenue) || 0,
-          combinedRevenueDisplay(row),
+          Number(row.total_revenue) || 0,
           row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
         ];
       }
@@ -3767,7 +3805,7 @@ async function downloadExcel() {
         Number(row.prescription_amount) || 0,
         Number(row.direct_revenue) || 0,
         Number(row.wholesale_revenue) || 0,
-        combinedRevenueDisplay(row),
+        Number(row.total_revenue) || 0,
         row.absorption_rate !== null && row.absorption_rate !== undefined ? (Number(row.absorption_rate) * 100).toFixed(1) + '%' : '-'
       ];
     } else if (statisticsType.value === 'product' && drillDownType.value === 'hospital') {
@@ -3838,7 +3876,7 @@ async function downloadExcel() {
   if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
     // 평균 흡수율 계산 (매출액 기반: 반올림 직거래+도매 합)
     const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalRevenue = displayRows.value.reduce((sum, row) => sum + combinedRevenueDisplay(row), 0);
+    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
     const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
     
     totalRowData = ['합계', '', '', '', '', 
@@ -3865,7 +3903,7 @@ async function downloadExcel() {
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
     // 평균 흡수율 계산 (매출액 기반: 반올림 직거래+도매 합)
     const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalRevenue = displayRows.value.reduce((sum, row) => sum + combinedRevenueDisplay(row), 0);
+    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
     const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
 
     totalRowData = ['합계', '', '', '', '', '',
@@ -3902,7 +3940,7 @@ async function downloadExcel() {
       ];
     } else {
       const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-      const totalRevenueVal = displayRows.value.reduce((sum, row) => sum + combinedRevenueDisplay(row), 0);
+      const totalRevenueVal = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
       const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenueVal / totalPrescriptionAmount) : 0;
       totalRowData = ['합계', '', '', '',
         Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
@@ -3916,7 +3954,7 @@ async function downloadExcel() {
   } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
     // 평균 흡수율 계산 (매출액 기반: 반올림 직거래+도매 합)
     const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalRevenue = displayRows.value.reduce((sum, row) => sum + combinedRevenueDisplay(row), 0);
+    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
     const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
 
     totalRowData = ['합계', '',
