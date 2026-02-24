@@ -3399,7 +3399,13 @@ async function downloadExcel() {
   // 헤더 정의
   let headers = [];
   if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
-    headers = ['No', '구분', '업체명', '사업자번호', '대표자', '처방수량', '처방액', '최종 지급액', '직거래매출', '도매매출', '매출액', '흡수율'];
+    if (companyStatisticsFilter.value === 'hospital') {
+      headers = ['No', '구분', '업체명', '병의원명', '사업자번호', '대표자', '처방수량', '처방액', '최종 지급액', '직거래매출', '도매매출', '매출액', '흡수율', '구간 수수료', '총 지급액'];
+    } else if (companyStatisticsFilter.value === 'product') {
+      headers = ['No', '구분', '업체명', '제품명', '사업자번호', '대표자', '처방수량', '처방액', '최종 지급액', '직거래매출', '도매매출', '매출액', '흡수율', '구간 수수료', '총 지급액'];
+    } else {
+      headers = ['No', '구분', '업체명', '사업자번호', '대표자', '처방수량', '처방액', '최종 지급액', '직거래매출', '도매매출', '매출액', '흡수율', '구간 수수료', '총 지급액'];
+    }
   } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
     headers = ['No', '병의원명', '처방수량', '처방액', '제품 수'];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'product') {
@@ -3436,20 +3442,60 @@ async function downloadExcel() {
   displayRows.value.forEach((row, index) => {
     let rowData = [];
     if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
-      rowData = [
-        index + 1,
-        row.company_group || '',
-        row.company_name || '',
-        row.business_registration_number || '',
-        row.representative_name || '',
-        Number(row.prescription_qty) || 0,
-        Number(row.prescription_amount) || 0,
-        Number(row.payment_amount) || 0,
-        Number(row.direct_revenue) || 0,
-        Number(row.wholesale_revenue) || 0,
-        Number(row.total_revenue) || 0,
-        formatAbsorptionRate(row.absorption_rate)
-      ];
+      if (companyStatisticsFilter.value === 'hospital') {
+        rowData = [
+          index + 1,
+          row.company_group || '',
+          row.company_name || '',
+          row.hospital_name || '',
+          row.business_registration_number || '',
+          row.representative_name || '',
+          Number(row.prescription_qty) || 0,
+          Number(row.prescription_amount) || 0,
+          Number(row.payment_amount) || 0,
+          Number(row.direct_revenue) || 0,
+          Number(row.wholesale_revenue) || 0,
+          Number(row.total_revenue) || 0,
+          formatAbsorptionRate(row.absorption_rate),
+          Number(row.section_commission_amount) || 0,
+          Number(row.total_payment_amount) || 0
+        ];
+      } else if (companyStatisticsFilter.value === 'product') {
+        rowData = [
+          index + 1,
+          row.company_group || '',
+          row.company_name || '',
+          row.product_name || '',
+          row.business_registration_number || '',
+          row.representative_name || '',
+          Number(row.prescription_qty) || 0,
+          Number(row.prescription_amount) || 0,
+          Number(row.payment_amount) || 0,
+          Number(row.direct_revenue) || 0,
+          Number(row.wholesale_revenue) || 0,
+          Number(row.total_revenue) || 0,
+          formatAbsorptionRate(row.absorption_rate),
+          Number(row.section_commission_amount) || 0,
+          Number(row.total_payment_amount) || 0
+        ];
+      } else {
+        rowData = [
+          index + 1,
+          row.company_group || '',
+          row.company_name || '',
+          row.business_registration_number || '',
+          row.representative_name || '',
+          Number(row.prescription_qty) || 0,
+          Number(row.prescription_amount) || 0,
+          Number(row.payment_amount) || 0,
+          Number(row.direct_revenue) || 0,
+          Number(row.wholesale_revenue) || 0,
+          Number(row.total_revenue) || 0,
+          formatAbsorptionRate(row.absorption_rate),
+          Number(row.section_commission_amount) || 0,
+          Number(row.total_payment_amount) || 0
+        ];
+      }
     } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
       rowData = [
         index + 1,
@@ -3563,13 +3609,18 @@ async function downloadExcel() {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       }
       // 구분, 사업자번호, 대표자 컬럼 (업체별 통계일 때만)
-      if (statisticsType.value === 'company' && drillDownLevel.value === 0 && (colNumber === 2 || colNumber === 4 || colNumber === 5)) {
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
+        const hasSub = companyStatisticsFilter.value !== 'all';
+        const bizCol = hasSub ? 5 : 4;
+        const repCol = hasSub ? 6 : 5;
+        if (colNumber === 2 || colNumber === bizCol || colNumber === repCol) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
       }
       // 숫자 컬럼 정렬
       let numStartCol = 3;
       if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
-        numStartCol = 6; // 업체별 통계: 6번째부터 (처방수량)
+        numStartCol = companyStatisticsFilter.value === 'all' ? 6 : 7; // 서브필터 시 컬럼 1개 추가
       } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
         numStartCol = 7; // 병원별 통계: 7번째부터 (처방수량)
       }
@@ -3577,8 +3628,9 @@ async function downloadExcel() {
       if (colNumber >= numStartCol) {
         cell.alignment = { horizontal: 'right', vertical: 'middle' };
         // 흡수율 컬럼은 숫자 포맷 적용 제외(문자열 '0.0%' 등이 숫자로 해석되어 100%로 보이는 현상 방지)
+        const companyAbsorptionCol = companyStatisticsFilter.value === 'all' ? 12 : 13;
         const isAbsorptionCol =
-          (statisticsType.value === 'company' && drillDownLevel.value === 0 && colNumber === 12) ||
+          (statisticsType.value === 'company' && drillDownLevel.value === 0 && colNumber === companyAbsorptionCol) ||
           (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && colNumber === 12) ||
           (statisticsType.value === 'product' && drillDownLevel.value === 0 && productStatisticsFilter.value === 'all' && colNumber === 10) ||
           (statisticsType.value === 'product' && drillDownType.value === 'company' && colNumber === 8);
@@ -3628,14 +3680,17 @@ async function downloadExcel() {
     const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
     const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
     
-    totalRowData = ['합계', '', '', '', '', 
+    const emptyColCount = companyStatisticsFilter.value === 'all' ? 4 : 5;
+    totalRowData = ['합계', ...Array(emptyColCount).fill(''),
       Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
       Number((totalAmount.value || '0').toString().replace(/,/g, '')),
       Number((totalPaymentAmount.value || '0').toString().replace(/,/g, '')),
       Number((totalDirectRevenue.value || '0').toString().replace(/,/g, '')),
       Number((totalWholesaleRevenue.value || '0').toString().replace(/,/g, '')),
       Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
-      (avgAbsorptionRate * 100).toFixed(1) + '%'
+      (avgAbsorptionRate * 100).toFixed(1) + '%',
+      Number((totalSectionCommission.value || '0').toString().replace(/,/g, '')),
+      Number((totalTotalPayment.value || '0').toString().replace(/,/g, ''))
     ];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
     totalRowData = ['합계', '', 
