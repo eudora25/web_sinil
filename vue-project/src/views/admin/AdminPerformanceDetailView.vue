@@ -1234,9 +1234,8 @@ async function fetchStatistics() {
   try {
     devLog('데이터 조회 시작, 정산월:', selectedSettlementMonth.value);
 
-    // 업체별 통계 1단계(전체): 실적 검수와 동일 소스(performance_records)로 집계 → 수량 1,603.8 일치
-    // 통계=병의원별/제품별이 아니면 항상 performance_records 사용 (전체·미설정 포함)
-    const isCompanyMainList = statisticsType.value === 'company' && drillDownLevel.value === 0 && companyStatisticsFilter.value !== 'hospital' && companyStatisticsFilter.value !== 'product';
+    // 업체별 통계: 모든 서브필터(전체/병의원별/제품별)에서 performance_records 실시간 계산 사용
+    const isCompanyMainList = statisticsType.value === 'company' && drillDownLevel.value === 0;
     if (isCompanyMainList) {
       devLog('업체별 통계: performance_records 경로 사용 (삭제 제외, 반영 흡수율 적용)');
       let recordsFrom = 0;
@@ -1248,7 +1247,8 @@ async function fetchStatistics() {
           .select(`
             id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action, settlement_month,
             companies!inner(company_name, company_group, business_registration_number, representative_name),
-            products(price, insurance_code)
+            products(price, insurance_code, product_name),
+            clients(name)
           `)
           .eq('settlement_month', selectedSettlementMonth.value)
           .eq('review_status', '완료')
@@ -1316,7 +1316,14 @@ async function fetchStatistics() {
           direct_revenue: direct
         };
       });
-      const aggregated = aggregateByCompany(mapped, absorptionRatesMap, promotionDataCompany);
+      let aggregated;
+      if (companyStatisticsFilter.value === 'hospital') {
+        aggregated = aggregateByCompanyAndHospital(mapped, absorptionRatesMap, promotionDataCompany);
+      } else if (companyStatisticsFilter.value === 'product') {
+        aggregated = aggregateByCompanyAndProduct(mapped, absorptionRatesMap, promotionDataCompany);
+      } else {
+        aggregated = aggregateByCompany(mapped, absorptionRatesMap, promotionDataCompany);
+      }
       let result = aggregated;
       if (selectedCompanyGroup.value) {
         result = aggregated.filter(c => c.company_group === selectedCompanyGroup.value);
@@ -2794,210 +2801,170 @@ function aggregateByProductForHospital(data, hospitalId) {
 }
 
 // 업체 + 병의원별 집계
-function aggregateByCompanyAndHospital(data, absorptionRates = {}) {
+function aggregateByCompanyAndHospital(data, absorptionRates = {}, promotionData = null) {
   const map = new Map();
-  
-  if (!data || data.length === 0) {
-    console.warn('aggregateByCompanyAndHospital: 데이터가 없습니다.');
-    return [];
-  }
-  
-  devLog('aggregateByCompanyAndHospital 시작, 입력 데이터 개수:', data.length);
-  let processedCount = 0;
-  let skippedCount = 0;
-  
-  data.forEach((record, index) => {
-    try {
-      // 흡수율 분석과 동일: 삭제 처리된 건 제외
-      if (record.review_action === '삭제') return;
 
-      const companyId = record.company_id;
-      const hospitalId = record.client_id;
-      if (!companyId || !hospitalId) {
-        return;
-      }
-      
-      // 키: companyId_hospitalId
-      const key = `${companyId}_${hospitalId}`;
-      
-      const companyName = record.companies?.company_name || '';
-      const companyGroup = record.companies?.company_group || '';
-      const businessRegistrationNumber = record.companies?.business_registration_number || '';
-      const representativeName = record.companies?.representative_name || '';
-      const hospitalName = record.clients?.name || '';
-      const commissionRate = Number(record.commission_rate) || 0;
-      const qty = Number(record.prescription_qty) || 0;
-      const price = Number(record.products?.price) || 0;
-      const amount = qty * price;
-      
-      // 반영 흡수율 가져오기 (기본값 1.0)
-      let appliedAbsorptionRate = 1.0;
-      if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
-        const rateValue = Number(absorptionRates[record.id]);
-        if (!isNaN(rateValue)) {
-          appliedAbsorptionRate = rateValue;
+  if (!data || data.length === 0) return [];
+
+  data.forEach(record => {
+    if (record.review_action === '삭제') return;
+    const companyId = record.company_id;
+    const hospitalId = record.client_id;
+    if (!companyId || !hospitalId) return;
+
+    const key = `${companyId}_${hospitalId}`;
+    const qty = Number(record.prescription_qty) || 0;
+    const price = Number(record.products?.price) || 0;
+    const amount = qty * price;
+    let commissionRate = Number(record.commission_rate) || 0;
+
+    if (promotionData) {
+      const insuranceCode = promotionData.productInsuranceCodeMap.get(record.product_id);
+      if (insuranceCode) {
+        const pKey = `${record.client_id}_${insuranceCode}_${record.company_id}`;
+        const promotionInfo = promotionData.hospitalPerformanceMap.get(pKey);
+        const excludedKey = `${insuranceCode}_${record.client_id}`;
+        const isExcluded = promotionData.excludedHospitalsSet.has(excludedKey);
+        if (promotionInfo && !isExcluded) {
+          let isWithinPeriod = true;
+          const sd = new Date(record.settlement_month + '-01');
+          const ld = new Date(sd.getFullYear(), sd.getMonth() + 1, 0);
+          if (promotionInfo.promotion_start_date && sd < new Date(promotionInfo.promotion_start_date)) isWithinPeriod = false;
+          if (promotionInfo.promotion_end_date && ld > new Date(promotionInfo.promotion_end_date)) isWithinPeriod = false;
+          if (isWithinPeriod && promotionInfo.final_commission_rate != null) {
+            commissionRate = Number(promotionInfo.final_commission_rate);
+          }
         }
       }
-      
-      // 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
-      const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
-
-      if (!map.has(key)) {
-        map.set(key, {
-          company_id: companyId,
-          company_name: companyName,
-          company_group: companyGroup,
-          business_registration_number: businessRegistrationNumber,
-          representative_name: representativeName,
-          hospital_id: hospitalId,
-          hospital_name: hospitalName,
-          prescription_qty: 0,
-          prescription_amount: 0,
-          payment_amount: 0,
-          total_absorption_rate: 0,
-          total_prescription_amount: 0
-        });
-      }
-
-      const item = map.get(key);
-      item.prescription_qty += qty;
-      item.prescription_amount += amount;
-      item.payment_amount += paymentAmount;
-      // 흡수율 계산을 위한 누적값
-      item.total_absorption_rate += amount * appliedAbsorptionRate;
-      item.total_prescription_amount += amount;
-      processedCount++;
-    } catch (err) {
-      console.error(`레코드 ${index} 처리 중 오류:`, err, record);
-      skippedCount++;
     }
+
+    let appliedAbsorptionRate = 1.0;
+    if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
+      const rateValue = Number(absorptionRates[record.id]);
+      if (!isNaN(rateValue)) appliedAbsorptionRate = rateValue;
+    }
+
+    const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
+
+    if (!map.has(key)) {
+      map.set(key, {
+        company_id: companyId,
+        company_name: record.companies?.company_name || '',
+        company_group: record.companies?.company_group || '',
+        business_registration_number: record.companies?.business_registration_number || '',
+        representative_name: record.companies?.representative_name || '',
+        hospital_id: hospitalId,
+        hospital_name: record.clients?.name || '',
+        prescription_qty: 0, prescription_amount: 0, payment_amount: 0,
+        wholesale_revenue: 0, direct_revenue: 0, total_revenue: 0, computed_revenue: 0,
+        total_absorption_rate: 0, total_prescription_amount: 0
+      });
+    }
+
+    const item = map.get(key);
+    item.prescription_qty += qty;
+    item.prescription_amount += amount;
+    item.payment_amount += paymentAmount;
+    item.wholesale_revenue += Number(record.wholesale_revenue) || 0;
+    item.direct_revenue += Number(record.direct_revenue) || 0;
+    item.total_revenue += Number(record.total_revenue) || 0;
+    item.computed_revenue += combinedRevenueDisplay(record);
+    item.total_absorption_rate += amount * appliedAbsorptionRate;
+    item.total_prescription_amount += amount;
   });
-  
-  console.log(`aggregateByCompanyAndHospital 집계 완료: 처리됨 ${processedCount}개, 건너뜀 ${skippedCount}개`);
 
   return Array.from(map.values()).map(item => {
-    // 평균 흡수율 계산: (처방액 × 흡수율의 합) / 처방액 합
-    const absorptionRate = item.total_prescription_amount > 0 
-      ? item.total_absorption_rate / item.total_prescription_amount 
-      : 0;
-    
-    return {
-      company_id: item.company_id,
-      company_name: item.company_name,
-      company_group: item.company_group,
-      business_registration_number: item.business_registration_number,
-      representative_name: item.representative_name,
-      hospital_id: item.hospital_id,
-      hospital_name: item.hospital_name,
-      prescription_qty: item.prescription_qty,
-      prescription_amount: item.prescription_amount,
-      payment_amount: item.payment_amount,
-      absorption_rate: absorptionRate
-    };
+    const revenue = item.computed_revenue;
+    let absorptionRate = 0;
+    if (revenue > 0 && item.prescription_amount > 0) {
+      absorptionRate = revenue / item.prescription_amount;
+    }
+    const { total_absorption_rate, total_prescription_amount, computed_revenue, ...cleanItem } = item;
+    return { ...cleanItem, total_revenue: computed_revenue, absorption_rate: absorptionRate };
   });
 }
 
 // 업체 + 제품별 집계
-function aggregateByCompanyAndProduct(data, absorptionRates = {}) {
+function aggregateByCompanyAndProduct(data, absorptionRates = {}, promotionData = null) {
   const map = new Map();
-  
-  if (!data || data.length === 0) {
-    console.warn('aggregateByCompanyAndProduct: 데이터가 없습니다.');
-    return [];
-  }
-  
-  devLog('aggregateByCompanyAndProduct 시작, 입력 데이터 개수:', data.length);
-  let processedCount = 0;
-  let skippedCount = 0;
-  
-  data.forEach((record, index) => {
-    try {
-      // 흡수율 분석과 동일: 삭제 처리된 건 제외
-      if (record.review_action === '삭제') return;
 
-      const companyId = record.company_id;
-      const productId = record.product_id;
-      if (!companyId || !productId) {
-        return;
-      }
-      
-      // 키: companyId_productId
-      const key = `${companyId}_${productId}`;
-      
-      const companyName = record.companies?.company_name || '';
-      const companyGroup = record.companies?.company_group || '';
-      const businessRegistrationNumber = record.companies?.business_registration_number || '';
-      const representativeName = record.companies?.representative_name || '';
-      const productName = record.products?.product_name || '';
-      const commissionRate = Number(record.commission_rate) || 0;
-      const qty = Number(record.prescription_qty) || 0;
-      const price = Number(record.products?.price) || 0;
-      const amount = qty * price;
-      
-      // 반영 흡수율 가져오기 (기본값 1.0)
-      let appliedAbsorptionRate = 1.0;
-      if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
-        const rateValue = Number(absorptionRates[record.id]);
-        if (!isNaN(rateValue)) {
-          appliedAbsorptionRate = rateValue;
+  if (!data || data.length === 0) return [];
+
+  data.forEach(record => {
+    if (record.review_action === '삭제') return;
+    const companyId = record.company_id;
+    const productId = record.product_id;
+    if (!companyId || !productId) return;
+
+    const key = `${companyId}_${productId}`;
+    const qty = Number(record.prescription_qty) || 0;
+    const price = Number(record.products?.price) || 0;
+    const amount = qty * price;
+    let commissionRate = Number(record.commission_rate) || 0;
+
+    if (promotionData) {
+      const insuranceCode = promotionData.productInsuranceCodeMap.get(record.product_id);
+      if (insuranceCode) {
+        const pKey = `${record.client_id}_${insuranceCode}_${record.company_id}`;
+        const promotionInfo = promotionData.hospitalPerformanceMap.get(pKey);
+        const excludedKey = `${insuranceCode}_${record.client_id}`;
+        const isExcluded = promotionData.excludedHospitalsSet.has(excludedKey);
+        if (promotionInfo && !isExcluded) {
+          let isWithinPeriod = true;
+          const sd = new Date(record.settlement_month + '-01');
+          const ld = new Date(sd.getFullYear(), sd.getMonth() + 1, 0);
+          if (promotionInfo.promotion_start_date && sd < new Date(promotionInfo.promotion_start_date)) isWithinPeriod = false;
+          if (promotionInfo.promotion_end_date && ld > new Date(promotionInfo.promotion_end_date)) isWithinPeriod = false;
+          if (isWithinPeriod && promotionInfo.final_commission_rate != null) {
+            commissionRate = Number(promotionInfo.final_commission_rate);
+          }
         }
       }
-      
-      // 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
-      const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
-
-      if (!map.has(key)) {
-        map.set(key, {
-          company_id: companyId,
-          company_name: companyName,
-          company_group: companyGroup,
-          business_registration_number: businessRegistrationNumber,
-          representative_name: representativeName,
-          product_id: productId,
-          product_name: productName,
-          prescription_qty: 0,
-          prescription_amount: 0,
-          payment_amount: 0,
-          total_absorption_rate: 0,
-          total_prescription_amount: 0
-        });
-      }
-
-      const item = map.get(key);
-      item.prescription_qty += qty;
-      item.prescription_amount += amount;
-      item.payment_amount += paymentAmount;
-      // 흡수율 계산을 위한 누적값
-      item.total_absorption_rate += amount * appliedAbsorptionRate;
-      item.total_prescription_amount += amount;
-      processedCount++;
-    } catch (err) {
-      console.error(`레코드 ${index} 처리 중 오류:`, err, record);
-      skippedCount++;
     }
+
+    let appliedAbsorptionRate = 1.0;
+    if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
+      const rateValue = Number(absorptionRates[record.id]);
+      if (!isNaN(rateValue)) appliedAbsorptionRate = rateValue;
+    }
+
+    const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
+
+    if (!map.has(key)) {
+      map.set(key, {
+        company_id: companyId,
+        company_name: record.companies?.company_name || '',
+        company_group: record.companies?.company_group || '',
+        business_registration_number: record.companies?.business_registration_number || '',
+        representative_name: record.companies?.representative_name || '',
+        product_id: productId,
+        product_name: record.products?.product_name || '',
+        prescription_qty: 0, prescription_amount: 0, payment_amount: 0,
+        wholesale_revenue: 0, direct_revenue: 0, total_revenue: 0, computed_revenue: 0,
+        total_absorption_rate: 0, total_prescription_amount: 0
+      });
+    }
+
+    const item = map.get(key);
+    item.prescription_qty += qty;
+    item.prescription_amount += amount;
+    item.payment_amount += paymentAmount;
+    item.wholesale_revenue += Number(record.wholesale_revenue) || 0;
+    item.direct_revenue += Number(record.direct_revenue) || 0;
+    item.total_revenue += Number(record.total_revenue) || 0;
+    item.computed_revenue += combinedRevenueDisplay(record);
+    item.total_absorption_rate += amount * appliedAbsorptionRate;
+    item.total_prescription_amount += amount;
   });
-  
-  console.log(`aggregateByCompanyAndProduct 집계 완료: 처리됨 ${processedCount}개, 건너뜀 ${skippedCount}개`);
 
   return Array.from(map.values()).map(item => {
-    // 평균 흡수율 계산: (처방액 × 흡수율의 합) / 처방액 합
-    const absorptionRate = item.total_prescription_amount > 0 
-      ? item.total_absorption_rate / item.total_prescription_amount 
-      : 0;
-    
-    return {
-      company_id: item.company_id,
-      company_name: item.company_name,
-      company_group: item.company_group,
-      business_registration_number: item.business_registration_number,
-      representative_name: item.representative_name,
-      product_id: item.product_id,
-      product_name: item.product_name,
-      prescription_qty: item.prescription_qty,
-      prescription_amount: item.prescription_amount,
-      payment_amount: item.payment_amount,
-      absorption_rate: absorptionRate
-    };
+    const revenue = item.computed_revenue;
+    let absorptionRate = 0;
+    if (revenue > 0 && item.prescription_amount > 0) {
+      absorptionRate = revenue / item.prescription_amount;
+    }
+    const { total_absorption_rate, total_prescription_amount, computed_revenue, ...cleanItem } = item;
+    return { ...cleanItem, total_revenue: computed_revenue, absorption_rate: absorptionRate };
   });
 }
 
