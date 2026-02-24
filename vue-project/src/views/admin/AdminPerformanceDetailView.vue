@@ -1234,8 +1234,9 @@ async function fetchStatistics() {
   try {
     devLog('데이터 조회 시작, 정산월:', selectedSettlementMonth.value);
 
-    // 업체별 통계: 모든 서브필터(전체/병의원별/제품별)에서 performance_records 실시간 계산 사용
-    const isCompanyMainList = statisticsType.value === 'company' && drillDownLevel.value === 0;
+    // 업체별 통계(전체): performance_records 실시간 계산 사용
+    // 업체별 통계(병의원별/제품별): performance_statistics 테이블에서 조회
+    const isCompanyMainList = statisticsType.value === 'company' && drillDownLevel.value === 0 && companyStatisticsFilter.value !== 'hospital' && companyStatisticsFilter.value !== 'product';
     if (isCompanyMainList) {
       devLog('업체별 통계: performance_records 경로 사용 (삭제 제외, 반영 흡수율 적용)');
       let recordsFrom = 0;
@@ -1316,14 +1317,7 @@ async function fetchStatistics() {
           direct_revenue: direct
         };
       });
-      let aggregated;
-      if (companyStatisticsFilter.value === 'hospital') {
-        aggregated = aggregateByCompanyAndHospital(mapped, absorptionRatesMap, promotionDataCompany);
-      } else if (companyStatisticsFilter.value === 'product') {
-        aggregated = aggregateByCompanyAndProduct(mapped, absorptionRatesMap, promotionDataCompany);
-      } else {
-        aggregated = aggregateByCompany(mapped, absorptionRatesMap, promotionDataCompany);
-      }
+      const aggregated = aggregateByCompany(mapped, absorptionRatesMap, promotionDataCompany);
       let result = aggregated;
       if (selectedCompanyGroup.value) {
         result = aggregated.filter(c => c.company_group === selectedCompanyGroup.value);
