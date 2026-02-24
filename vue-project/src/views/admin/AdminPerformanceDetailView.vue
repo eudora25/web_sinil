@@ -1230,6 +1230,7 @@ async function fetchStatistics() {
             products(price, insurance_code)
           `)
           .eq('settlement_month', selectedSettlementMonth.value)
+          .eq('review_status', '완료')
           .range(recordsFrom, recordsFrom + recordsBatchSize - 1)
           .order('id', { ascending: true });
         if (selectedCompanyId.value) recordsQuery = recordsQuery.eq('company_id', selectedCompanyId.value);
@@ -1335,6 +1336,7 @@ async function fetchStatistics() {
             clients!inner(name, business_registration_number, address)
           `)
           .eq('settlement_month', selectedSettlementMonth.value)
+          .eq('review_status', '완료')
           .range(recFrom, recFrom + recBatchSize - 1)
           .order('id', { ascending: true });
         if (selectedCompanyId.value) q = q.eq('company_id', selectedCompanyId.value);
@@ -1415,6 +1417,7 @@ async function fetchStatistics() {
             products!inner(product_name, insurance_code, price)
           `)
           .eq('settlement_month', selectedSettlementMonth.value)
+          .eq('review_status', '완료')
           .range(recFrom, recFrom + recBatchSize - 1)
           .order('id', { ascending: true });
         if (selectedCompanyId.value) q = q.eq('company_id', selectedCompanyId.value);
@@ -1500,6 +1503,7 @@ async function fetchStatistics() {
             products!inner(product_name, insurance_code, price)
           `)
           .eq('settlement_month', selectedSettlementMonth.value)
+          .eq('review_status', '완료')
           .eq('product_id', productId)
           .range(recFrom, recFrom + recBatchSize - 1)
           .order('id', { ascending: true });
