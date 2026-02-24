@@ -414,7 +414,7 @@ async function fetchHospitalPerformance() {
       excludedHospitalIds.value = new Set();
     }
 
-    // 병원 실적 데이터 조회
+    // 병원 실적 데이터 조회 (companies 조인은 스키마 캐시 이슈 방지를 위해 별도 조회)
     const { data, error } = await supabase
       .from('promotion_product_hospital_performance')
       .select(`
@@ -432,16 +432,23 @@ async function fetchHospitalPerformance() {
           id,
           name,
           business_registration_number
-        ),
-        companies!first_performance_cso_id (
-          id,
-          company_name
         )
       `)
       .eq('promotion_product_id', promotionProductId.value)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
+
+    // first_performance_cso_id에 해당하는 업체명 별도 조회 (promotion_product_hospital_performance ↔ companies 조인 오류 회피)
+    const csoIds = [...new Set((data || []).map(item => item.first_performance_cso_id).filter(Boolean))];
+    const companyNameByCsoId = {};
+    if (csoIds.length > 0) {
+      const { data: companiesData } = await supabase
+        .from('companies')
+        .select('id, company_name')
+        .in('id', csoIds);
+      (companiesData || []).forEach(c => { companyNameByCsoId[c.id] = c.company_name; });
+    }
 
     // 데이터 변환 (관계 데이터를 평탄화)
     hospitalPerformanceList.value = (data || []).map(item => ({
@@ -455,7 +462,7 @@ async function fetchHospitalPerformance() {
       total_performance_amount: item.total_performance_amount || 0,
       before_promotion_amount: item.before_promotion_amount || 0,
       after_promotion_amount: item.after_promotion_amount || 0,
-      cso_name: item.companies?.company_name || null,
+      cso_name: item.first_performance_cso_id ? (companyNameByCsoId[item.first_performance_cso_id] ?? null) : null,
       created_at: item.created_at,
       updated_at: item.updated_at,
       isExcluded: excludedHospitalIds.value.has(item.hospital_id)
