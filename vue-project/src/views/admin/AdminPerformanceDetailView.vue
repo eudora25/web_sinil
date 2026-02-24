@@ -1225,9 +1225,9 @@ async function fetchStatistics() {
         let recordsQuery = supabase
           .from('performance_records')
           .select(`
-            id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action,
+            id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action, settlement_month,
             companies!inner(company_name, company_group, business_registration_number, representative_name),
-            products(price)
+            products(price, insurance_code)
           `)
           .eq('settlement_month', selectedSettlementMonth.value)
           .range(recordsFrom, recordsFrom + recordsBatchSize - 1)
@@ -1245,6 +1245,25 @@ async function fetchStatistics() {
       }
       const filtered = (rawRecords || []).filter(r => r.review_action !== '삭제');
       const recordIds = filtered.map(r => r.id);
+
+      // 프로모션 데이터 조회
+      const productInsuranceCodeMapCompany = new Map();
+      filtered.forEach(r => { if (r.products?.insurance_code) productInsuranceCodeMapCompany.set(r.product_id, r.products.insurance_code); });
+
+      const { data: hospitalPerfsCompany } = await supabase.from('promotion_product_hospital_performance').select('hospital_id, first_performance_cso_id, has_performance, promotion_product_list(insurance_code, final_commission_rate, promotion_start_date, promotion_end_date)');
+      const hospitalPerformanceMapCompany = new Map();
+      (hospitalPerfsCompany || []).forEach(hp => {
+        if (hp.has_performance && hp.promotion_product_list) {
+          const ic = hp.promotion_product_list.insurance_code;
+          if (ic) hospitalPerformanceMapCompany.set(`${hp.hospital_id}_${ic}_${hp.first_performance_cso_id}`, hp.promotion_product_list);
+        }
+      });
+
+      const { data: excludedDataCompany } = await supabase.from('promotion_product_excluded_hospitals').select('hospital_id, insurance_code');
+      const excludedHospitalsSetCompany = new Set();
+      (excludedDataCompany || []).forEach(e => excludedHospitalsSetCompany.add(`${e.insurance_code}_${e.hospital_id}`));
+
+      const promotionDataCompany = { productInsuranceCodeMap: productInsuranceCodeMapCompany, hospitalPerformanceMap: hospitalPerformanceMapCompany, excludedHospitalsSet: excludedHospitalsSetCompany };
       const absorptionRatesMap = {};
       if (recordIds.length > 0) {
         const rateBatchSize = 500;
@@ -1291,7 +1310,7 @@ async function fetchStatistics() {
           direct_revenue: direct
         };
       });
-      const aggregated = aggregateByCompany(mapped, absorptionRatesMap);
+      const aggregated = aggregateByCompany(mapped, absorptionRatesMap, promotionDataCompany);
       let result = aggregated;
       if (selectedCompanyGroup.value) {
         result = aggregated.filter(c => c.company_group === selectedCompanyGroup.value);
@@ -2374,7 +2393,7 @@ async function fetchStatistics() {
 }
 
 // 집계 함수들
-function aggregateByCompany(data, absorptionRates = {}) {
+function aggregateByCompany(data, absorptionRates = {}, promotionData = null) {
   const map = new Map();
   
   if (!data || data.length === 0) {
@@ -2402,11 +2421,32 @@ function aggregateByCompany(data, absorptionRates = {}) {
     const companyGroup = record.companies?.company_group || '';
     const businessRegistrationNumber = record.companies?.business_registration_number || '';
     const representativeName = record.companies?.representative_name || '';
-    const commissionRate = Number(record.commission_rate) || 0;
+    let commissionRate = Number(record.commission_rate) || 0;
     const qty = Number(record.prescription_qty) || 0;
     const price = Number(record.products?.price) || 0;
     const amount = qty * price;
-    
+
+    // 프로모션 수수료율 적용 (정산내역서와 동일한 로직)
+    if (promotionData) {
+      const insuranceCode = promotionData.productInsuranceCodeMap.get(record.product_id);
+      if (insuranceCode) {
+        const key = `${record.client_id}_${insuranceCode}_${record.company_id}`;
+        const promotionInfo = promotionData.hospitalPerformanceMap.get(key);
+        const excludedKey = `${insuranceCode}_${record.client_id}`;
+        const isExcluded = promotionData.excludedHospitalsSet.has(excludedKey);
+        if (promotionInfo && !isExcluded) {
+          let isWithinPeriod = true;
+          const sd = new Date(record.settlement_month + '-01');
+          const ld = new Date(sd.getFullYear(), sd.getMonth() + 1, 0);
+          if (promotionInfo.promotion_start_date && sd < new Date(promotionInfo.promotion_start_date)) isWithinPeriod = false;
+          if (promotionInfo.promotion_end_date && ld > new Date(promotionInfo.promotion_end_date)) isWithinPeriod = false;
+          if (isWithinPeriod && promotionInfo.final_commission_rate != null) {
+            commissionRate = Number(promotionInfo.final_commission_rate);
+          }
+        }
+      }
+    }
+
     // 반영 흡수율 가져오기 (기본값 1.0)
     let appliedAbsorptionRate = 1.0;
     if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
@@ -2415,8 +2455,8 @@ function aggregateByCompany(data, absorptionRates = {}) {
         appliedAbsorptionRate = rateValue;
       }
     }
-    
-    // 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
+
+    // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (프로모션 수수료율 반영)
     const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
 
     if (!map.has(companyId)) {

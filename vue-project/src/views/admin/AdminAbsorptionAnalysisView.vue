@@ -1290,12 +1290,54 @@ async function loadAbsorptionAnalysisResults() {
             // null 체크 및 기본값 설정
             const prescriptionQty = Number(row.prescription_qty) || 0;
             const productPrice = Number(row.product?.price) || 0;
-            const commissionRate = Number(row.commission_rate) || 0;
+            let commissionRate = Number(row.commission_rate) || 0;
             const absorptionRate = Number(row.absorption_rate) || 0;
-            
+
             const prescriptionAmount = Math.round(prescriptionQty * productPrice);
+
+            // 프로모션 수수료율 적용 여부 확인 (계산 전에 수수료율 교체)
+            let isPromotionRateApplied = false;
+            const insuranceCode = productInsuranceCodeMap.get(row.product_id);
+            if (insuranceCode) {
+              const hospitalId = row.client_id;
+              const companyId = row.company_id;
+              const key = `${hospitalId}_${insuranceCode}_${companyId}`;
+              const promotionInfo = hospitalPerformanceMap.get(key);
+
+              if (promotionInfo) {
+                // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
+                let isWithinPromotionPeriod = true;
+
+                const settlementDate = new Date(row.settlement_month + '-01'); // 정산월의 첫 날
+                const lastDayOfSettlementMonth = new Date(settlementDate.getFullYear(), settlementDate.getMonth() + 1, 0); // 정산월의 마지막 날
+
+                if (promotionInfo.promotion_start_date) {
+                  const startDate = new Date(promotionInfo.promotion_start_date);
+                  // 정산월의 첫 날이 시작일 이후 또는 같아야 함
+                  if (settlementDate < startDate) {
+                    isWithinPromotionPeriod = false;
+                  }
+                }
+
+                if (promotionInfo.promotion_end_date) {
+                  const endDate = new Date(promotionInfo.promotion_end_date);
+                  // 정산월의 마지막 날이 종료일 이전 또는 같아야 함
+                  if (lastDayOfSettlementMonth > endDate) {
+                    isWithinPromotionPeriod = false;
+                  }
+                }
+
+                // 프로모션 기간 내에 있는 경우 프로모션 수수료율 적용
+                if (isWithinPromotionPeriod && promotionInfo.final_commission_rate !== null && promotionInfo.final_commission_rate !== undefined) {
+                  isPromotionRateApplied = true;
+                  commissionRate = Number(promotionInfo.final_commission_rate);
+                }
+              }
+            }
+
+            // 지급액 계산: 처방액 × 수수료율 (프로모션 수수료율 반영)
             const paymentAmount = Math.round(prescriptionAmount * commissionRate);
-            
+
             // 반영 흡수율 계산: applied_absorption_rates 테이블에서 조회한 값 사용, 없으면 기본값 100%
             let appliedAbsorptionRate = 100; // 기본값
             if (absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined) {
@@ -1306,48 +1348,9 @@ async function loadAbsorptionAnalysisResults() {
                 appliedAbsorptionRate = savedAppliedRate > 1 ? savedAppliedRate : savedAppliedRate * 100;
               }
             }
-            
-            // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
-            const finalPaymentAmount = Math.round(prescriptionAmount * (appliedAbsorptionRate / 100) * commissionRate);
 
-            // 프로모션 수수료율 적용 여부 확인
-            let isPromotionRateApplied = false;
-            const insuranceCode = productInsuranceCodeMap.get(row.product_id);
-            if (insuranceCode) {
-              const hospitalId = row.client_id;
-              const companyId = row.company_id;
-              const key = `${hospitalId}_${insuranceCode}_${companyId}`;
-              const promotionInfo = hospitalPerformanceMap.get(key);
-              
-              if (promotionInfo) {
-                // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
-                let isWithinPromotionPeriod = true;
-                
-                const settlementDate = new Date(row.settlement_month + '-01'); // 정산월의 첫 날
-                const lastDayOfSettlementMonth = new Date(settlementDate.getFullYear(), settlementDate.getMonth() + 1, 0); // 정산월의 마지막 날
-                
-                if (promotionInfo.promotion_start_date) {
-                  const startDate = new Date(promotionInfo.promotion_start_date);
-                  // 정산월의 첫 날이 시작일 이후 또는 같아야 함
-                  if (settlementDate < startDate) {
-                    isWithinPromotionPeriod = false;
-                  }
-                }
-                
-                if (promotionInfo.promotion_end_date) {
-                  const endDate = new Date(promotionInfo.promotion_end_date);
-                  // 정산월의 마지막 날이 종료일 이전 또는 같아야 함
-                  if (lastDayOfSettlementMonth > endDate) {
-                    isWithinPromotionPeriod = false;
-                  }
-                }
-                
-                // 프로모션 기간 내에 있는 경우에만 프로모션 적용으로 표시
-                if (isWithinPromotionPeriod && promotionInfo.final_commission_rate !== null && promotionInfo.final_commission_rate !== undefined) {
-                  isPromotionRateApplied = true;
-                }
-              }
-            }
+            // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (프로모션 수수료율 반영, 정수 반올림)
+            const finalPaymentAmount = Math.round(prescriptionAmount * (appliedAbsorptionRate / 100) * commissionRate);
 
             return {
                 id: row.id || null,
