@@ -290,7 +290,7 @@
                 {{ formatNumber(slotProps.data.prescription_amount) }}
               </template>
             </Column>
-            <Column field="payment_amount" header="지급액" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="payment_amount" header="최종 지급액" :headerStyle="{ width: '9%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.payment_amount) }}
               </template>
@@ -599,8 +599,8 @@
                 {{ formatAbsorptionRate(slotProps.data.absorption_rate) }}
               </template>
             </Column>
-            <!-- 업체별, 병의원별 필터일 때 지급액 표시 -->
-            <Column v-if="productStatisticsFilter === 'company' || productStatisticsFilter === 'hospital'" field="payment_amount" header="지급액" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <!-- 업체별, 병의원별 필터일 때 최종 지급액 표시 -->
+            <Column v-if="productStatisticsFilter === 'company' || productStatisticsFilter === 'hospital'" field="payment_amount" header="최종 지급액" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.payment_amount) }}
               </template>
@@ -3661,7 +3661,7 @@ async function downloadExcel() {
   // 헤더 정의
   let headers = [];
   if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
-    headers = ['No', '구분', '업체명', '사업자번호', '대표자', '처방수량', '처방액', '지급액', '직거래매출', '도매매출', '매출액', '흡수율'];
+    headers = ['No', '구분', '업체명', '사업자번호', '대표자', '처방수량', '처방액', '최종 지급액', '직거래매출', '도매매출', '매출액', '흡수율'];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'hospital') {
     headers = ['No', '병의원명', '처방수량', '처방액', '제품 수'];
   } else if (statisticsType.value === 'company' && drillDownType.value === 'product') {
@@ -3672,9 +3672,9 @@ async function downloadExcel() {
     headers = ['No', '제품명', '처방수량', '처방액'];
   } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
     if (productStatisticsFilter.value === 'company') {
-      headers = ['No', '제품명', '보험코드', '구분', '업체명', '사업자등록번호', '대표자', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '지급액'];
+      headers = ['No', '제품명', '보험코드', '구분', '업체명', '사업자등록번호', '대표자', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '최종 지급액'];
     } else if (productStatisticsFilter.value === 'hospital') {
-      headers = ['No', '제품명', '보험코드', '병의원명', '사업자등록번호', '주소', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '지급액'];
+      headers = ['No', '제품명', '보험코드', '병의원명', '사업자등록번호', '주소', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '최종 지급액'];
     } else {
       headers = ['No', '제품명', '보험코드', '약가', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '흡수율(%)'];
     }

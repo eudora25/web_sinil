@@ -492,19 +492,26 @@ const totalPrescriptionAmount = computed(() => {
 
 const totalWholesaleRevenue = computed(() => {
   if (!displayRows.value || displayRows.value.length === 0) return '0';
-  const total = displayRows.value.reduce((sum, row) => sum + (row.wholesale_revenue || 0), 0);
+  const total = displayRows.value.reduce((sum, row) => {
+    if (row.review_action === '삭제') return sum;
+    return sum + (row.wholesale_revenue || 0);
+  }, 0);
   return Math.round(total).toLocaleString();
 });
 
 const totalDirectRevenue = computed(() => {
   if (!displayRows.value || displayRows.value.length === 0) return '0';
-  const total = displayRows.value.reduce((sum, row) => sum + (row.direct_revenue || 0), 0);
+  const total = displayRows.value.reduce((sum, row) => {
+    if (row.review_action === '삭제') return sum;
+    return sum + (row.direct_revenue || 0);
+  }, 0);
   return Math.round(total).toLocaleString();
 });
 
 const totalCombinedRevenue = computed(() => {
   if (!displayRows.value || displayRows.value.length === 0) return '0';
   const total = displayRows.value.reduce((sum, row) => {
+    if (row.review_action === '삭제') return sum;
     return sum + Math.round((row.wholesale_revenue || 0) + (row.direct_revenue || 0));
   }, 0);
   return total.toLocaleString();

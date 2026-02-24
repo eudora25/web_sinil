@@ -68,19 +68,6 @@ export function validateAbsorptionRate(rows) {
   // 매출액이 있으면 매출액 기반 사용, 없으면 지급액 기반 사용
   const simpleDivisionRate = totalRevenue > 0 ? revenueBasedRate : paymentBasedRate;
 
-  // 가중 평균이 0에 가깝고 단순 나눗셈은 유의한 값이면 → 행별 흡수율 기여가 없음(미저장 또는 처방액 0). 단순 나눗셈만 신뢰하고 불일치로 보지 않음
-  const negligibleWeighted = weightedAverageRate < 0.001; // 0.1% 미만이면 무시
-  const meaningfulSimple = simpleDivisionRate > 0.0001;
-  if (negligibleWeighted && meaningfulSimple && totalPrescriptionAmount > 0 && totalRevenue > 0) {
-    return {
-      isValid: true,
-      message: '흡수율 계산이 정확합니다. (행별 흡수율 기여 없음 시 합계 기준으로만 검증)',
-      weightedAverage: weightedAverageRate,
-      simpleDivision: simpleDivisionRate,
-      difference: 0
-    };
-  }
-
   // 두 방식의 차이 확인 (부동소수점 오차 고려)
   const difference = Math.abs(weightedAverageRate - simpleDivisionRate);
   const tolerance = 0.0001; // 0.01% 허용 오차
