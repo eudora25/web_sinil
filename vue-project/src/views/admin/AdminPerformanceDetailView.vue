@@ -243,91 +243,91 @@
           
           <!-- 업체별 통계 테이블 -->
           <template v-if="statisticsType === 'company' && drillDownLevel === 0">
-            <Column header="No" :headerStyle="{ width: '4%' }" :bodyStyle="{ textAlign: 'center' }">
+            <Column header="No" frozen :headerStyle="{ width: '50px', minWidth: '50px' }" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.index + currentPageFirstIndex + 1 }}
               </template>
             </Column>
-            <Column field="company_group" header="구분" :headerStyle="{ width: '6%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+            <Column field="company_group" header="구분" frozen :headerStyle="{ width: '70px', minWidth: '70px' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.data.company_group || '-' }}
               </template>
             </Column>
-            <Column field="company_name" header="업체명" :headerStyle="{ width: companyStatisticsFilter === 'all' ? '15%' : '12%' }" :sortable="true">
+            <Column field="company_name" header="업체명" frozen :headerStyle="{ width: '160px', minWidth: '160px' }" :sortable="true">
               <template #body="slotProps">
                 {{ slotProps.data.company_name }}
               </template>
             </Column>
             <!-- 병의원별 필터일 때 병의원명 컬럼 추가 -->
-            <Column v-if="companyStatisticsFilter === 'hospital'" field="hospital_name" header="병의원명" :headerStyle="{ width: '15%' }" :sortable="true">
+            <Column v-if="companyStatisticsFilter === 'hospital'" field="hospital_name" header="병의원명" frozen :headerStyle="{ width: '160px', minWidth: '160px' }" :sortable="true">
               <template #body="slotProps">
                 {{ slotProps.data.hospital_name || '-' }}
               </template>
             </Column>
             <!-- 제품별 필터일 때 제품명 컬럼 추가 -->
-            <Column v-if="companyStatisticsFilter === 'product'" field="product_name" header="제품명" :headerStyle="{ width: '15%' }" :sortable="true">
+            <Column v-if="companyStatisticsFilter === 'product'" field="product_name" header="제품명" frozen :headerStyle="{ width: '160px', minWidth: '160px' }" :sortable="true">
               <template #body="slotProps">
                 {{ slotProps.data.product_name || '-' }}
               </template>
             </Column>
-            <Column field="business_registration_number" header="사업자번호" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+            <Column field="business_registration_number" header="사업자번호" frozen :headerStyle="{ width: '120px', minWidth: '120px' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ formatBusinessNumber(slotProps.data.business_registration_number) }}
               </template>
             </Column>
-            <Column field="representative_name" header="대표자" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+            <Column field="representative_name" header="대표자" frozen :headerStyle="{ width: '80px', minWidth: '80px' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.data.representative_name || '-' }}
               </template>
             </Column>
-            <Column field="prescription_qty" header="처방수량" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="prescription_qty" header="처방수량" :headerStyle="{ width: '110px', minWidth: '110px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.prescription_qty, true) }}
               </template>
             </Column>
-            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '130px', minWidth: '130px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.prescription_amount) }}
               </template>
             </Column>
-            <Column field="payment_amount" header="최종 지급액" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="payment_amount" header="최종 지급액" :headerStyle="{ width: '130px', minWidth: '130px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.payment_amount) }}
               </template>
             </Column>
-            <Column field="direct_revenue" header="직거래매출" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="direct_revenue" header="직거래매출" :headerStyle="{ width: '130px', minWidth: '130px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.direct_revenue) }}
               </template>
             </Column>
-            <Column field="wholesale_revenue" header="도매매출" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="wholesale_revenue" header="도매매출" :headerStyle="{ width: '130px', minWidth: '130px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.wholesale_revenue) }}
               </template>
             </Column>
-            <Column field="total_revenue" header="매출액" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="total_revenue" header="매출액" :headerStyle="{ width: '130px', minWidth: '130px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.total_revenue) }}
               </template>
             </Column>
-            <Column field="absorption_rate" header="흡수율" :headerStyle="{ width: '6%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+            <Column field="absorption_rate" header="흡수율" :headerStyle="{ width: '80px', minWidth: '80px' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ formatAbsorptionRate(slotProps.data.absorption_rate) }}
               </template>
             </Column>
-            <Column field="section_commission_amount" header="구간 수수료" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="section_commission_amount" header="구간 수수료" :headerStyle="{ width: '130px', minWidth: '130px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.section_commission_amount) }}
               </template>
             </Column>
-            <Column field="total_payment_amount" header="총 지급액" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="total_payment_amount" header="총 지급액" :headerStyle="{ width: '130px', minWidth: '130px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.total_payment_amount) }}
               </template>
             </Column>
             <ColumnGroup type="footer">
               <Row>
-                <Column footer="합계" :colspan="companyStatisticsFilter === 'all' ? 5 : 6" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+                <Column footer="합계" :colspan="companyStatisticsFilter === 'all' ? 5 : 6" footerClass="footer-cell" footerStyle="text-align:center !important;" :frozen="true" />
                 <Column :footer="totalQty" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalPaymentAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
@@ -3818,6 +3818,11 @@ onUnmounted(() => {
 <style scoped>
 .performance-detail-view {
   padding: 0px;
+}
+
+/* frozen 컬럼 경계 그림자 */
+:deep(.p-datatable-frozen-column:last-of-type) {
+  border-right: 2px solid #dee2e6 !important;
 }
 
 .data-card-buttons {
