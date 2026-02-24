@@ -1200,6 +1200,27 @@ async function fetchAvailableCompanyGroups() {
   }
 }
 
+// 프로모션 데이터 조회 (공통)
+async function fetchPromotionData(filteredRecords) {
+  const productInsuranceCodeMap = new Map();
+  filteredRecords.forEach(r => { if (r.products?.insurance_code) productInsuranceCodeMap.set(r.product_id, r.products.insurance_code); });
+
+  const { data: hospitalPerfs } = await supabase.from('promotion_product_hospital_performance').select('hospital_id, first_performance_cso_id, has_performance, promotion_product_list(insurance_code, final_commission_rate, promotion_start_date, promotion_end_date)');
+  const hospitalPerformanceMap = new Map();
+  (hospitalPerfs || []).forEach(hp => {
+    if (hp.has_performance && hp.promotion_product_list) {
+      const ic = hp.promotion_product_list.insurance_code;
+      if (ic) hospitalPerformanceMap.set(`${hp.hospital_id}_${ic}_${hp.first_performance_cso_id}`, hp.promotion_product_list);
+    }
+  });
+
+  const { data: excludedData } = await supabase.from('promotion_product_excluded_hospitals').select('hospital_id, insurance_code');
+  const excludedHospitalsSet = new Set();
+  (excludedData || []).forEach(e => excludedHospitalsSet.add(`${e.insurance_code}_${e.hospital_id}`));
+
+  return { productInsuranceCodeMap, hospitalPerformanceMap, excludedHospitalsSet };
+}
+
 // 통계 데이터 조회
 async function fetchStatistics() {
   if (!selectedSettlementMonth.value) {
@@ -1248,23 +1269,7 @@ async function fetchStatistics() {
       const recordIds = filtered.map(r => r.id);
 
       // 프로모션 데이터 조회
-      const productInsuranceCodeMapCompany = new Map();
-      filtered.forEach(r => { if (r.products?.insurance_code) productInsuranceCodeMapCompany.set(r.product_id, r.products.insurance_code); });
-
-      const { data: hospitalPerfsCompany } = await supabase.from('promotion_product_hospital_performance').select('hospital_id, first_performance_cso_id, has_performance, promotion_product_list(insurance_code, final_commission_rate, promotion_start_date, promotion_end_date)');
-      const hospitalPerformanceMapCompany = new Map();
-      (hospitalPerfsCompany || []).forEach(hp => {
-        if (hp.has_performance && hp.promotion_product_list) {
-          const ic = hp.promotion_product_list.insurance_code;
-          if (ic) hospitalPerformanceMapCompany.set(`${hp.hospital_id}_${ic}_${hp.first_performance_cso_id}`, hp.promotion_product_list);
-        }
-      });
-
-      const { data: excludedDataCompany } = await supabase.from('promotion_product_excluded_hospitals').select('hospital_id, insurance_code');
-      const excludedHospitalsSetCompany = new Set();
-      (excludedDataCompany || []).forEach(e => excludedHospitalsSetCompany.add(`${e.insurance_code}_${e.hospital_id}`));
-
-      const promotionDataCompany = { productInsuranceCodeMap: productInsuranceCodeMapCompany, hospitalPerformanceMap: hospitalPerformanceMapCompany, excludedHospitalsSet: excludedHospitalsSetCompany };
+      const promotionDataCompany = await fetchPromotionData(filtered);
       const absorptionRatesMap = {};
       if (recordIds.length > 0) {
         const rateBatchSize = 500;
@@ -1330,9 +1335,9 @@ async function fetchStatistics() {
         let q = supabase
           .from('performance_records')
           .select(`
-            id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action,
+            id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action, settlement_month,
             companies!inner(company_name, company_group),
-            products(price),
+            products(price, insurance_code),
             clients!inner(name, business_registration_number, address)
           `)
           .eq('settlement_month', selectedSettlementMonth.value)
@@ -1353,6 +1358,7 @@ async function fetchStatistics() {
         filteredH = filteredH.filter(r => r.companies?.company_group === selectedCompanyGroup.value);
       }
       const idsH = filteredH.map(r => r.id);
+      const promotionDataH = await fetchPromotionData(filteredH);
       const ratesH = {};
       if (idsH.length > 0) {
         for (let i = 0; i < idsH.length; i += 500) {
@@ -1397,7 +1403,7 @@ async function fetchStatistics() {
           direct_revenue: direct
         };
       });
-      const aggH = aggregateByHospital(mappedH, ratesH);
+      const aggH = aggregateByHospital(mappedH, ratesH, promotionDataH);
       statisticsData.value = aggH;
       loading.value = false;
       return;
@@ -1412,7 +1418,7 @@ async function fetchStatistics() {
         let q = supabase
           .from('performance_records')
           .select(`
-            id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action,
+            id, company_id, client_id, product_id, prescription_qty, commission_rate, review_action, settlement_month,
             companies!inner(company_name, company_group),
             products!inner(product_name, insurance_code, price)
           `)
@@ -1434,6 +1440,7 @@ async function fetchStatistics() {
         filteredP = filteredP.filter(r => r.companies?.company_group === selectedCompanyGroup.value);
       }
       const idsP = filteredP.map(r => r.id);
+      const promotionDataP = await fetchPromotionData(filteredP);
       const ratesP = {};
       if (idsP.length > 0) {
         for (let i = 0; i < idsP.length; i += 500) {
@@ -1477,7 +1484,7 @@ async function fetchStatistics() {
           direct_revenue: direct
         };
       });
-      const aggP = aggregateByProduct(mappedP, ratesP);
+      const aggP = aggregateByProduct(mappedP, ratesP, promotionDataP);
       statisticsData.value = aggP;
       loading.value = false;
       return;
@@ -1520,6 +1527,7 @@ async function fetchStatistics() {
         filteredD = filteredD.filter(r => r.companies?.company_group === selectedCompanyGroup.value);
       }
       const idsD = filteredD.map(r => r.id);
+      const promotionDataD = await fetchPromotionData(filteredD);
       const ratesD = {};
       if (idsD.length > 0) {
         for (let i = 0; i < idsD.length; i += 500) {
@@ -1562,7 +1570,7 @@ async function fetchStatistics() {
           direct_revenue: direct
         };
       });
-      const aggD = aggregateByCompany(mappedD, ratesD);
+      const aggD = aggregateByCompany(mappedD, ratesD, promotionDataD);
       statisticsData.value = aggD;
       loading.value = false;
       return;
@@ -2529,13 +2537,13 @@ function aggregateByCompany(data, absorptionRates = {}, promotionData = null) {
   });
 }
 
-function aggregateByHospital(data, absorptionRates = {}) {
+function aggregateByHospital(data, absorptionRates = {}, promotionData = null) {
   const map = new Map();
-  
+
   data.forEach(record => {
     // 삭제 처리된 건은 제외
     if (record.review_action === '삭제') return;
-    
+
     const hospitalId = record.client_id;
     const hospitalName = record.clients?.name || '';
     const businessRegistrationNumber = record.clients?.business_registration_number || '';
@@ -2546,8 +2554,29 @@ function aggregateByHospital(data, absorptionRates = {}) {
     const price = Number(record.products?.price) || 0;
     const amount = qty * price;
     const productId = record.product_id;
-    const commissionRate = Number(record.commission_rate) || 0;
-    
+    let commissionRate = Number(record.commission_rate) || 0;
+
+    // 프로모션 수수료율 적용
+    if (promotionData) {
+      const insuranceCode = promotionData.productInsuranceCodeMap.get(record.product_id);
+      if (insuranceCode) {
+        const key = `${record.client_id}_${insuranceCode}_${record.company_id}`;
+        const promotionInfo = promotionData.hospitalPerformanceMap.get(key);
+        const excludedKey = `${insuranceCode}_${record.client_id}`;
+        const isExcluded = promotionData.excludedHospitalsSet.has(excludedKey);
+        if (promotionInfo && !isExcluded) {
+          let isWithinPeriod = true;
+          const sd = new Date(record.settlement_month + '-01');
+          const ld = new Date(sd.getFullYear(), sd.getMonth() + 1, 0);
+          if (promotionInfo.promotion_start_date && sd < new Date(promotionInfo.promotion_start_date)) isWithinPeriod = false;
+          if (promotionInfo.promotion_end_date && ld > new Date(promotionInfo.promotion_end_date)) isWithinPeriod = false;
+          if (isWithinPeriod && promotionInfo.final_commission_rate != null) {
+            commissionRate = Number(promotionInfo.final_commission_rate);
+          }
+        }
+      }
+    }
+
     // 반영 흡수율 가져오기 (기본값 1.0)
     let appliedAbsorptionRate = 1.0;
     if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
@@ -2556,9 +2585,8 @@ function aggregateByHospital(data, absorptionRates = {}) {
         appliedAbsorptionRate = rateValue;
       }
     }
-    
+
     // 지급액 계산: 처방액 × 반영 흡수율 × 수수료율
-    // commission_rate는 소수점 형태 (예: 0.36 = 36%)
     const paymentAmount = Math.round(amount * appliedAbsorptionRate * commissionRate);
 
     if (!map.has(hospitalId)) {
@@ -2637,13 +2665,13 @@ function aggregateByHospital(data, absorptionRates = {}) {
   });
 }
 
-function aggregateByProduct(data, absorptionRates = {}) {
+function aggregateByProduct(data, absorptionRates = {}, promotionData = null) {
   const map = new Map();
-  
+
   data.forEach(record => {
     // 삭제 처리된 건은 제외
     if (record.review_action === '삭제') return;
-    
+
     const productId = record.product_id;
     const productName = record.products?.product_name || '';
     const insuranceCode = record.products?.insurance_code || '';
@@ -2652,8 +2680,29 @@ function aggregateByProduct(data, absorptionRates = {}) {
     const amount = qty * price;
     const companyId = record.company_id;
     const hospitalId = record.client_id;
-    const commissionRate = Number(record.commission_rate) || 0;
-    
+    let commissionRate = Number(record.commission_rate) || 0;
+
+    // 프로모션 수수료율 적용
+    if (promotionData) {
+      const ic = promotionData.productInsuranceCodeMap.get(record.product_id);
+      if (ic) {
+        const key = `${record.client_id}_${ic}_${record.company_id}`;
+        const promotionInfo = promotionData.hospitalPerformanceMap.get(key);
+        const excludedKey = `${ic}_${record.client_id}`;
+        const isExcluded = promotionData.excludedHospitalsSet.has(excludedKey);
+        if (promotionInfo && !isExcluded) {
+          let isWithinPeriod = true;
+          const sd = new Date(record.settlement_month + '-01');
+          const ld = new Date(sd.getFullYear(), sd.getMonth() + 1, 0);
+          if (promotionInfo.promotion_start_date && sd < new Date(promotionInfo.promotion_start_date)) isWithinPeriod = false;
+          if (promotionInfo.promotion_end_date && ld > new Date(promotionInfo.promotion_end_date)) isWithinPeriod = false;
+          if (isWithinPeriod && promotionInfo.final_commission_rate != null) {
+            commissionRate = Number(promotionInfo.final_commission_rate);
+          }
+        }
+      }
+    }
+
     // 반영 흡수율 가져오기 (기본값 1.0)
     let appliedAbsorptionRate = 1.0;
     if (absorptionRates[record.id] !== null && absorptionRates[record.id] !== undefined) {
