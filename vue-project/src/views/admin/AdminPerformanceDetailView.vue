@@ -34,7 +34,7 @@
           <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
             <label>통계</label>
             <select v-model="companyStatisticsFilter" class="select_month" @change="onCompanyStatisticsFilterChange">
-              <option value="all">전체</option>
+              <option value="all">업체별</option>
               <option value="hospital">병의원별</option>
               <option value="product">제품별</option>
             </select>
@@ -100,7 +100,7 @@
           <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
             <label>통계</label>
             <select v-model="hospitalStatisticsFilter" class="select_month" @change="onHospitalStatisticsFilterChange">
-              <option value="all">전체</option>
+              <option value="all">병의원별</option>
               <option value="product">제품별</option>
             </select>
           </div>
@@ -152,7 +152,7 @@
           <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
             <label>통계</label>
             <select v-model="productStatisticsFilter" class="select_month" @change="onProductStatisticsFilterChange">
-              <option value="all">전체</option>
+              <option value="all">제품별</option>
               <option value="company">업체별</option>
               <option value="hospital">병의원별</option>
             </select>
