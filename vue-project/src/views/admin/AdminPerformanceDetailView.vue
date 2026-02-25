@@ -3689,10 +3689,10 @@ async function downloadExcel() {
   let totalRowData = [];
   if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
     // 평균 흡수율 계산 (매출액 기반: 반올림 직거래+도매 합)
-    const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
-    const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
-    
+    const compTotalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
+    const compTotalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
+    const avgAbsorptionRate = compTotalPrescriptionAmount > 0 ? (compTotalRevenue / compTotalPrescriptionAmount) : 0;
+
     const emptyColCount = companyStatisticsFilter.value === 'all' ? 4 : 5;
     totalRowData = ['합계', ...Array(emptyColCount).fill(''),
       Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
@@ -3700,7 +3700,7 @@ async function downloadExcel() {
       Number((totalPaymentAmount.value || '0').toString().replace(/,/g, '')),
       Number((totalDirectRevenue.value || '0').toString().replace(/,/g, '')),
       Number((totalWholesaleRevenue.value || '0').toString().replace(/,/g, '')),
-      Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
+      compTotalRevenue,
       (avgAbsorptionRate * 100).toFixed(1) + '%',
       Number((totalSectionCommission.value || '0').toString().replace(/,/g, '')),
       Number((totalTotalPayment.value || '0').toString().replace(/,/g, ''))
@@ -3719,16 +3719,16 @@ async function downloadExcel() {
     ];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
     // 평균 흡수율 계산 (매출액 기반: 반올림 직거래+도매 합)
-    const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
-    const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
+    const hospTotalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
+    const hospTotalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
+    const avgAbsorptionRate = hospTotalPrescriptionAmount > 0 ? (hospTotalRevenue / hospTotalPrescriptionAmount) : 0;
 
     totalRowData = ['합계', '', '', '', '', '',
       Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
       Number((totalAmount.value || '0').toString().replace(/,/g, '')),
       Number((totalDirectRevenue.value || '0').toString().replace(/,/g, '')),
       Number((totalWholesaleRevenue.value || '0').toString().replace(/,/g, '')),
-      Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
+      hospTotalRevenue,
       (avgAbsorptionRate * 100).toFixed(1) + '%'
     ];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
@@ -3770,16 +3770,16 @@ async function downloadExcel() {
     }
   } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
     // 평균 흡수율 계산 (매출액 기반: 반올림 직거래+도매 합)
-    const totalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
-    const totalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
-    const avgAbsorptionRate = totalPrescriptionAmount > 0 ? (totalRevenue / totalPrescriptionAmount) : 0;
+    const prodCompTotalPrescriptionAmount = displayRows.value.reduce((sum, row) => sum + (Number(row.prescription_amount) || 0), 0);
+    const prodCompTotalRevenue = displayRows.value.reduce((sum, row) => sum + (Number(row.total_revenue) || 0), 0);
+    const avgAbsorptionRate = prodCompTotalPrescriptionAmount > 0 ? (prodCompTotalRevenue / prodCompTotalPrescriptionAmount) : 0;
 
     totalRowData = ['합계', '',
       Number((totalQty.value || '0').toString().replace(/,/g, '').replace('.0', '')),
       Number((totalAmount.value || '0').toString().replace(/,/g, '')),
       Number((totalDirectRevenue.value || '0').toString().replace(/,/g, '')),
       Number((totalWholesaleRevenue.value || '0').toString().replace(/,/g, '')),
-      Number((totalRevenue.value || '0').toString().replace(/,/g, '')),
+      prodCompTotalRevenue,
       (avgAbsorptionRate * 100).toFixed(1) + '%'
     ];
   } else if (statisticsType.value === 'product' && drillDownType.value === 'hospital') {
