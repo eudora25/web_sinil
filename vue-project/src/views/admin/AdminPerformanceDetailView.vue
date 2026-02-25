@@ -441,32 +441,32 @@
                 {{ slotProps.data.product_name || '-' }}
               </template>
             </Column>
-            <Column field="prescription_qty" header="처방수량" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="prescription_qty" header="처방수량" :headerStyle="{ width: '110px', minWidth: '110px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.prescription_qty, true) }}
               </template>
             </Column>
-            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="prescription_amount" header="처방액" :headerStyle="{ width: '120px', minWidth: '120px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.prescription_amount) }}
               </template>
             </Column>
-            <Column field="direct_revenue" header="직거래매출" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="direct_revenue" header="직거래매출" :headerStyle="{ width: '120px', minWidth: '120px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.direct_revenue) }}
               </template>
             </Column>
-            <Column field="wholesale_revenue" header="도매매출" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="wholesale_revenue" header="도매매출" :headerStyle="{ width: '120px', minWidth: '120px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.wholesale_revenue) }}
               </template>
             </Column>
-            <Column field="total_revenue" header="매출액" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+            <Column field="total_revenue" header="매출액" :headerStyle="{ width: '120px', minWidth: '120px' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
                 {{ formatNumber(slotProps.data.total_revenue) }}
               </template>
             </Column>
-            <Column field="absorption_rate" header="흡수율(%)" :headerStyle="{ width: '7%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+            <Column field="absorption_rate" header="흡수율(%)" :headerStyle="{ width: '90px', minWidth: '90px' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ formatAbsorptionRate(slotProps.data.absorption_rate) }}
               </template>
