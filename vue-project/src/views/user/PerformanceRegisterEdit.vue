@@ -2375,9 +2375,11 @@ async function handlePrescriptionMonthChange(rowIdx) {
 
 <style scoped>
 
-/* 이전 2개월 동일 건 존재 행 기울임 표시 */
-.duplicate-in-nearby-month-row td {
-  font-style: italic;
+/* 이전 2개월 동일 건 존재 행 기울임·볼드 표시 (실적검수와 동일) */
+.duplicate-in-nearby-month-row td,
+.duplicate-in-nearby-month-row td * {
+  font-style: italic !important;
+  font-weight: bold !important;
 }
 
 /* 비활성화된 입력 필드 스타일 */
