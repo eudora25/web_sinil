@@ -1063,14 +1063,9 @@ const totals = computed(() => {
   });
   
   // 흡수율 계산: 매출액 기반 (total_revenue / prescription_amount)
-  // 매출액이 없으면 지급액 기반으로 계산 (하위 호환성)
   let absorptionRate = 0;
   if (totalRevenue > 0 && amount > 0) {
-    // 매출액 기반 흡수율 계산 (올바른 방식)
     absorptionRate = totalRevenue / amount;
-  } else if (amount > 0) {
-    // 매출액이 없으면 지급액 기반으로 계산 (기존 방식, 하위 호환성)
-    absorptionRate = paymentAmount / amount;
   }
   
   return {
@@ -2955,9 +2950,9 @@ function aggregateByHospitalAndProduct(data, absorptionRates = {}) {
   console.log(`aggregateByHospitalAndProduct 집계 완료: 처리됨 ${processedCount}개, 건너뜀 ${skippedCount}개`);
 
   return Array.from(map.values()).map(item => {
-    // 흡수율 계산: 지급액 / 처방액 (실제 지급액 기준으로 계산)
-    const absorptionRate = item.prescription_amount > 0 
-      ? item.payment_amount / item.prescription_amount 
+    // 흡수율 계산: 가중 흡수율 (누적 매출액 기반)
+    const absorptionRate = item.total_prescription_amount > 0
+      ? item.total_absorption_rate / item.total_prescription_amount
       : 0;
     
     // 담당업체 목록을 콤마로 구분
