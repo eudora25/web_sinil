@@ -208,9 +208,12 @@
       <div class="data-card-header" style="flex-shrink: 0;">
         <div class="total-count-display">전체 {{ displayRows.length }} 건</div>
         <div class="data-card-buttons">
-          <button 
-            class="btn-excell-download" 
-            @click="calculateStatistics" 
+          <span style="font-size: 12px; color: #888; margin-right: 8px; align-self: center;">
+            갱신: {{ lastCalculatedAt || '-' }}
+          </span>
+          <button
+            class="btn-excell-download"
+            @click="calculateStatistics"
             :disabled="!selectedSettlementMonth || calculatingStatistics"
             style="margin-right: 8px;"
           >
@@ -979,6 +982,7 @@ const productStatisticsFilter = ref('all'); // 'all', 'company', 'hospital'
 
 // 통계 계산 상태
 const calculatingStatistics = ref(false);
+const lastCalculatedAt = ref('');
 
 // 드릴다운 관련
 const drillDownLevel = ref(0); // 0: 메인, 1: 드릴다운
@@ -1293,6 +1297,12 @@ async function fetchStatistics() {
     // 통계 테이블에 데이터가 있으면 항상 사용
     const useStatisticsTable = statisticsDataFromTable && statisticsDataFromTable.length > 0;
     if (useStatisticsTable) {
+      // 갱신 시간 추출
+      const calcAt = statisticsDataFromTable[0]?.calculated_at;
+      if (calcAt) {
+        const d = new Date(calcAt);
+        lastCalculatedAt.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      }
       devLog('통계 테이블에서 데이터 조회 성공:', statisticsDataFromTable.length, '건');
       
       if (statisticsType.value === 'company' && drillDownLevel.value === 0) {
@@ -2078,6 +2088,7 @@ async function fetchStatistics() {
     
     // 통계 테이블에 데이터가 없으면 빈 배열로 설정 (데이터 없음 표시)
     devLog('통계 테이블에 데이터가 없습니다. 통계 갱신이 필요합니다.');
+    lastCalculatedAt.value = '';
     statisticsData.value = [];
     loading.value = false;
     return;
@@ -3858,15 +3869,15 @@ const stopWatch = watch(selectedSettlementMonth, () => {
 // 마운트
 onMounted(async () => {
   isMounted.value = true;
-  await fetchAvailableMonths();
-  await fetchAllCompanies();
-  await fetchAllHospitals();
-  await fetchAllProducts();
-  await fetchAvailableCompanyGroups();
-  if (isMounted.value) {
-    if (selectedSettlementMonth.value) {
-      await fetchStatistics();
-    }
+  await Promise.all([
+    fetchAvailableMonths(),
+    fetchAllCompanies(),
+    fetchAllHospitals(),
+    fetchAllProducts(),
+    fetchAvailableCompanyGroups(),
+  ]);
+  if (isMounted.value && selectedSettlementMonth.value) {
+    await fetchStatistics();
   }
 });
 
