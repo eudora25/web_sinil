@@ -731,7 +731,7 @@
       :modal="true" 
       :closable="false"
       :draggable="false"
-      :style="{ width: '500px' }"
+      :style="{ width: '620px' }"
       class="statistics-confirm-dialog"
       @update:visible="(val) => showStatisticsConfirmModal = val"
     >
@@ -777,20 +777,21 @@
       
       <template #footer>
         <div class="dialog-footer">
-          <Button 
-            label="취소" 
-            icon="pi pi-times" 
-            @click="showStatisticsConfirmModal = false"
-            class="p-button-text p-button-secondary"
-            :style="{ marginRight: '8px' }"
-          />
-          <Button 
-            label="계산 시작" 
-            icon="pi pi-check" 
+          <button 
+            type="button"
+            class="btn-primary"
             @click="handleConfirmStatistics"
-            class="p-button-primary"
-            :loading="calculatingStatistics"
-          />
+            :disabled="calculatingStatistics"
+          >
+            {{ calculatingStatistics ? '계산 중...' : '계산 시작' }}
+          </button>
+          <button 
+            type="button"
+            class="btn-cancel"
+            @click="showStatisticsConfirmModal = false"
+          >
+            취소
+          </button>
         </div>
       </template>
     </Dialog>
@@ -799,7 +800,7 @@
     <Dialog 
       v-model:visible="showStatisticsCompleteModal" 
       :modal="true" 
-      :closable="true"
+      :closable="false"
       :draggable="false"
       :style="{ width: '550px' }"
       class="statistics-complete-dialog"
@@ -878,12 +879,13 @@
       
       <template #footer>
         <div class="dialog-footer">
-          <Button 
-            label="확인" 
-            icon="pi pi-check" 
+          <button 
+            type="button"
+            class="btn-primary"
             @click="showStatisticsCompleteModal = false"
-            class="p-button-primary"
-          />
+          >
+            확인
+          </button>
         </div>
       </template>
     </Dialog>
@@ -4070,7 +4072,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px;
+  padding: 20px 0;
   color: #333;
   width: 100%;
   background: #ffffff;
@@ -4329,6 +4331,10 @@ onUnmounted(() => {
   border: none !important;
   border-radius: 0 !important;
   border-bottom: 1px solid #e9ecef !important;
+}
+
+:deep(.statistics-complete-dialog .p-dialog-header .p-dialog-header-icon) {
+  display: none !important;
 }
 
 :deep(.statistics-complete-dialog .p-dialog-content) {
