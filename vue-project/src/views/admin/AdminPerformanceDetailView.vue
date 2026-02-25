@@ -1192,7 +1192,13 @@ async function fetchAllProducts() {
       .select('id, product_name')
       .order('product_name', { ascending: true });
     if (!error && data) {
-      allProducts.value = data || [];
+      // product_name 기준 중복 제거 (동일 제품명은 첫 번째 항목만 유지)
+      const seen = new Set();
+      allProducts.value = data.filter(p => {
+        if (seen.has(p.product_name)) return false;
+        seen.add(p.product_name);
+        return true;
+      });
     }
   } catch (err) {
     console.error('제품 목록 조회 오류:', err);

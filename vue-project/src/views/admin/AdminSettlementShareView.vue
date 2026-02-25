@@ -117,7 +117,7 @@
               </div>
             </template>
         </Column>
-        <Column field="payment_amount" header="지급액" :headerStyle="{ width: columnWidths.payment_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
+        <Column field="payment_amount" header="최종 지급액" :headerStyle="{ width: columnWidths.payment_amount }" :bodyStyle="{ textAlign: 'right !important' }" :sortable="true">
             <template #body="slotProps">
               <span :title="Math.round(slotProps.data.payment_amount || 0).toLocaleString()">
                 {{ Math.round(slotProps.data.payment_amount || 0).toLocaleString() }}
