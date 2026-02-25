@@ -14,7 +14,6 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <label>정산월</label>
           <select v-model="selectedSettlementMonth" class="select_month" @change="onSettlementMonthChange">
-            <option value="">전체</option>
             <option v-for="month in availableMonths" :key="month.settlement_month" :value="month.settlement_month">
               {{ month.settlement_month }}
             </option>
