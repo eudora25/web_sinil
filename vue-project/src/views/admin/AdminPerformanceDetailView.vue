@@ -425,7 +425,7 @@
                 {{ slotProps.data.address || '-' }}
               </template>
             </Column>
-            <Column field="company_groups" header="담당업체 구분" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+            <Column field="company_groups" header="구분" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
               <template #body="slotProps">
                 {{ slotProps.data.company_groups || '-' }}
               </template>
@@ -3411,7 +3411,7 @@ async function downloadExcel() {
   } else if (statisticsType.value === 'company' && drillDownType.value === 'product') {
     headers = ['No', '제품명', '처방수량', '처방액', '병원 수'];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 0) {
-    headers = ['No', '병의원명', '사업자등록번호', '주소', '담당업체 구분', '담당업체', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '흡수율(%)'];
+    headers = ['No', '병의원명', '사업자등록번호', '주소', '구분', '담당업체', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '흡수율(%)'];
   } else if (statisticsType.value === 'hospital' && drillDownLevel.value === 1) {
     headers = ['No', '제품명', '처방수량', '처방액'];
   } else if (statisticsType.value === 'product' && drillDownLevel.value === 0) {
