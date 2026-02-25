@@ -1007,6 +1007,7 @@ const hospitalHighlightedIndex = ref(-1);
 
 // 제품 관련
 const selectedProductId = ref('');
+const selectedProductName = ref('');
 const allProducts = ref([]);
 const productSearchText = ref('');
 const showProductDropdown = ref(false);
@@ -1275,7 +1276,7 @@ async function fetchStatistics() {
         .eq('settlement_month', selectedSettlementMonth.value);
       if (selectedCompanyId.value) query = query.eq('company_id', selectedCompanyId.value);
       if (selectedHospitalId.value) query = query.eq('client_id', selectedHospitalId.value);
-      if (selectedProductId.value) query = query.eq('product_id', selectedProductId.value);
+      if (selectedProductName.value) query = query.eq('product_name', selectedProductName.value);
       query = query.range(from, from + batchSize - 1).order('id', { ascending: true });
 
       const { data: batchData, error: batchError } = await query;
@@ -3205,6 +3206,7 @@ function handleProductSearch() {
 
 function selectProduct(product) {
   selectedProductId.value = product.id;
+  selectedProductName.value = product.id === '' ? '' : product.product_name;
   productSearchText.value = product.id === '' ? '' : product.product_name;
   showProductDropdown.value = false;
   productHighlightedIndex.value = -1;
@@ -3280,6 +3282,7 @@ function resetFilters() {
   selectedCompanyId.value = '';
   selectedHospitalId.value = '';
   selectedProductId.value = '';
+  selectedProductName.value = '';
   selectedCompanyGroup.value = '';
   companyStatisticsFilter.value = 'all';
   hospitalStatisticsFilter.value = 'all';
