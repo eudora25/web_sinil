@@ -14,7 +14,7 @@
             class="select_month"
           >
             <option v-for="month in availableMonths" :key="month" :value="month">
-              {{ month }}
+              {{ month === '__null__' ? '미지정' : month }}
             </option>
           </select>
         </div>
@@ -297,7 +297,7 @@
                 <select v-model="selectedSourceMonth" class="form-select" :disabled="monthlyRegisterLoading">
                   <option value="">기준월을 선택하세요</option>
                   <option v-for="month in availableMonths" :key="month" :value="month">
-                    {{ month }}
+                    {{ month === '__null__' ? '미지정' : month }}
                   </option>
                 </select>
               </div>
@@ -664,6 +664,27 @@ const fetchProducts = async () => {
     });
 
 
+    // 기준월이 없거나 조회 실패 시: 제품이 있으면 전체 조회로 fallback
+    if (availableMonths.value.length === 0) {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('products')
+        .select('base_month')
+        .order('base_month', { ascending: false, nullsFirst: false })
+        .limit(2000);
+
+      if (!fallbackError && fallbackData && fallbackData.length > 0) {
+        const fallbackMonthSet = new Set();
+        fallbackData.forEach((item) => {
+          fallbackMonthSet.add(item.base_month != null ? item.base_month : '__null__');
+        });
+        availableMonths.value = Array.from(fallbackMonthSet).sort((a, b) => {
+          if (a === '__null__') return 1;
+          if (b === '__null__') return -1;
+          return b.localeCompare(a);
+        });
+      }
+    }
+
     // 최신 연월을 기본값으로 설정하고 해당 월의 제품 불러오기
     if (availableMonths.value.length > 0) {
       selectedMonth.value = availableMonths.value[0];
@@ -681,37 +702,50 @@ const fetchProductsByMonth = async (month) => {
 
   loading.value = true;
   try {
-    // 1. 제품 데이터 가져오기
-    const { data: productsData, error: productsError } = await supabase
+    // 1. 제품 데이터 가져오기 (기준월이 null인 경우 처리)
+    let productsQuery = supabase
       .from('products')
       .select('*')
-      .eq('base_month', month)
       .order('product_name', { ascending: true })
       .limit(1000);
+
+    if (month === '__null__') {
+      productsQuery = productsQuery.is('base_month', null);
+    } else {
+      productsQuery = productsQuery.eq('base_month', month);
+    }
+
+    const { data: productsData, error: productsError } = await productsQuery;
 
     if (productsError) {
       return;
     }
 
     // 2. 업체 할당 정보 가져오기 (product_company_not_assignments 테이블 사용)
-    const { data: assignmentData, error: assignmentError } = await supabase
+    // 참고: join된 companies에 대한 필터는 PostgREST에서 400 유발할 수 있어, 조회 후 클라이언트에서 필터링
+    const { data: assignmentRaw, error: assignmentError } = await supabase
       .from('product_company_not_assignments')
       .select(`
         product_id,
         company_id,
-        companies!inner(
+        companies(
           id,
           company_name,
           approval_status,
           user_type
         )
-      `)
-      .eq('companies.user_type', 'user')
-      .eq('companies.approval_status', 'approved');
+      `);
 
     if (assignmentError) {
       return;
     }
+
+    const assignmentData = (assignmentRaw || []).filter(
+      (row) =>
+        row.companies &&
+        row.companies.user_type === 'user' &&
+        row.companies.approval_status === 'approved'
+    );
 
     // 3. 전체 업체 수 계산 (승인된 업체만)
     const { count: totalCompaniesCount } = await supabase
