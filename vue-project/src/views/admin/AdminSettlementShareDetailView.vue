@@ -51,7 +51,7 @@
         <Column field="review_action" header="상태" :headerStyle="{ width: columnWidths.review_action }" :bodyStyle="{ textAlign: 'center !important' }">
           <template #body="slotProps">
             <span :class="{ 'deleted-text': slotProps.data.review_action === '삭제' }">
-              {{ slotProps.data.review_action || '정상' }}
+              {{ getStatusDisplay(slotProps.data) }}
             </span>
           </template>
         </Column>
@@ -246,6 +246,7 @@ async function loadDetailData() {
         `)
         .eq('settlement_month', month.value)
         .eq('company_id', companyId.value)
+        .eq('review_status', '완료')
         .range(from, from + batchSize - 1)
         .order('created_at', { ascending: false });
       
@@ -526,6 +527,13 @@ async function loadDetailData() {
   }
 }
 
+/** 검수 상태(review_status)가 대기/검수중이면 그대로 표시, 완료일 때만 review_action(정상/삭제) 표시 */
+function getStatusDisplay(row) {
+  const status = row.review_status || '';
+  if (status === '대기' || status === '검수중') return status;
+  return row.review_action || '정상';
+}
+
 // 합계 계산 (전체 데이터 기준)
 const totalQty = computed(() => {
   const sum = detailRows.value.reduce((sum, row) => {
@@ -608,7 +616,7 @@ async function downloadExcel() {
   // No 컬럼과 함께 데이터 생성
   const excelData = detailRows.value.map((row, index) => ({
     'No': index + 1,
-    '상태': row.review_action || '정상',
+    '상태': getStatusDisplay(row),
     '병의원명': row.client_name,
     '처방월': row.prescription_month,
     '제품명': row.product_name_display,
