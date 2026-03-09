@@ -863,43 +863,30 @@ const downloadExcel = async () => {
   }
   const excelData = []
   filteredClients.value.forEach((client) => {
-    // 업체명과 구분을 쉼표로 구분하여 문자열로 만들기
-    const companyNames = client.companies && client.companies.length > 0 
-      ? client.companies.map(c => c.company_name || '').filter(n => n).join(', ')
-      : ''
-    const companyGroups = client.companies && client.companies.length > 0
-      ? client.companies.map(c => c.company_group || '').filter(g => g).join(', ')
-      : ''
-    
-    if (client.pharmacies && client.pharmacies.length > 0) {
-      client.pharmacies.forEach((pharmacy) => {
+    const companies = client.companies && client.companies.length > 0
+      ? client.companies
+      : [{ company_name: '', company_group: '' }]
+    const pharmacies = client.pharmacies && client.pharmacies.length > 0
+      ? client.pharmacies
+      : [{ name: '', business_registration_number: '', assignment_created_at: '' }]
+
+    // 업체별 × 약국별로 각각 한 행씩 출력
+    companies.forEach((company) => {
+      pharmacies.forEach((pharmacy) => {
         excelData.push({
           병의원코드: client.client_code,
           병의원명: client.name,
           사업자등록번호: client.business_registration_number,
           원장명: client.owner_name,
           주소: client.address,
-          구분: companyGroups || '',
-          업체명: companyNames || '',
+          구분: company.company_group || '',
+          업체명: company.company_name || '',
           '약국명': pharmacy.name || '',
           '약국 사업자번호': pharmacy.business_registration_number || '',
           지정일시: pharmacy.assignment_created_at ? new Date(pharmacy.assignment_created_at).toISOString().slice(0, 16).replace('T', ' ') : '',
         })
       })
-    } else {
-      excelData.push({
-        병의원코드: client.client_code,
-        병의원명: client.name,
-        사업자등록번호: client.business_registration_number,
-        원장명: client.owner_name,
-        주소: client.address,
-        구분: companyGroups || '',
-        업체명: companyNames || '',
-        '약국명': '',
-        '약국 사업자번호': '',
-        지정일시: '',
-      })
-    }
+    })
   })
 
   // ExcelJS 워크북 생성
