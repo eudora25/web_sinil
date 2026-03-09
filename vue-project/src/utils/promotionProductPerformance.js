@@ -8,12 +8,7 @@ import { supabase } from '@/supabase';
  */
 export async function updatePromotionProductHospitalPerformance(performanceRecord, productInfo, companyInfo) {
   try {
-    // 1. 업체가 NEWCSO 그룹인지 확인
-    if (companyInfo.company_group !== 'NEWCSO') {
-      return; // NEWCSO 그룹이 아니면 처리하지 않음
-    }
-
-    // 2. 제품이 promotion_product_list에 있는지 확인 (보험코드로)
+    // 1. 제품이 promotion_product_list에 있는지 확인 (보험코드로)
     const insuranceCode = String(productInfo.insurance_code || '');
     if (!insuranceCode) return;
 
