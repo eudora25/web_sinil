@@ -696,9 +696,9 @@ const downloadTemplate = async () => {
     })
   })
 
-  // 테이블 테두리 설정 - 전체를 얇은 실선으로 통일
+  // 테이블 테두리 설정 - 전체를 얇은 실선으로 통일 (빈 셀 포함)
   worksheet.eachRow((row) => {
-    row.eachCell((cell) => {
+    row.eachCell({ includeEmpty: true }, (cell) => {
       cell.border = {
         top: { style: 'thin', color: { argb: '000000' } },
         bottom: { style: 'thin', color: { argb: '000000' } },
@@ -910,7 +910,7 @@ const downloadExcel = async () => {
     const dataRow = worksheet.addRow(Object.values(row))
 
     // 데이터 행 스타일 설정
-    dataRow.eachCell((cell, colNumber) => {
+    dataRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
 
@@ -926,9 +926,9 @@ const downloadExcel = async () => {
     })
   })
 
-  // 테이블 테두리 설정 - 전체를 얇은 실선으로 통일
+  // 테이블 테두리 설정 - 전체를 얇은 실선으로 통일 (빈 셀 포함)
   worksheet.eachRow((row) => {
-    row.eachCell((cell) => {
+    row.eachCell({ includeEmpty: true }, (cell) => {
       cell.border = {
         top: { style: 'thin', color: { argb: '000000' } },
         bottom: { style: 'thin', color: { argb: '000000' } },
