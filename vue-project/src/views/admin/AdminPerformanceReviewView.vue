@@ -2326,7 +2326,7 @@ async function checkPromotionStatistics() {
             companies!inner(company_group)
           `)
           .eq('products.insurance_code', insuranceCode)
-          .ilike('companies.company_group', 'NEWCSO')
+          .eq('companies.company_group', 'NEWCSO')
           .eq('review_status', '완료')
           .or('review_action.is.null,review_action.neq.삭제');
 
@@ -2639,7 +2639,7 @@ async function updatePromotionDataForChangedRecords(changedRecords) {
             companies!inner(company_group)
           `)
           .eq('products.insurance_code', insuranceCode)
-          .ilike('companies.company_group', 'NEWCSO')
+          .eq('companies.company_group', 'NEWCSO')
           .eq('review_status', '완료')
           .or('review_action.is.null,review_action.neq.삭제');
 

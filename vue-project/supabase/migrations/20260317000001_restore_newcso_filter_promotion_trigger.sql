@@ -85,7 +85,7 @@ BEGIN
   FROM companies
   WHERE id = NEW.company_id;
 
-  IF v_company_group IS NULL OR UPPER(v_company_group) != 'NEWCSO' THEN
+  IF v_company_group IS NULL OR v_company_group != 'NEWCSO' THEN
     RETURN NEW;
   END IF;
 
