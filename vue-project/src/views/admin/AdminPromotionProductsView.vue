@@ -1401,6 +1401,7 @@ async function checkStatistics() {
             .select('prescription_month, products!inner(insurance_code, status, base_month), companies!inner(company_group, company_name), clients!inner(business_registration_number)')
             .eq('products.insurance_code', insuranceCode)
             .eq('products.status', 'active')
+            .eq('companies.company_group', 'NEWCSO')
             .eq('review_status', '완료')
             .or('review_action.is.null,review_action.neq.삭제')
             .range(prescriptionMonthFrom, prescriptionMonthFrom + prescriptionMonthBatchSize - 1);
@@ -1561,7 +1562,7 @@ async function checkStatistics() {
               `)
               .eq('products.insurance_code', insuranceCode)
               .eq('prescription_month', prescriptionMonth)
-
+              .eq('companies.company_group', 'NEWCSO')
               .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
@@ -1607,7 +1608,7 @@ async function checkStatistics() {
               `)
               .eq('products.insurance_code', insuranceCode)
               .eq('prescription_month', prescriptionMonth)
-
+              .eq('companies.company_group', 'NEWCSO')
               .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
@@ -1694,7 +1695,7 @@ async function checkStatistics() {
               `)
               .eq('products.insurance_code', insuranceCode)
               .eq('prescription_month', prescriptionMonth)
-
+              .eq('companies.company_group', 'NEWCSO')
               .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
@@ -1756,7 +1757,7 @@ async function checkStatistics() {
               `)
               .eq('products.insurance_code', insuranceCode)
               .eq('prescription_month', prescriptionMonth)
-
+              .eq('companies.company_group', 'NEWCSO')
               .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
@@ -1803,7 +1804,7 @@ async function checkStatistics() {
                 `)
                 .eq('products.insurance_code', insuranceCode)
                 .eq('prescription_month', prescriptionMonth)
-  
+                .eq('companies.company_group', 'NEWCSO')
                 .eq('review_status', '완료')
                 .or('review_action.is.null,review_action.neq.삭제')
                 .order('created_at', { ascending: true })
