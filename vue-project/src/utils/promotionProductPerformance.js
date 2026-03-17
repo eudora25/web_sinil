@@ -9,7 +9,7 @@ import { supabase } from '@/supabase';
 export async function updatePromotionProductHospitalPerformance(performanceRecord, productInfo, companyInfo) {
   try {
     // 1. 업체가 NEWCSO 그룹인지 확인
-    if (companyInfo.company_group !== 'NEWCSO') {
+    if (companyInfo.company_group?.toUpperCase() !== 'NEWCSO') {
       return; // NEWCSO 그룹이 아니면 처리하지 않음
     }
 
