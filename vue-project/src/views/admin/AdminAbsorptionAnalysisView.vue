@@ -636,6 +636,8 @@ async function fetchAvailableMonths() {
 async function fetchCompaniesForMonth() {
   if (!selectedSettlementMonth.value) {
     companyOptions.value = [{ id: 'ALL', company_name: '- 전체 -' }];
+    availableCompanyGroups.value = [];
+    selectedCompanyGroup.value = 'ALL';
     return;
   }
   try {
@@ -650,6 +652,8 @@ async function fetchCompaniesForMonth() {
     if (allCompaniesError) {
       console.error('전체 업체 조회 오류:', allCompaniesError);
       companyOptions.value = [{ id: 'ALL', company_name: '- 전체 -' }];
+      availableCompanyGroups.value = [];
+      selectedCompanyGroup.value = 'ALL';
     } else {
       const sortedCompanies = (allCompanies || []).sort((a, b) => a.company_name.localeCompare(b.company_name));
       companyOptions.value = [{ id: 'ALL', company_name: '- 전체 -' }, ...sortedCompanies];
@@ -657,10 +661,16 @@ async function fetchCompaniesForMonth() {
       // 구분(company_group) 목록 추출
       const groups = [...new Set((allCompanies || []).map(c => c.company_group).filter(Boolean))].sort();
       availableCompanyGroups.value = groups;
+      // 현재 선택된 값이 새 목록에 없으면 안전하게 전체로 리셋
+      if (selectedCompanyGroup.value !== 'ALL' && !groups.includes(selectedCompanyGroup.value)) {
+        selectedCompanyGroup.value = 'ALL';
+      }
     }
   } catch (err) {
     console.error('업체 조회 오류:', err);
     companyOptions.value = [{ id: 'ALL', company_name: '- 전체 -' }];
+    availableCompanyGroups.value = [];
+    selectedCompanyGroup.value = 'ALL';
   }
 }
 
