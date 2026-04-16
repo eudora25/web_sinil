@@ -23,6 +23,14 @@
         </div>
         
         <div style="display: flex; align-items: center; gap: 8px;">
+          <label>구분</label>
+          <select v-model="selectedCompanyGroup" class="select_120px">
+            <option value="ALL">전체</option>
+            <option v-for="group in availableCompanyGroups" :key="group" :value="group">{{ group }}</option>
+          </select>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px;">
           <label>업체</label>
           <div class="company-search-container" style="position: relative;">
             <input
@@ -420,6 +428,8 @@ const columnWidths = {
 const loading = ref(true);
 const displayRows = ref([]);
 const availableMonths = ref([]);
+const selectedCompanyGroup = ref('ALL');
+const availableCompanyGroups = ref([]);
 const companyOptions = ref([]);
 const hospitalOptions = ref([]);
 const prescriptionOptions = ref([]);
@@ -644,6 +654,9 @@ async function fetchCompaniesForMonth() {
       const sortedCompanies = (allCompanies || []).sort((a, b) => a.company_name.localeCompare(b.company_name));
       companyOptions.value = [{ id: 'ALL', company_name: '- 전체 -' }, ...sortedCompanies];
       selectedCompanyId.value = 'ALL';
+      // 구분(company_group) 목록 추출
+      const groups = [...new Set((allCompanies || []).map(c => c.company_group).filter(Boolean))].sort();
+      availableCompanyGroups.value = groups;
     }
   } catch (err) {
     console.error('업체 조회 오류:', err);
@@ -1038,12 +1051,12 @@ async function loadAbsorptionAnalysisResults() {
   try {
     let allData = [];
     
-    if (selectedCompanyId.value === 'ALL') {
-      // === 전체 조회 시: 단일 쿼리로 모든 데이터 가져오기 (성능 최적화) ===
-      
-      let query = supabase
-        .from('performance_records_absorption')
-        .select(`
+    // 구분 필터 적용 시 !inner 조인으로 행 필터링
+    const companyJoin = selectedCompanyGroup.value !== 'ALL'
+      ? 'company:companies!performance_records_absorption_company_id_fkey!inner(company_name, company_group)'
+      : 'company:companies!performance_records_absorption_company_id_fkey(company_name, company_group)';
+
+    const selectFields = `
           id,
           settlement_month,
           company_id,
@@ -1062,21 +1075,32 @@ async function loadAbsorptionAnalysisResults() {
           analysis_time,
           created_at,
           updated_at,
-          company:companies!performance_records_absorption_company_id_fkey(company_name, company_group),
+          ${companyJoin},
           client:clients(name),
           product:products(product_name, insurance_code, price)
-        `)
+        `;
+
+    if (selectedCompanyId.value === 'ALL') {
+      // === 전체 조회 시: 단일 쿼리로 모든 데이터 가져오기 (성능 최적화) ===
+
+      let query = supabase
+        .from('performance_records_absorption')
+        .select(selectFields)
         .eq('settlement_month', selectedSettlementMonth.value);
-      
+
+      if (selectedCompanyGroup.value !== 'ALL') {
+        query = query.eq('company.company_group', selectedCompanyGroup.value);
+      }
+
       if (selectedHospitalId.value !== 'ALL') {
         query = query.eq('client_id', selectedHospitalId.value);
       }
-      
+
       if (prescriptionOffset.value !== 0) {
         const prescriptionMonth = getPrescriptionMonth(selectedSettlementMonth.value, prescriptionOffset.value);
         query = query.eq('prescription_month', prescriptionMonth);
       }
-      
+
       // 전체 데이터 배치 처리
       let from = 0;
       const batchSize = 1000;
@@ -1109,39 +1133,21 @@ async function loadAbsorptionAnalysisResults() {
     
     } else {
       // === 개별 업체 조회 시: 기존 로직 ===
-      
+
       let query = supabase
         .from('performance_records_absorption')
-        .select(`
-          id,
-          settlement_month,
-          company_id,
-          client_id,
-          product_id,
-          prescription_month,
-          prescription_qty,
-          prescription_type,
-          commission_rate,
-          remarks,
-          review_action,
-          wholesale_revenue,
-          direct_revenue,
-          total_revenue,
-          absorption_rate,
-          analysis_time,
-          created_at,
-          updated_at,
-          company:companies!performance_records_absorption_company_id_fkey(company_name, company_group),
-          client:clients(name),
-          product:products(product_name, insurance_code, price)
-        `)
+        .select(selectFields)
         .eq('settlement_month', selectedSettlementMonth.value)
         .eq('company_id', selectedCompanyId.value);
-      
+
+      if (selectedCompanyGroup.value !== 'ALL') {
+        query = query.eq('company.company_group', selectedCompanyGroup.value);
+      }
+
       if (selectedHospitalId.value !== 'ALL') {
         query = query.eq('client_id', selectedHospitalId.value);
       }
-      
+
       if (prescriptionOffset.value !== 0) {
         const prescriptionMonth = getPrescriptionMonth(selectedSettlementMonth.value, prescriptionOffset.value);
         query = query.eq('prescription_month', prescriptionMonth);
@@ -1548,6 +1554,17 @@ watch(prescriptionOffset, async () => {
   }
 });
 
+watch(selectedCompanyGroup, async () => {
+  try {
+    if (selectedSettlementMonth.value) {
+      await loadAbsorptionAnalysisResults();
+    }
+  } catch (err) {
+    console.error('구분 변경 처리 중 오류:', err);
+    loading.value = false;
+  }
+});
+
 watch(sortCriteria, () => {
   applySorting();
 });
@@ -1912,12 +1929,12 @@ function onTableUnsort() {
 function applySorting() {
   try {
     if (!displayRows.value || displayRows.value.length === 0) return;
-    
+
     // 상단 정렬이 적용될 때는 테이블 헤더 정렬을 초기화
     tableSortField.value = '';
     tableSortOrder.value = 1;
     isTableSorting.value = false;
-    
+
     // 깊은 복사로 안전하게 처리
     const sortedRows = JSON.parse(JSON.stringify(displayRows.value));
     
@@ -2557,10 +2574,10 @@ async function saveAbsorptionRate() {
     if (rowIndex !== -1) {
       // 반영 흡수율 업데이트
       displayRows.value[rowIndex].applied_absorption_rate = `${newRate.toFixed(1)}%`;
-      
+
       // 최종 지급액 재계산: 처방액 × 반영 흡수율 × 수수료율
       const prescriptionAmount = Number(String(displayRows.value[rowIndex].prescription_amount).replace(/,/g, '')) || 0;
-      
+
       // 수수료율 안전한 파싱
       let commissionRate = 0;
       if (displayRows.value[rowIndex].commission_rate) {
@@ -2572,9 +2589,9 @@ async function saveAbsorptionRate() {
           }
         }
       }
-      
+
       const finalPaymentAmount = Math.round(prescriptionAmount * (newRate / 100) * commissionRate);
-      
+
       displayRows.value[rowIndex].final_payment_amount = finalPaymentAmount.toLocaleString();
     }
     
