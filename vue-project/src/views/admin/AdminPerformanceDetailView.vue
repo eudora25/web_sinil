@@ -257,7 +257,10 @@
             </Column>
             <Column field="company_name" header="업체명" frozen :headerStyle="{ width: '160px', minWidth: '160px' }" :sortable="true">
               <template #body="slotProps">
-                {{ slotProps.data.company_name }}
+                <a v-if="companyStatisticsFilter === 'all'" href="#" class="drill-down-link" @click.prevent="drillDownToHospital(slotProps.data)">
+                  {{ slotProps.data.company_name }}
+                </a>
+                <span v-else>{{ slotProps.data.company_name }}</span>
               </template>
             </Column>
             <!-- 병의원별 필터일 때 병의원명 컬럼 추가 -->
@@ -3889,6 +3892,15 @@ onUnmounted(() => {
 <style scoped>
 .performance-detail-view {
   padding: 0px;
+}
+
+.drill-down-link {
+  color: #2563eb;
+  text-decoration: none;
+  cursor: pointer;
+}
+.drill-down-link:hover {
+  text-decoration: underline;
 }
 
 /* frozen 컬럼 경계 그림자 */
