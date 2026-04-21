@@ -3,14 +3,6 @@
     <div class="form-title">직거래매출 등록</div>
     <form @submit.prevent="handleSubmit" class="form-grid">
       <div class="form-group">
-        <label>약국코드</label>
-        <input v-model="pharmacyCode" type="text" />
-      </div>
-      <div class="form-group">
-        <label>약국명</label>
-        <input v-model="pharmacyName" type="text" />
-      </div>
-      <div class="form-group">
         <label>총판</label>
         <select v-model="selectedDistributorId" class="select_month">
           <option value="">- 선택 -</option>
@@ -18,6 +10,14 @@
             {{ distributorOptionLabel(d) }}
           </option>
         </select>
+      </div>
+      <div class="form-group">
+        <label>약국코드</label>
+        <input v-model="pharmacyCode" type="text" />
+      </div>
+      <div class="form-group">
+        <label>약국명</label>
+        <input v-model="pharmacyName" type="text" />
       </div>
       <div class="form-group">
         <label>사업자등록번호<span class="required">*</span></label>
