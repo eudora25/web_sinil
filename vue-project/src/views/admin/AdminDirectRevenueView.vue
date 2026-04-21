@@ -21,6 +21,13 @@
             </option>
           </select>
         </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-right: 24px">
+          <label style="font-weight: 400">총판</label>
+          <select v-model="selectedDistributorId" class="select_month" @change="applyFilters">
+            <option value="">- 전체 -</option>
+            <option v-for="d in distributorList" :key="d.id" :value="d.id">{{ d.name }}</option>
+          </select>
+        </div>
         <div style="display:flex; align-items:center;">
           <span class="filter-item p-input-icon-left" style="position:relative; width:320px;">
             <InputText
@@ -88,6 +95,15 @@
         <Column header="No" :headerStyle="{ width: columnWidths.no }">
           <template #body="slotProps">
             {{ (currentPage - 1) * pageSize + slotProps.index + 1 }}
+          </template>
+        </Column>
+        <Column
+          field="distributor_name"
+          header="총판"
+          :headerStyle="{ width: columnWidths.distributor }"
+        >
+          <template #body="slotProps">
+            <span class="ellipsis-cell" :title="slotProps.data.distributor_name" @mouseenter="checkOverflow" @mouseleave="removeOverflowClass">{{ slotProps.data.distributor_name }}</span>
           </template>
         </Column>
         <Column
@@ -223,7 +239,7 @@
         </Column>
         <ColumnGroup type="footer">
           <Row>
-            <Column footer="합계" :colspan="7" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+            <Column footer="합계" :colspan="8" footerClass="footer-cell" footerStyle="text-align:center !important;" />
             <Column :footer="Math.round(totalSalesAmount).toLocaleString()" footerClass="footer-cell" footerStyle="text-align:right !important;" />
             <Column footer="" footerClass="footer-cell" />
             <Column footer="" footerClass="footer-cell" />
@@ -268,13 +284,14 @@ const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
 // 컬럼 너비 한 곳에서 관리
 const columnWidths = {
-  no: '4%',
-  pharmacy_code: '7%',
-  pharmacy_name: '16%',
+  no: '3.5%',
+  distributor: '8%',
+  pharmacy_code: '6%',
+  pharmacy_name: '12%',
   business_registration_number: '8%',
-  address: '20%',
+  address: '16%',
   standard_code: '8%',
-  product_name: '16%',
+  product_name: '13%',
   sales_amount: '7%',
   sales_date: '6%',
   actions: '8%',
@@ -294,6 +311,13 @@ const currentPage = ref(1)
 const pageSize = ref(50)
 const totalCount = ref(0)
 const totalSalesAmount = ref(0)
+const distributorList = ref([])
+const selectedDistributorId = ref('')
+
+const fetchDistributorList = async () => {
+  const { data } = await supabase.from('distributors').select('id, name').order('name')
+  distributorList.value = data || []
+}
 
 function goCreate() {
   router.push('/admin/direct-revenue/create')
@@ -305,8 +329,12 @@ const fetchRevenues = async () => {
   try {
     let query = supabase
       .from('direct_sales')
-      .select('*')
+      .select('*, distributors(name)')
       .order('sales_date', { ascending: false })
+
+    if (selectedDistributorId.value) {
+      query = query.eq('distributor_id', selectedDistributorId.value)
+    }
 
     // 검색 조건 적용
     if (searchInput.value.length >= 2) {
@@ -316,24 +344,21 @@ const fetchRevenues = async () => {
 
     // 기간 필터 적용 (A to B 방식)
     if (fromMonth.value && toMonth.value) {
-      // A와 B 모두 선택: A 포함 이후 ~ B 포함 이전
       const fromDate = fromMonth.value + '-01'
       const toDate = new Date(toMonth.value + '-01')
       toDate.setMonth(toDate.getMonth() + 1)
-      toDate.setDate(0) // 해당 월의 마지막 날
+      toDate.setDate(0)
       const lastDay = toDate.getDate().toString().padStart(2, '0')
       const toDateStr = toMonth.value + '-' + lastDay
 
       query = query.gte('sales_date', fromDate)
         .lte('sales_date', toDateStr)
     } else if (fromMonth.value) {
-      // A만 선택: A 포함 이후 모두
       query = query.gte('sales_date', fromMonth.value + '-01')
     } else if (toMonth.value) {
-      // B만 선택: B 포함 이전 모두
       const toDate = new Date(toMonth.value + '-01')
       toDate.setMonth(toDate.getMonth() + 1)
-      toDate.setDate(0) // 해당 월의 마지막 날
+      toDate.setDate(0)
       const lastDay = toDate.getDate().toString().padStart(2, '0')
       const toDateStr = toMonth.value + '-' + lastDay
 
@@ -350,6 +375,7 @@ const fetchRevenues = async () => {
     if (!error && data) {
       revenues.value = data.map((item) => ({
         ...item,
+        distributor_name: item.distributors?.name || '',
         isEditing: false,
         originalData: { ...item },
       }))
@@ -365,7 +391,11 @@ const fetchSummary = async () => {
     // 개수 조회
     let countQuery = supabase
       .from('direct_sales')
-      .select('*', { count: 'exact' })
+      .select('*', { count: 'exact', head: true })
+
+    if (selectedDistributorId.value) {
+      countQuery = countQuery.eq('distributor_id', selectedDistributorId.value)
+    }
 
     // 합계 조회 - RPC 함수 사용
     let sumQuery = supabase
@@ -379,7 +409,9 @@ const fetchSummary = async () => {
           const lastDay = toDate.getDate().toString().padStart(2, '0')
           return toMonth.value + '-' + lastDay
         })() : null,
-        search_keyword: searchInput.value.length >= 2 ? searchInput.value.toLowerCase() : null
+        search_keyword: searchInput.value.length >= 2 ? searchInput.value.toLowerCase() : null,
+        brn_list: null,
+        distributor_id_filter: selectedDistributorId.value || null
       })
 
     // 검색 조건 적용
@@ -483,6 +515,7 @@ function clearSearch() {
   searchInput.value = '';
   fromMonth.value = '';
   toMonth.value = '';
+  selectedDistributorId.value = '';
   applyFilters()
 }
 
@@ -689,6 +722,7 @@ const deleteRevenue = async (row) => {
 const downloadTemplate = async () => {
   const templateData = [
     {
+      총판사업자번호: '000-00-00000',
       약국코드: '',
       약국명: '예시약국',
       사업자등록번호: '123-45-67890',
@@ -725,18 +759,18 @@ const downloadTemplate = async () => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
 
-      // 가운데 정렬할 컬럼 지정 (약국코드, 표준코드, 매출일자)
-      if ([1, 3, 5, 8].includes(colNumber)) {
+      // 가운데 정렬할 컬럼 지정 (총판사업자번호, 약국코드, 사업자등록번호, 표준코드, 매출일자)
+      if ([1, 2, 4, 6, 9].includes(colNumber)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
 
-      // 사업자등록번호 컬럼은 텍스트 형식으로 설정
-      if (colNumber === 3) {
+      // 사업자번호 컬럼들은 텍스트 형식으로 설정 (총판사업자번호, 사업자등록번호)
+      if (colNumber === 1 || colNumber === 4) {
         cell.numFmt = '@'
       }
 
       // 매출액 컬럼은 숫자 형식으로 설정
-      if (colNumber === 7) {
+      if (colNumber === 8) {
         cell.numFmt = '#,##0'
       }
     })
@@ -756,6 +790,7 @@ const downloadTemplate = async () => {
 
   // 컬럼 너비 설정
   worksheet.columns = [
+    { width: 16 }, // 총판사업자번호
     { width: 12 }, // 약국코드
     { width: 32 }, // 약국명
     { width: 16 }, // 사업자등록번호
@@ -814,6 +849,10 @@ const handleFileUpload = async (event) => {
     // 디버깅: 첫 번째 행의 컬럼명과 데이터 확인
     // console.log('엑셀 파일 컬럼명:', Object.keys(jsonData[0]))
     // console.log('첫 번째 행 데이터:', jsonData[0])
+
+    // 총판 사업자번호 → id 매핑 (사전 조회)
+    const { data: distData } = await supabase.from('distributors').select('id, business_registration_number')
+    const distBrnMap = new Map((distData || []).map(d => [d.business_registration_number, d.id]))
 
     // 데이터 변환 및 검증
     const uploadData = []
@@ -916,6 +955,21 @@ const handleFileUpload = async (event) => {
         return
       }
 
+      // 총판 매핑 (미입력 허용)
+      let distributorId = null
+      const distBrnRaw = row['총판사업자번호']
+      if (distBrnRaw && distBrnRaw.toString().trim()) {
+        const distBrn = distBrnRaw.toString().replace(/[^0-9]/g, '')
+        const formattedDistBrn = distBrn.length === 10
+          ? distBrn.substring(0, 3) + '-' + distBrn.substring(3, 5) + '-' + distBrn.substring(5)
+          : distBrnRaw.toString().trim()
+        distributorId = distBrnMap.get(formattedDistBrn) || null
+        if (!distributorId) {
+          errors.push(`${rowNum}행: 총판사업자번호 '${distBrnRaw}'에 해당하는 총판이 없습니다.`)
+          return
+        }
+      }
+
       uploadData.push({
         pharmacy_code: row['약국코드'] || '',
         pharmacy_name: row['약국명'] || '',
@@ -925,6 +979,7 @@ const handleFileUpload = async (event) => {
         product_name: row['제품명'] || '',
         sales_amount: salesAmountValue,
         sales_date: salesDate,
+        distributor_id: distributorId,
         created_by: userId,
         updated_by: userId,
       })
@@ -972,8 +1027,12 @@ const downloadExcel = async () => {
       // 페이지별 데이터 조회
       let query = supabase
         .from('direct_sales')
-        .select('*')
+        .select('*, distributors(name)')
         .order('sales_date', { ascending: false })
+
+      if (selectedDistributorId.value) {
+        query = query.eq('distributor_id', selectedDistributorId.value)
+      }
 
       // 검색 조건 적용
       if (searchInput.value.length >= 2) {
@@ -1039,6 +1098,7 @@ const downloadExcel = async () => {
     // 데이터 변환
     const excelData = allData.map((revenue, index) => ({
       No: index + 1,
+      총판명: revenue.distributors?.name || '',
       약국코드: revenue.pharmacy_code || '',
       약국명: revenue.pharmacy_name || '',
       사업자등록번호: revenue.business_registration_number || '',
@@ -1076,18 +1136,18 @@ const downloadExcel = async () => {
         cell.font = { size: 11 }
         cell.alignment = { vertical: 'middle' }
 
-        // 가운데 정렬할 컬럼 지정 (No, 약국코드, 표준코드, 매출일자, 등록일시, 수정일시)
-        if ([1, 2, 4, 6, 9, 10, 11].includes(colNumber)) {
+        // 가운데 정렬할 컬럼 지정 (No, 총판명, 약국코드, 사업자등록번호, 표준코드, 매출일자, 등록일시, 수정일시)
+        if ([1, 2, 3, 5, 7, 10, 11, 12].includes(colNumber)) {
           cell.alignment = { horizontal: 'center', vertical: 'middle' }
         }
 
         // 사업자등록번호 컬럼은 텍스트 형식으로 설정
-        if (colNumber === 4) {
+        if (colNumber === 5) {
           cell.numFmt = '@'
         }
 
         // 매출액 컬럼은 숫자 형식으로 설정
-        if (colNumber === 8) {
+        if (colNumber === 9) {
           cell.numFmt = '#,##0'
         }
       })
@@ -1108,6 +1168,7 @@ const downloadExcel = async () => {
     // 컬럼 너비 설정
     worksheet.columns = [
       { width: 8 },  // No
+      { width: 16 }, // 총판명
       { width: 12 }, // 약국코드
       { width: 32 }, // 약국명
       { width: 16 }, // 사업자등록번호
@@ -1260,6 +1321,7 @@ const handleBackspace = (event) => {
 
 onMounted(async () => {
   fetchAvailableMonths()
+  await fetchDistributorList()
   await fetchSummary()
   await fetchRevenues()
 })

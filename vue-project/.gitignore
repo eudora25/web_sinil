@@ -29,3 +29,6 @@ coverage
 
 *.tsbuildinfo
 .vercel
+
+# Local E2E artifacts (templates/uploads/screenshots)
+tmp/

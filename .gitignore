@@ -152,7 +152,8 @@ signup_test_screenshot_*.png
 # Organized folders to ignore
 test-py/
 backups/
-scripts/
+# Ignore repo-root helper scripts only (do not ignore vue-project/scripts)
+/scripts/
 sql-scripts/
 docs/
 admin-scripts/

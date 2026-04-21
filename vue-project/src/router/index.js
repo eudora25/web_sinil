@@ -16,6 +16,7 @@ import AdminClientsView from '../views/admin/AdminClientsView.vue'
 import AdminClientsCreateView from '../views/admin/AdminClientsCreateView.vue'
 import AdminPharmaciesView from '../views/admin/AdminPharmaciesView.vue'
 import AdminPharmaciesCreateView from '../views/admin/AdminPharmaciesCreateView.vue'
+import AdminDistributorsView from '../views/admin/AdminDistributorsView.vue'
 import AdminWholesaleRevenueView from '../views/admin/AdminWholesaleRevenueView.vue'
 import AdminWholesaleRevenueCreateView from '../views/admin/AdminWholesaleRevenueCreateView.vue'
 
@@ -235,6 +236,12 @@ const router = createRouter({
       name: 'admin-pharmacies-edit',
       component: () => import('../views/admin/AdminPharmaciesEditView.vue'),
       meta: { menu: '문전약국 관리', submenu: '문전약국 수정', requiresAuth: true, isAdmin: true }
+    },
+    {
+      path: '/admin/distributors',
+      name: 'AdminDistributors',
+      component: AdminDistributorsView,
+      meta: { menu: '매출 관리', submenu: '총판 관리', requiresAuth: true, isAdmin: true }
     },
     {
       path: '/admin/wholesale-revenue',
