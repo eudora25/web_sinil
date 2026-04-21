@@ -303,8 +303,9 @@ const excelLoading = ref(false)
 const searchInput = ref('');
 const router = useRouter()
 const fileInput = ref(null)
-const fromMonth = ref('')
-const toMonth = ref('')
+const currentMonth = new Date().toISOString().slice(0, 7)
+const fromMonth = ref(currentMonth)
+const toMonth = ref(currentMonth)
 const availableMonths = ref([])
 const currentPageFirstIndex = ref(0)
 const currentPage = ref(1)
@@ -1014,13 +1015,18 @@ const handleFileUpload = async (event) => {
 
 // 엑셀 다운로드 (전체 데이터)
 const downloadExcel = async () => {
+  if (totalCount.value > 30000) {
+    showWarning(`조회된 데이터가 ${totalCount.value.toLocaleString()}건으로 다운로드 한도(3만 건)를 초과합니다. 기간·총판·검색어 필터를 적용하여 범위를 줄여주세요.`)
+    return
+  }
+
   try {
     loading.value = true
 
     // 전체 데이터를 페이지별로 조회하여 합치기
     let allData = []
     let page = 0
-    const pageSize = 1000
+    const downloadPageSize = 1000
     let hasMore = true
 
     while (hasMore) {
@@ -1067,7 +1073,7 @@ const downloadExcel = async () => {
       }
 
       // 페이징 적용 (필터 적용 후)
-      query = query.range(page * pageSize, (page + 1) * pageSize - 1)
+      query = query.range(page * downloadPageSize, (page + 1) * downloadPageSize - 1)
 
       const { data, error } = await query
 
@@ -1081,11 +1087,10 @@ const downloadExcel = async () => {
         break
       }
 
-      allData = allData.concat(data)
+      allData.push(...data)
       page++
 
-      // 1000개 미만이면 더 이상 데이터가 없음
-      if (data.length < pageSize) {
+      if (data.length < downloadPageSize) {
         hasMore = false
       }
     }
