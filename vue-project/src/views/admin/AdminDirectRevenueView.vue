@@ -1015,8 +1015,8 @@ const handleFileUpload = async (event) => {
 
 // 엑셀 다운로드 (전체 데이터)
 const downloadExcel = async () => {
-  if (totalCount.value > 30000) {
-    showWarning(`조회된 데이터가 ${totalCount.value.toLocaleString()}건으로 다운로드 한도(3만 건)를 초과합니다. 기간·총판·검색어 필터를 적용하여 범위를 줄여주세요.`)
+  if (totalCount.value > 60000) {
+    showWarning(`조회된 데이터가 ${totalCount.value.toLocaleString()}건으로 다운로드 한도(6만 건)를 초과합니다. 기간·총판·검색어 필터를 적용하여 범위를 줄여주세요.`)
     return
   }
 
@@ -1154,18 +1154,6 @@ const downloadExcel = async () => {
         // 매출액 컬럼은 숫자 형식으로 설정
         if (colNumber === 9) {
           cell.numFmt = '#,##0'
-        }
-      })
-    })
-
-    // 테이블 테두리 설정 - 전체를 얇은 실선으로 통일
-    worksheet.eachRow((row) => {
-      row.eachCell((cell) => {
-        cell.border = {
-          top: { style: 'thin', color: { argb: '000000' } },
-          bottom: { style: 'thin', color: { argb: '000000' } },
-          left: { style: 'thin', color: { argb: '000000' } },
-          right: { style: 'thin', color: { argb: '000000' } }
         }
       })
     })
