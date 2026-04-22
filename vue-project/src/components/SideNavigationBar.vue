@@ -108,7 +108,7 @@ const adminMenuTree = [
     { label: '문전약국 목록', path: '/admin/pharmacies' }
   ]},
   { label: '매출 관리', icon: 'pi pi-chart-bar', children: [
-    { label: '총판 관리', path: '/admin/distributors' },
+    { label: '도매 업체 관리', path: '/admin/distributors' },
     { label: '도매매출 목록', path: '/admin/wholesale-revenue' },
     { label: '직거래매출 목록', path: '/admin/direct-revenue' }
   ]},

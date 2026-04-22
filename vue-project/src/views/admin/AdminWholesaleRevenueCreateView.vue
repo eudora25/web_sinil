@@ -3,7 +3,7 @@
     <div class="form-title">도매매출 등록</div>
     <form @submit.prevent="handleSubmit" class="form-grid">
       <div class="form-group">
-        <label>총판</label>
+        <label>도매 업체</label>
         <select v-model="selectedDistributorId" class="select_month">
           <option value="">- 선택 -</option>
           <option v-for="d in distributorList" :key="d.id" :value="d.id">
@@ -105,7 +105,7 @@ const fetchDistributorList = async () => {
     .select('id, name, business_registration_number')
     .order('name')
   if (error) {
-    showError('총판 목록을 불러오지 못했습니다: ' + error.message)
+    showError('도매 업체 목록을 불러오지 못했습니다: ' + error.message)
     distributorList.value = []
     return
   }

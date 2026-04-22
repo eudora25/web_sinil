@@ -101,7 +101,7 @@ const adminMenuTree = [
     { label: '문전약국 지정', path: '/admin/clients/assign-pharmacies' }
   ] },
   { label: '문전약국 관리', children: [ { label: '문전약국 목록', path: '/admin/pharmacies' } ] },
-  { label: '매출 관리', children: [ { label: '총판 관리', path: '/admin/distributors' }, { label: '도매매출 목록', path: '/admin/wholesale-revenue' }, { label: '직거래매출 목록', path: '/admin/direct-revenue' } ] },
+  { label: '매출 관리', children: [ { label: '도매 업체 관리', path: '/admin/distributors' }, { label: '도매매출 목록', path: '/admin/wholesale-revenue' }, { label: '직거래매출 목록', path: '/admin/direct-revenue' } ] },
   { label: '실적 관리', children: [ 
     { label: '정산월 관리', path: '/admin/settlement-months' },
     { label: '실적 등록', path: '/admin/performance/register' },
@@ -136,7 +136,7 @@ const breadcrumbMenu = computed(() => {
   if (/^\/admin\/products(\/|$)/.test(currentPath)) return '제품 관리';
   if (/^\/admin\/clients(\/|$)/.test(currentPath)) return '병의원 관리';
   if (/^\/admin\/pharmacies(\/|$)/.test(currentPath)) return '문전약국 관리';
-  if (/^\/admin\/distributors(\/|$)/.test(currentPath)) return '총판 관리';
+  if (/^\/admin\/distributors(\/|$)/.test(currentPath)) return '도매 업체 관리';
   if (/^\/admin\/wholesale-revenue(\/|$)/.test(currentPath)) return '도매매출 관리';
   if (/^\/admin\/direct-revenue(\/|$)/.test(currentPath)) return '직거래매출 관리';
   if (/^\/admin\/settlement-months(\/|$)/.test(currentPath)) return '정산월 관리';

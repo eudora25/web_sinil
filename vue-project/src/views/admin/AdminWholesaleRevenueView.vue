@@ -22,7 +22,7 @@
           </select>
         </div>
         <div style="display: flex; align-items: center; gap: 8px; margin-right: 24px">
-          <label style="font-weight: 400">총판</label>
+          <label style="font-weight: 400">도매 업체</label>
           <select v-model="selectedDistributorId" class="select_month" @change="applyFilters">
             <option value="">- 전체 -</option>
             <option v-for="d in distributorList" :key="d.id" :value="d.id">{{ d.name }}</option>
@@ -99,7 +99,7 @@
         </Column>
         <Column
           field="distributor_name"
-          header="총판"
+          header="도매 업체"
           :headerStyle="{ width: columnWidths.distributor }"
         >
           <template #body="slotProps">
@@ -998,7 +998,7 @@ const handleFileUpload = async (event) => {
 // 엑셀 다운로드 (전체 데이터)
 const downloadExcel = async () => {
   if (totalCount.value > 60000) {
-    showWarning(`조회된 데이터가 ${totalCount.value.toLocaleString()}건으로 다운로드 한도(6만 건)를 초과합니다. 기간·총판·검색어 필터를 적용하여 범위를 줄여주세요.`)
+    showWarning(`조회된 데이터가 ${totalCount.value.toLocaleString()}건으로 다운로드 한도(6만 건)를 초과합니다. 기간·도매 업체·검색어 필터를 적용하여 범위를 줄여주세요.`)
     return
   }
 
@@ -1085,7 +1085,7 @@ const downloadExcel = async () => {
     // 데이터 변환
     const excelData = allData.map((revenue, index) => ({
       No: index + 1,
-      총판명: revenue.distributors?.name || '',
+      '도매 업체명': revenue.distributors?.name || '',
       약국코드: revenue.pharmacy_code || '',
       약국명: revenue.pharmacy_name || '',
       사업자등록번호: revenue.business_registration_number || '',

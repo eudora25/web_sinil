@@ -241,7 +241,7 @@ const router = createRouter({
       path: '/admin/distributors',
       name: 'AdminDistributors',
       component: AdminDistributorsView,
-      meta: { menu: '매출 관리', submenu: '총판 관리', requiresAuth: true, isAdmin: true }
+      meta: { menu: '매출 관리', submenu: '도매 업체 관리', requiresAuth: true, isAdmin: true }
     },
     {
       path: '/admin/wholesale-revenue',

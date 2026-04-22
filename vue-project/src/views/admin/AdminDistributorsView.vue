@@ -1,7 +1,7 @@
 <template>
   <div class="admin-revenue-view page-container">
     <div class="page-header-title-area">
-      <div class="header-title">총판 관리</div>
+      <div class="header-title">도매 업체 관리</div>
     </div>
     <div class="filter-card">
       <div class="filter-row">
@@ -9,7 +9,7 @@
           <span class="filter-item p-input-icon-left" style="position:relative; width:320px;">
             <InputText
               v-model="searchInput"
-              placeholder="업체명, 사업자등록번호"
+              placeholder="도매 업체명, 사업자등록번호"
               class="search-input"
               @keyup.enter="applyFilters"
               style="width:100%;"
@@ -56,14 +56,14 @@
         class="admin-wholesale-revenue-table"
       >
         <template #empty>
-          <div v-if="!loading">등록된 총판이 없습니다.</div>
+          <div v-if="!loading">등록된 도매 업체가 없습니다.</div>
         </template>
         <Column header="No" :headerStyle="{ width: '8%' }">
           <template #body="slotProps">
             {{ (currentPage - 1) * pageSize + slotProps.index + 1 }}
           </template>
         </Column>
-        <Column field="name" header="업체명" :headerStyle="{ width: '30%' }">
+        <Column field="name" header="도매 업체명" :headerStyle="{ width: '30%' }">
           <template #body="slotProps">
             <input v-if="slotProps.data.isEditing" v-model="slotProps.data.name" :id="`name_${slotProps.data.id}`" />
             <span v-else>{{ slotProps.data.name }}</span>
@@ -112,11 +112,11 @@
     </div>
 
     <!-- 신규 등록 모달 -->
-    <Dialog v-model:visible="showCreateForm" header="총판 등록" modal :style="{ width: '480px' }">
+    <Dialog v-model:visible="showCreateForm" header="도매 업체 등록" modal :style="{ width: '480px' }">
       <div class="modal-form">
         <div class="form-group">
-          <label>업체명<span class="required">*</span></label>
-          <input v-model="newName" placeholder="업체명을 입력하세요" id="newDistributorName" />
+          <label>도매 업체명<span class="required">*</span></label>
+          <input v-model="newName" placeholder="도매 업체명을 입력하세요" id="newDistributorName" />
         </div>
         <div class="form-group">
           <label>사업자등록번호<span class="required">*</span></label>
@@ -209,7 +209,7 @@ const fetchTotalCount = async () => {
 // 신규 등록
 const createDistributor = async () => {
   if (!newName.value.trim()) {
-    showWarning('업체명을 입력하세요.')
+    showWarning('도매 업체명을 입력하세요.')
     return
   }
   const brnDigits = newBrn.value.replace(/[^0-9]/g, '')
@@ -269,7 +269,7 @@ const cancelEdit = (row) => {
 
 const saveEdit = async (row) => {
   if (!row.name || !row.name.trim()) {
-    showWarning('업체명을 입력하세요.')
+    showWarning('도매 업체명을 입력하세요.')
     return
   }
   const brnDigits = row.business_registration_number.replace(/[^0-9]/g, '')
@@ -307,7 +307,7 @@ const saveEdit = async (row) => {
 
 // 삭제
 const deleteDistributor = async (row) => {
-  if (!confirm(`'${row.name}' 총판을 삭제하시겠습니까?`)) return
+  if (!confirm(`'${row.name}' 도매 업체를 삭제하시겠습니까?`)) return
 
   const { error } = await supabase.from('distributors').delete().eq('id', row.id)
   if (error) {
