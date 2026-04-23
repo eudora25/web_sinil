@@ -738,7 +738,7 @@ const deleteRevenue = async (row) => {
 const downloadTemplate = async () => {
   const templateData = [
     {
-      도매사업자번호: '000-00-00000',
+      '도매 업체 사업자번호': '000-00-00000',
       약국코드: '',
       약국명: '예시약국',
       사업자등록번호: '123-45-67890',
@@ -775,12 +775,12 @@ const downloadTemplate = async () => {
       cell.font = { size: 11 }
       cell.alignment = { vertical: 'middle' }
 
-      // 가운데 정렬할 컬럼 지정 (도매사업자번호, 약국코드, 사업자등록번호, 표준코드, 매출일자)
+      // 가운데 정렬할 컬럼 지정 (도매 업체 사업자번호, 약국코드, 사업자등록번호, 표준코드, 매출일자)
       if ([1, 2, 4, 6, 9].includes(colNumber)) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
       }
 
-      // 사업자번호 컬럼들은 텍스트 형식으로 설정 (도매사업자번호, 사업자등록번호)
+      // 사업자번호 컬럼들은 텍스트 형식으로 설정 (도매 업체 사업자번호, 사업자등록번호)
       if (colNumber === 1 || colNumber === 4) {
         cell.numFmt = '@'
       }
@@ -806,7 +806,7 @@ const downloadTemplate = async () => {
 
   // 컬럼 너비 설정
   worksheet.columns = [
-    { width: 16 }, // 도매사업자번호
+    { width: 18 }, // 도매 업체 사업자번호
     { width: 12 }, // 약국코드
     { width: 32 }, // 약국명
     { width: 16 }, // 사업자등록번호
@@ -941,8 +941,11 @@ const handleFileUpload = async (event) => {
 
       // 총판 매핑 (미입력 허용)
       let distributorId = null
-      // 신규 템플릿은 '도매사업자번호' 사용, 기존 업로드 파일 호환을 위해 '총판사업자번호'도 허용
-      const distBrnRaw = row['도매사업자번호'] ?? row['총판사업자번호']
+      // 신규 템플릿은 '도매 업체 사업자번호' 사용, 기존 업로드 파일 호환을 위해 기존 컬럼명도 허용
+      const distBrnRaw =
+        row['도매 업체 사업자번호'] ??
+        row['도매사업자번호'] ??
+        row['총판사업자번호']
       if (distBrnRaw && distBrnRaw.toString().trim()) {
         const distBrn = distBrnRaw.toString().replace(/[^0-9]/g, '')
         const formattedDistBrn = distBrn.length === 10
@@ -950,7 +953,7 @@ const handleFileUpload = async (event) => {
           : distBrnRaw.toString().trim()
         distributorId = distBrnMap.get(formattedDistBrn) || null
         if (!distributorId) {
-          errors.push(`${rowNum}행: 도매사업자번호 '${distBrnRaw}'에 해당하는 도매 업체가 없습니다.`)
+          errors.push(`${rowNum}행: 도매 업체 사업자번호 '${distBrnRaw}'에 해당하는 도매 업체가 없습니다.`)
           return
         }
       }
