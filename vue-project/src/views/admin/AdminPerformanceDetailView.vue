@@ -111,6 +111,19 @@
             </select>
           </div>
           <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
+            <label>구분</label>
+            <select v-model="selectedCompanyGroup" class="select_month" @change="onCompanyGroupChange">
+              <option value="">전체</option>
+              <option
+                v-for="group in availableCompanyGroups"
+                :key="group"
+                :value="group"
+              >
+                {{ group }}
+              </option>
+            </select>
+          </div>
+          <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
             <label>병의원</label>
             <div class="hospital-search-container" style="position: relative;">
               <input
@@ -1414,6 +1427,7 @@ async function fetchStatistics() {
         .gte('settlement_month', rangeLow.value)
         .lte('settlement_month', rangeHigh.value);
       if (selectedCompanyId.value) q = q.eq('company_id', selectedCompanyId.value);
+      if (selectedCompanyGroup.value) q = q.eq('company_group', selectedCompanyGroup.value);
       if (selectedHospitalId.value) q = q.eq('client_id', selectedHospitalId.value);
       if (selectedProductName.value) q = q.eq('product_name', selectedProductName.value);
       return q.order('id', { ascending: true });
