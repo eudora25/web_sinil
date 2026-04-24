@@ -411,7 +411,6 @@ const fetchSummary = async () => {
           return toMonth.value + '-' + lastDay
         })() : null,
         search_keyword: searchInput.value.length >= 2 ? searchInput.value.toLowerCase() : null,
-        brn_list: null,
         distributor_id_filter: selectedDistributorId.value || null
       })
 
