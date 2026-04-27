@@ -570,16 +570,6 @@ async function fetchAllDataForMonth() {
     }
   }
   
-  // 병의원별 처방액 합계 계산 (소액처 판별용)
-  const clientPrescriptionMap = new Map();
-  for (const row of data) {
-    if (row.review_action === '삭제') continue;
-    const qty = row.prescription_qty ?? 0;
-    const price = row.products?.price ?? 0;
-    const amt = Math.round(qty * price);
-    clientPrescriptionMap.set(row.client_id, (clientPrescriptionMap.get(row.client_id) || 0) + amt);
-  }
-
   allDataForMonth.value = data.map(row => {
     const price = row.products?.price || 0;
     const qty = row.prescription_qty || 0;
@@ -644,10 +634,7 @@ async function fetchAllDataForMonth() {
     // 반영 흡수율 적용하여 최종 지급액 계산 (정수 반올림)
     // 관리자 상세 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율. 미설정 시 100% (기본값 1)
     const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1;
-    // 소액처 체크: 병의원별 처방액 합계가 10만원 미만이면 지급액 0원
-    const clientTotal = clientPrescriptionMap.get(row.client_id) || 0;
-    const isSmallClient = clientTotal < 100000;
-    const finalPaymentAmount = isSmallClient ? 0 : Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
+    const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
     
     return {
       ...row,

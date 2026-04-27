@@ -366,18 +366,6 @@ async function loadDetailData() {
       });
     }
     
-    // 병의원별 처방액 합계 계산 (소액처 판별용)
-    const clientPrescriptionMap = new Map();
-    if (allData && allData.length > 0) {
-      for (const row of allData) {
-        if (row.review_action === '삭제') continue;
-        const qty = row.prescription_qty ?? 0;
-        const price = row.products?.price ?? 0;
-        const amt = Math.round(qty * price);
-        clientPrescriptionMap.set(row.client_id, (clientPrescriptionMap.get(row.client_id) || 0) + amt);
-      }
-    }
-
     // 데이터 가공 (약가, 처방액, 지급액 계산)
     let mappedData = [];
     if (allData && allData.length > 0) {
@@ -436,18 +424,13 @@ async function loadDetailData() {
         }
       }
       
-      // 소액처 체크: 병의원별 처방액 합계가 10만원 미만이면 지급액 0원
-      const clientTotal = clientPrescriptionMap.get(row.client_id) || 0;
-      const isSmallClient = clientTotal < 100000;
-
-      const paymentAmount = isSmallClient ? 0 : Math.round(prescriptionAmount * commissionRate);
-
+      const paymentAmount = Math.round(prescriptionAmount * commissionRate);
+      
       // 반영 흡수율 처리 (별도 조회한 performance_records_absorption 테이블에서 가져온 값 사용)
       const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1.0;
-
+      
       // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
-      // 소액처는 0원 처리
-      const finalPaymentAmount = isSmallClient ? 0 : Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
+      const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
       
       return {
         ...row,
