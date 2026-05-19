@@ -117,7 +117,16 @@
     <div class="data-card" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
       <div class="data-card-header" style="flex-shrink: 0;">
         <div class="total-count-display">전체 {{ displayRows.length }} 건</div>
-        <div v-if="selectedHospitalRemarks && selectedHospitalId" 
+        <div class="status-legend">
+          <span class="legend-item"><span class="legend-color legend-added"></span>추가</span>
+          <span class="legend-item"><span class="legend-color legend-modified"></span>수정</span>
+          <span class="legend-item"><span class="legend-color legend-deleted"></span>삭제</span>
+          <span class="legend-item"><span class="legend-color legend-promotion"></span>프로모션</span>
+          <span class="legend-item"><span class="legend-color legend-promotion-added"></span>프로모션+추가</span>
+          <span class="legend-item"><span class="legend-color legend-promotion-modified"></span>프로모션+수정</span>
+          <span class="legend-item"><span class="legend-italic-sample">가나다</span>이전 2개월 동일</span>
+        </div>
+        <div v-if="selectedHospitalRemarks && selectedHospitalId"
           class="settlement-remarks" 
           style="background: #e3f2fd; 
           color: #1976d2; 
@@ -3631,6 +3640,41 @@ async function handleBulkChange() {
 :deep(.p-datatable-tfoot > tr > td) {
     background: #f8f9fa !important;
     font-weight: bold;
+}
+
+/* 상태별 배경색 범례 */
+.status-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: #555;
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.legend-color {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+}
+.legend-color.legend-added { background-color: #e3f2fd; }
+.legend-color.legend-modified { background-color: #fffde7; }
+.legend-color.legend-deleted { background-color: #ffebee; }
+.legend-color.legend-promotion { background-color: #f3e5f5; }
+.legend-color.legend-promotion-added { background-color: #e1bee7; }
+.legend-color.legend-promotion-modified { background-color: #f1c0f7; }
+.legend-italic-sample {
+  display: inline-block;
+  font-style: italic;
+  font-weight: bold;
+  margin-right: 2px;
 }
 
 /* 병의원 검색 드롭다운 스타일 */
