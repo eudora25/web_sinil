@@ -75,6 +75,8 @@
           scrollable
           scrollHeight="calc(100vh - 220px)"
           class="custom-table performance-register-table"
+          sortField="name"
+          :sortOrder="1"
         >
           <template #empty>
             <div v-if="!loading">{{ !selectedCompanyId ? '업체를 선택해주세요.' : '등록된 병의원이 없습니다.' }}</div>
@@ -92,7 +94,12 @@
             header="병의원코드"
             :headerStyle="{ width: columnWidths.client_code, textAlign: 'center' }"
           />
-          <Column header="병의원명" :headerStyle="{ width: columnWidths.name, textAlign: 'center' }">
+          <Column
+            field="name"
+            header="병의원명"
+            sortable
+            :headerStyle="{ width: columnWidths.name, textAlign: 'center' }"
+          >
             <template #body="slotProps">
               <a 
                 href="#" 
@@ -614,14 +621,8 @@ const fetchClientList = async () => {
       evidence_files_count,
     }
   })
-  // 정렬: 처방건수 0건 → 1건 이상, 각 그룹 내 가나다순
-  const noData = unsortedList
-    .filter((c) => !c.performance_count || Number(c.performance_count) === 0)
-    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
-  const hasData = unsortedList
-    .filter((c) => Number(c.performance_count) > 0)
-    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
-  clientList.value = [...noData, ...hasData]
+  // 정렬: 병의원명 가나다순 (DataTable 헤더 클릭으로 토글 가능)
+  clientList.value = unsortedList.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   loading.value = false
 }
 
