@@ -177,6 +177,19 @@
             </select>
           </div>
           <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
+            <label>구분</label>
+            <select v-model="selectedCompanyGroup" class="select_month" @change="onCompanyGroupChange">
+              <option value="">전체</option>
+              <option
+                v-for="group in availableCompanyGroups"
+                :key="group"
+                :value="group"
+              >
+                {{ group }}
+              </option>
+            </select>
+          </div>
+          <div v-if="drillDownLevel === 0" style="display: flex; align-items: center; gap: 8px;">
             <label>제품</label>
             <div class="product-search-container" style="position: relative;">
               <input
@@ -616,6 +629,12 @@
                 {{ slotProps.data.insurance_code || '-' }}
               </template>
             </Column>
+            <!-- 전체/병의원별 필터일 때 구분 표시 (콤마 결합) -->
+            <Column v-if="productStatisticsFilter === 'all' || productStatisticsFilter === 'hospital'" field="company_groups" header="구분" :headerStyle="{ width: '8%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+              <template #body="slotProps">
+                {{ slotProps.data.company_groups || '-' }}
+              </template>
+            </Column>
             <!-- 전체 필터일 때 약가 표시 -->
             <Column v-if="productStatisticsFilter === 'all'" field="price" header="약가" :headerStyle="{ width: '10%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
               <template #body="slotProps">
@@ -698,7 +717,7 @@
             </Column>
             <ColumnGroup type="footer">
               <Row>
-                <Column footer="합계" :colspan="productStatisticsFilter === 'all' ? 4 : productStatisticsFilter === 'company' ? 7 : 6" footerClass="footer-cell" footerStyle="text-align:center !important;" />
+                <Column footer="합계" :colspan="productStatisticsFilter === 'all' ? 5 : productStatisticsFilter === 'company' ? 7 : 7" footerClass="footer-cell" footerStyle="text-align:center !important;" />
                 <Column :footer="totalQty" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalAmount" footerClass="footer-cell" footerStyle="text-align:right !important;" />
                 <Column :footer="totalDirectRevenue" footerClass="footer-cell" footerStyle="text-align:right !important;" />
@@ -2086,7 +2105,7 @@ async function fetchStatistics() {
         } else if (productStatisticsFilter.value === 'hospital') {
           // 제품 + 병의원별 통계: performance_statistics 테이블 사용
           const productHospitalMap = new Map();
-          
+
           statisticsDataFromTable.forEach(item => {
             const key = `${item.product_id}_${item.client_id}`;
             if (!productHospitalMap.has(key)) {
@@ -2105,7 +2124,8 @@ async function fetchStatistics() {
                 direct_revenue: 0,
                 total_revenue: 0,
                 computed_revenue: 0,
-                absorption_rate: 0
+                absorption_rate: 0,
+                companyGroups: new Set()
               });
             }
 
@@ -2117,6 +2137,7 @@ async function fetchStatistics() {
             productHospital.direct_revenue += Number(item.direct_revenue) || 0;
             productHospital.total_revenue += Number(item.total_revenue) || 0;
             productHospital.computed_revenue += combinedRevenueDisplay(item);
+            if (item.company_group) productHospital.companyGroups.add(item.company_group);
           });
 
           // 흡수율 계산 및 배열로 변환
@@ -2128,17 +2149,18 @@ async function fetchStatistics() {
               absorptionRate = revenue / item.prescription_amount;
             }
 
-            const { computed_revenue, ...cleanItem } = item;
+            const { computed_revenue, companyGroups, ...cleanItem } = item;
             return {
               ...cleanItem,
               total_revenue: computed_revenue,
-              absorption_rate: absorptionRate
+              absorption_rate: absorptionRate,
+              company_groups: Array.from(companyGroups).sort().join(', ')
             };
           });
         } else {
           // 전체 (제품별만): product_id로 GROUP BY하여 집계
           const productMap = new Map();
-          
+
           statisticsDataFromTable.forEach(item => {
             const productId = item.product_id;
             if (!productMap.has(productId)) {
@@ -2155,7 +2177,8 @@ async function fetchStatistics() {
                 total_revenue: 0,
                 computed_revenue: 0,
                 total_absorption_rate: 0,
-                total_prescription_amount: 0
+                total_prescription_amount: 0,
+                companyGroups: new Set()
               });
             }
 
@@ -2169,6 +2192,7 @@ async function fetchStatistics() {
             product.computed_revenue += combinedRevenueDisplay(item);
             product.total_absorption_rate += (item.prescription_amount || 0) * (item.absorption_rate || 0);
             product.total_prescription_amount += item.prescription_amount || 0;
+            if (item.company_group) product.companyGroups.add(item.company_group);
           });
 
           // 평균 흡수율 계산 및 배열로 변환
@@ -2180,11 +2204,12 @@ async function fetchStatistics() {
               absorptionRate = revenue / product.prescription_amount;
             }
 
-            const { total_absorption_rate, total_prescription_amount, computed_revenue, ...cleanProduct } = product;
+            const { total_absorption_rate, total_prescription_amount, computed_revenue, companyGroups, ...cleanProduct } = product;
             return {
               ...cleanProduct,
               total_revenue: computed_revenue,
-              absorption_rate: absorptionRate
+              absorption_rate: absorptionRate,
+              company_groups: Array.from(companyGroups).sort().join(', ')
             };
           });
         }
@@ -3798,9 +3823,9 @@ async function downloadExcel() {
     if (productStatisticsFilter.value === 'company') {
       headers = ['No', '제품명', '보험코드', '구분', '업체명', '사업자등록번호', '대표자', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '최종 지급액'];
     } else if (productStatisticsFilter.value === 'hospital') {
-      headers = ['No', '제품명', '보험코드', '병의원명', '사업자등록번호', '주소', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '최종 지급액'];
+      headers = ['No', '제품명', '보험코드', '구분', '병의원명', '사업자등록번호', '주소', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '최종 지급액'];
     } else {
-      headers = ['No', '제품명', '보험코드', '약가', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '흡수율(%)'];
+      headers = ['No', '제품명', '보험코드', '구분', '약가', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '흡수율(%)'];
     }
   } else if (statisticsType.value === 'product' && drillDownType.value === 'company') {
     headers = ['No', '업체명', '처방수량', '처방액', '직거래매출', '도매매출', '매출액', '흡수율(%)'];
@@ -3937,6 +3962,7 @@ async function downloadExcel() {
           index + 1,
           row.product_name || '',
           row.insurance_code || '',
+          row.company_groups || '',
           row.hospital_name || '',
           row.business_registration_number || '',
           row.address || '',
@@ -3952,6 +3978,7 @@ async function downloadExcel() {
           index + 1,
           row.product_name || '',
           row.insurance_code || '',
+          row.company_groups || '',
           Number(row.price) || 0,
           Number(row.prescription_qty) || 0,
           Number(row.prescription_amount) || 0,
@@ -4012,7 +4039,7 @@ async function downloadExcel() {
         const isAbsorptionCol =
           (statisticsType.value === 'company' && drillDownLevel.value === 0 && colNumber === companyAbsorptionCol) ||
           (statisticsType.value === 'hospital' && drillDownLevel.value === 0 && colNumber === 12) ||
-          (statisticsType.value === 'product' && drillDownLevel.value === 0 && productStatisticsFilter.value === 'all' && colNumber === 10) ||
+          (statisticsType.value === 'product' && drillDownLevel.value === 0 && productStatisticsFilter.value === 'all' && colNumber === 11) ||
           (statisticsType.value === 'product' && drillDownType.value === 'company' && colNumber === 8);
         if (!isAbsorptionCol) {
           if (colNumber === numStartCol) {
