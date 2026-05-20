@@ -75,8 +75,9 @@ export function convertCommissionRateToDecimal(input) {
   const num = parseFloat(cleanedStr);
   if (isNaN(num)) return 0;
   
-  // 퍼센트 기호가 있거나 값이 1보다 크면 100으로 나누어 소수점으로 변환
-  if (hasPercent || num > 1) {
+  // 퍼센트 기호가 있거나 절댓값이 1보다 크면 100으로 나누어 소수점으로 변환
+  // (음수 입력 시 부호 때문에 num > 1 검사를 통과하지 못해 변환이 누락되던 버그 수정: -45 -> -0.45)
+  if (hasPercent || Math.abs(num) > 1) {
     return num / 100;
   }
   
