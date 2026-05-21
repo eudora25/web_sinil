@@ -2146,7 +2146,8 @@ async function downloadExcel() {
       '흡수율': (totalPrescriptionAmountForExcel > 0 ? (totalCombinedRevenueForExcel / totalPrescriptionAmountForExcel) : 0),
       '수수료율': (totalPrescriptionAmountForExcel > 0 ? (totalPaymentAmountForExcel / totalPrescriptionAmountForExcel) : 0),
       '지급액': totalPaymentAmountForExcel,
-      '반영 흡수율': (totalPrescriptionAmountForExcel > 0 ? Math.min((totalCombinedRevenueForExcel / totalPrescriptionAmountForExcel), 1) : 1),
+      // 합계 처방액이 0 이하(음수 반품 합산 포함)면 비율이 무의미하므로 0 (흡수율·수수료율 셀과 일관)
+      '반영 흡수율': (totalPrescriptionAmountForExcel > 0 ? Math.min((totalCombinedRevenueForExcel / totalPrescriptionAmountForExcel), 1) : 0),
       '최종 지급액': totalFinalPaymentAmountForExcel,
       '비고': '',
       '등록일시': '',
