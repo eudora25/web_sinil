@@ -584,7 +584,9 @@ const averageAbsorptionRate = computed(() => {
     return sum + Math.round((row.wholesale_revenue || 0) + (row.direct_revenue || 0));
   }, 0);
 
-  if (totalPrescriptionAmount === 0) return '- %';
+  // 음수 처방수량(반품/정정)이 섞여 합계 처방액이 0 이하가 되면
+  // 비율이 부호 반전·폭주(예: -4500%, 수만%)하므로 무의미값으로 표시
+  if (totalPrescriptionAmount <= 0) return '- %';
 
   // 흡수율 = (합계 합산액 ÷ 합계 처방액) × 100
   const absorptionRate = (totalCombinedRevenue / totalPrescriptionAmount) * 100;
@@ -607,7 +609,9 @@ const averageCommissionRate = computed(() => {
     return sum + (Number(String(row.payment_amount).replace(/,/g, '')) || 0);
   }, 0);
 
-  if (totalPrescriptionAmount === 0) return '- %';
+  // 음수 처방수량(반품/정정)이 섞여 합계 처방액이 0 이하가 되면
+  // 비율이 부호 반전·폭주하므로 무의미값으로 표시
+  if (totalPrescriptionAmount <= 0) return '- %';
 
   // 수수료율 = (합계 지급액 ÷ 합계 처방액) × 100
   const commissionRate = (totalPaymentAmount / totalPrescriptionAmount) * 100;
