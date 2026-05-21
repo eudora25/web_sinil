@@ -1860,14 +1860,20 @@ async function saveEdit(rowData) {
 
     const isNewRecord = !originalRows.value.some(r => r.id === rowData.id);
 
-    // 수수료율 검증 (100% 초과 방지)
+    // 수수료율 검증 (음수·100% 초과 방지)
     const commissionRateStr = String(rowData.commission_rate_modify || '').replace(/,/g, '').replace(/%/g, '');
     const commissionRateNum = Number(commissionRateStr);
+    if (!isNaN(commissionRateNum) && commissionRateNum < 0) {
+      throw new Error('수수료율은 0~100% 사이의 숫자여야 합니다.');
+    }
     if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
       throw new Error('수수료율은 100%를 초과할 수 없습니다.');
     }
-    
+
     const calculatedRate = convertCommissionRateToDecimal(rowData.commission_rate_modify);
+    if (calculatedRate < 0) {
+      throw new Error('수수료율은 0~100% 사이의 숫자여야 합니다.');
+    }
     if (calculatedRate > 1) {
       throw new Error('수수료율은 100%를 초과할 수 없습니다.');
     }
@@ -2940,13 +2946,18 @@ async function handleEditCalculations(rowData, field) {
             : null;
       }
   }
-  // 수수료율 검증 (100% 초과 방지)
+  // 수수료율 검증 (음수·100% 초과 방지)
   if (field === 'rate' && rowData.commission_rate_modify) {
     const commissionRateStr = String(rowData.commission_rate_modify).replace(/,/g, '').replace(/%/g, '');
     const commissionRateNum = Number(commissionRateStr);
-    if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
-      showWarning('수수료율은 100%를 초과할 수 없습니다.');
-      rowData.commission_rate_modify = '100';
+    if (!isNaN(commissionRateNum)) {
+      if (commissionRateNum < 0) {
+        showWarning('수수료율은 0~100% 사이의 숫자여야 합니다.');
+        rowData.commission_rate_modify = '0';
+      } else if (commissionRateNum > 100) {
+        showWarning('수수료율은 100%를 초과할 수 없습니다.');
+        rowData.commission_rate_modify = '100';
+      }
     }
   }
   
@@ -3003,16 +3014,21 @@ async function handleEditCalculations(rowData, field) {
   
 }
 
-// 수수료율 입력 시 실시간 검증 (100% 초과 방지)
+// 수수료율 입력 시 실시간 검증 (음수·100% 초과 방지)
 function handleCommissionRateInput(rowData) {
   if (!rowData.commission_rate_modify) return;
-  
+
   const commissionRateStr = String(rowData.commission_rate_modify).replace(/,/g, '').replace(/%/g, '');
   const commissionRateNum = Number(commissionRateStr);
-  
-  if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
-    showWarning('수수료율은 100%를 초과할 수 없습니다.');
-    rowData.commission_rate_modify = '100';
+
+  if (!isNaN(commissionRateNum)) {
+    if (commissionRateNum < 0) {
+      showWarning('수수료율은 0~100% 사이의 숫자여야 합니다.');
+      rowData.commission_rate_modify = '0';
+    } else if (commissionRateNum > 100) {
+      showWarning('수수료율은 100%를 초과할 수 없습니다.');
+      rowData.commission_rate_modify = '100';
+    }
   }
 }
 
