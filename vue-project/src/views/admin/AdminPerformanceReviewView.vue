@@ -346,7 +346,7 @@
                 type="text"
                 class="edit-mode-input"
                 placeholder="예: 5, 5%, 0.05"
-                @input="handleCommissionRateInput(slotProps.data)"
+                @input="handleCommissionRateInput(slotProps.data, $event)"
                 @change="handleEditCalculations(slotProps.data, 'rate')"
               />
               <span v-else>{{ (() => {
@@ -3016,15 +3016,16 @@ async function handleEditCalculations(rowData, field) {
 }
 
 // 수수료율 입력 시 실시간 검증 (음수 부호 제거·100% 초과 방지)
-function handleCommissionRateInput(rowData) {
+function handleCommissionRateInput(rowData, event) {
   if (!rowData.commission_rate_modify) return;
 
   // 마이너스(-) 부호만 제거하고 기존 입력값(자릿수)은 유지 (0으로 초기화하지 않음)
   let rawValue = String(rowData.commission_rate_modify);
+  let corrected = false;
   if (rawValue.includes('-')) {
     showWarning('수수료율에는 음수를 입력할 수 없습니다.');
     rawValue = rawValue.replace(/-/g, '');
-    rowData.commission_rate_modify = rawValue;
+    corrected = true;
   }
 
   const commissionRateStr = rawValue.replace(/,/g, '').replace(/%/g, '');
@@ -3032,7 +3033,14 @@ function handleCommissionRateInput(rowData) {
 
   if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
     showWarning('수수료율은 100%를 초과할 수 없습니다.');
-    rowData.commission_rate_modify = '100';
+    rawValue = '100';
+    corrected = true;
+  }
+
+  if (corrected) {
+    rowData.commission_rate_modify = rawValue;
+    // PrimeVue DataTable 셀은 모델 변경만으로 input 표시가 갱신되지 않으므로 DOM 값도 직접 동기화
+    if (event && event.target) event.target.value = rawValue;
   }
 }
 
