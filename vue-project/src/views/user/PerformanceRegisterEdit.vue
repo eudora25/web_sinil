@@ -1193,8 +1193,11 @@ function onCommissionRateInput(rowIdx) {
   let rate = row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '');
   if (rate && !isNaN(Number(rate))) {
     const rateNum = Number(rate);
-    // 수수료율이 100을 초과하면 100으로 제한
-    if (rateNum > 100) {
+    // 수수료율은 0~100% 범위로 제한 (음수·100 초과 차단)
+    if (rateNum < 0) {
+      showWarning('수수료율은 0~100% 사이의 숫자여야 합니다.');
+      row.commission_rate = '0';
+    } else if (rateNum > 100) {
       showWarning('수수료율은 100%를 초과할 수 없습니다.');
       row.commission_rate = '100';
     } else {
@@ -1230,9 +1233,12 @@ function formatCommissionRate(rowIdx) {
     const rateStr = row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '');
     const rate = Number(rateStr);
     if (!isNaN(rate)) {
-      // 수수료율이 100을 초과하면 100으로 제한
+      // 수수료율은 0~100% 범위로 제한
       let finalRate = rate;
-      if (rate > 100) {
+      if (rate < 0) {
+        showWarning('수수료율은 0~100% 사이의 숫자여야 합니다.');
+        finalRate = 0;
+      } else if (rate > 100) {
         showWarning('수수료율은 100%를 초과할 수 없습니다.');
         finalRate = 100;
       }
@@ -1391,7 +1397,7 @@ async function savePerformanceData() {
     // 관리자가 입력하는 경우 바로 완료 상태로 저장
     const reviewStatus = (route.query?.companyId && isAdminUser.value) ? '완료' : '대기';
     
-    const       dataToInsert = rowsToInsert.map(row => {
+    const dataToInsert = rowsToInsert.map((row, i) => {
       let commissionRate = 0;
       if (grade === 'A') {
         commissionRate = row.commission_rate_a;
@@ -1412,15 +1418,15 @@ async function savePerformanceData() {
         throw new Error('처방 수량을 숫자로 입력해주세요.');
       }
 
-      // 수수료율 검증 (100% 초과 방지)
+      // 수수료율 검증 (0~100% 범위)
       const commissionRateStr = String(row.commission_rate || '').replace(/,/g, '').replace(/%/g, '');
       const commissionRateNum = Number(commissionRateStr);
-      if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
-        throw new Error(`수수료율은 100%를 초과할 수 없습니다. (${i + 1}번째 행)`);
+      if (!isNaN(commissionRateNum) && (commissionRateNum < 0 || commissionRateNum > 100)) {
+        throw new Error(`수수료율은 0~100% 사이의 숫자여야 합니다. (${i + 1}번째 행)`);
       }
       const calculatedRate = convertCommissionRateToDecimal(row.commission_rate);
-      if (calculatedRate > 1) {
-        throw new Error(`수수료율은 100%를 초과할 수 없습니다. (${i + 1}번째 행)`);
+      if (calculatedRate < 0 || calculatedRate > 1) {
+        throw new Error(`수수료율은 0~100% 사이의 숫자여야 합니다. (${i + 1}번째 행)`);
       }
       
       return {
@@ -1480,15 +1486,15 @@ async function savePerformanceData() {
         commissionRate = row.commission_rate_e;
       }
       
-      // 수수료율 검증 (100% 초과 방지)
+      // 수수료율 검증 (0~100% 범위)
       const commissionRateStr = String(row.commission_rate || '').replace(/,/g, '').replace(/%/g, '');
       const commissionRateNum = Number(commissionRateStr);
-      if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
-        throw new Error(`수수료율은 100%를 초과할 수 없습니다. (${index + 1}번째 행)`);
+      if (!isNaN(commissionRateNum) && (commissionRateNum < 0 || commissionRateNum > 100)) {
+        throw new Error(`수수료율은 0~100% 사이의 숫자여야 합니다. (${index + 1}번째 행)`);
       }
       const calculatedRate = convertCommissionRateToDecimal(row.commission_rate);
-      if (calculatedRate > 1) {
-        throw new Error(`수수료율은 100%를 초과할 수 없습니다. (${index + 1}번째 행)`);
+      if (calculatedRate < 0 || calculatedRate > 1) {
+        throw new Error(`수수료율은 0~100% 사이의 숫자여야 합니다. (${index + 1}번째 행)`);
       }
       
       return supabase
