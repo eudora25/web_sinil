@@ -2946,18 +2946,19 @@ async function handleEditCalculations(rowData, field) {
             : null;
       }
   }
-  // 수수료율 검증 (음수·100% 초과 방지)
+  // 수수료율 검증 (음수 부호 제거·100% 초과 방지)
   if (field === 'rate' && rowData.commission_rate_modify) {
-    const commissionRateStr = String(rowData.commission_rate_modify).replace(/,/g, '').replace(/%/g, '');
+    // 마이너스(-) 부호만 제거하고 기존 입력값(자릿수)은 유지 (0으로 초기화하지 않음)
+    let rawValue = String(rowData.commission_rate_modify);
+    if (rawValue.includes('-')) {
+      rawValue = rawValue.replace(/-/g, '');
+      rowData.commission_rate_modify = rawValue;
+    }
+    const commissionRateStr = rawValue.replace(/,/g, '').replace(/%/g, '');
     const commissionRateNum = Number(commissionRateStr);
-    if (!isNaN(commissionRateNum)) {
-      if (commissionRateNum < 0) {
-        showWarning('수수료율은 0~100% 사이의 숫자여야 합니다.');
-        rowData.commission_rate_modify = '0';
-      } else if (commissionRateNum > 100) {
-        showWarning('수수료율은 100%를 초과할 수 없습니다.');
-        rowData.commission_rate_modify = '100';
-      }
+    if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
+      showWarning('수수료율은 100%를 초과할 수 없습니다.');
+      rowData.commission_rate_modify = '100';
     }
   }
   
@@ -3014,21 +3015,24 @@ async function handleEditCalculations(rowData, field) {
   
 }
 
-// 수수료율 입력 시 실시간 검증 (음수·100% 초과 방지)
+// 수수료율 입력 시 실시간 검증 (음수 부호 제거·100% 초과 방지)
 function handleCommissionRateInput(rowData) {
   if (!rowData.commission_rate_modify) return;
 
-  const commissionRateStr = String(rowData.commission_rate_modify).replace(/,/g, '').replace(/%/g, '');
+  // 마이너스(-) 부호만 제거하고 기존 입력값(자릿수)은 유지 (0으로 초기화하지 않음)
+  let rawValue = String(rowData.commission_rate_modify);
+  if (rawValue.includes('-')) {
+    showWarning('수수료율에는 음수를 입력할 수 없습니다.');
+    rawValue = rawValue.replace(/-/g, '');
+    rowData.commission_rate_modify = rawValue;
+  }
+
+  const commissionRateStr = rawValue.replace(/,/g, '').replace(/%/g, '');
   const commissionRateNum = Number(commissionRateStr);
 
-  if (!isNaN(commissionRateNum)) {
-    if (commissionRateNum < 0) {
-      showWarning('수수료율은 0~100% 사이의 숫자여야 합니다.');
-      rowData.commission_rate_modify = '0';
-    } else if (commissionRateNum > 100) {
-      showWarning('수수료율은 100%를 초과할 수 없습니다.');
-      rowData.commission_rate_modify = '100';
-    }
+  if (!isNaN(commissionRateNum) && commissionRateNum > 100) {
+    showWarning('수수료율은 100%를 초과할 수 없습니다.');
+    rowData.commission_rate_modify = '100';
   }
 }
 

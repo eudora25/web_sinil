@@ -1189,15 +1189,19 @@ function calculateAmounts(rowIdx) {
 // 수수료율 입력 시 지급액만 계산 (처방액은 변경하지 않음)
 function onCommissionRateInput(rowIdx) {
   const row = inputRows.value[rowIdx];
+  // 마이너스(-) 부호만 제거하고 기존 입력값(자릿수)은 유지 (0으로 초기화하지 않음)
+  let rawValue = row.commission_rate.toString();
+  if (rawValue.includes('-')) {
+    showWarning('수수료율에는 음수를 입력할 수 없습니다.');
+    rawValue = rawValue.replace(/-/g, '');
+    row.commission_rate = rawValue;
+  }
   // 백분율 기호 제거하고 숫자만 추출
-  let rate = row.commission_rate.toString().replace(/,/g, '').replace(/%/g, '');
+  let rate = rawValue.replace(/,/g, '').replace(/%/g, '');
   if (rate && !isNaN(Number(rate))) {
     const rateNum = Number(rate);
-    // 수수료율은 0~100% 범위로 제한 (음수·100 초과 차단)
-    if (rateNum < 0) {
-      showWarning('수수료율은 0~100% 사이의 숫자여야 합니다.');
-      row.commission_rate = '0';
-    } else if (rateNum > 100) {
+    // 수수료율은 100%를 초과할 수 없음
+    if (rateNum > 100) {
       showWarning('수수료율은 100%를 초과할 수 없습니다.');
       row.commission_rate = '100';
     } else {
@@ -1236,8 +1240,8 @@ function formatCommissionRate(rowIdx) {
       // 수수료율은 0~100% 범위로 제한
       let finalRate = rate;
       if (rate < 0) {
-        showWarning('수수료율은 0~100% 사이의 숫자여야 합니다.');
-        finalRate = 0;
+        // 음수는 부호만 제거하고 절댓값으로 유지 (0으로 초기화하지 않음)
+        finalRate = Math.abs(rate);
       } else if (rate > 100) {
         showWarning('수수료율은 100%를 초과할 수 없습니다.');
         finalRate = 100;
