@@ -134,7 +134,7 @@
             paginator
             :rows="10"
             scrollable
-            scrollHeight="400px"
+            scrollHeight="flex"
             class="excluded-hospitals-table"
             :rowClass="getExcludedRowClass"
           >
@@ -1566,6 +1566,16 @@ onMounted(() => {
   flex: 1;
   padding: 20px 28px;
   overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* DataTable가 컨테이너 높이를 채우도록 (scrollHeight="flex"와 함께 동작) */
+.excluded-hospitals-list-container :deep(.p-datatable) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   min-height: 0;
 }
 
