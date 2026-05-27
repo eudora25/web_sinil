@@ -589,7 +589,7 @@ const fetchClientList = async () => {
   // 실적 집계
   const { data: perfData } = await supabase
     .from('performance_records')
-    .select('client_id, prescription_qty, products(price)')
+    .select('client_id, prescription_qty, review_action, products(price)')
     .eq('company_id', selectedCompanyId.value)
     .eq('settlement_month', selectedSettlementMonth.value)
 
@@ -607,7 +607,9 @@ const fetchClientList = async () => {
 
   // 집계
   let unsortedList = clients.map((client) => {
-    const perfRows = perfData?.filter((p) => p.client_id === client.id) || []
+    // 실적검수에서 소프트 삭제(review_action='삭제')된 건은 집계 제외 (NULL은 정상 유지)
+    const perfRows =
+      perfData?.filter((p) => p.client_id === client.id && p.review_action !== '삭제') || []
     const performance_count = perfRows.length
     const total_prescription_amount = perfRows.reduce(
       (sum, p) => sum + Math.round((p.prescription_qty || 0) * (p.products?.price || 0)),
@@ -703,6 +705,7 @@ async function fetchViewModalData(clientId) {
       .select(
         `
         prescription_qty,
+        review_action,
         products (
           product_name,
           price
@@ -714,11 +717,14 @@ async function fetchViewModalData(clientId) {
       .eq('client_id', clientId)
 
     if (!error && data) {
-      viewModalData.value = data.map((record) => ({
-        product_name: record.products?.product_name || '',
-        prescription_qty: record.prescription_qty || 0,
-        prescription_amount: Math.round((record.prescription_qty || 0) * (record.products?.price || 0)),
-      }))
+      // 실적검수에서 소프트 삭제(review_action='삭제')된 건은 조회 목록에서 제외 (NULL은 정상 유지)
+      viewModalData.value = data
+        .filter((record) => record.review_action !== '삭제')
+        .map((record) => ({
+          product_name: record.products?.product_name || '',
+          prescription_qty: record.prescription_qty || 0,
+          prescription_amount: Math.round((record.prescription_qty || 0) * (record.products?.price || 0)),
+        }))
     }
   } catch (err) {
     console.error('조회 데이터 로드 오류:', err)
