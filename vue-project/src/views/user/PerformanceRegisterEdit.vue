@@ -1724,11 +1724,13 @@ async function loadExistingData() {
       .select(`
         *,
         products ( * )
-     
+
       `)
       .eq('company_id', myCompany.id)
       .eq('settlement_month', settlementMonth)
-      .eq('client_id', clientId);
+      .eq('client_id', clientId)
+      // 실적검수에서 소프트 삭제(review_action='삭제')된 건은 편집 그리드에서 제외 (NULL은 정상 유지)
+      .or('review_action.is.null,review_action.neq.삭제');
     if (error) {
       console.error('기존 실적 조회 오류:', error);
       return;
