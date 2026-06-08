@@ -86,9 +86,9 @@ const fields = [
   { key: 'companyName', label: '업체명', inputType: 'text', required: true },
   { key: 'businessRegistrationNumber', label: '사업자등록번호', inputType: 'text', required: true },
   { key: 'representativeName', label: '대표자명', inputType: 'text', required: true },
-  { key: 'businessAddress', label: '사업장 소재지', inputType: 'text', required: false },
-  { key: 'contactPersonName', label: '담당자명', inputType: 'text', required: false },
-  { key: 'mobilePhone', label: '휴대폰번호', inputType: 'text', required: false },
+  { key: 'businessAddress', label: '사업장 소재지', inputType: 'text', required: true },
+  { key: 'contactPersonName', label: '담당자명', inputType: 'text', required: true },
+  { key: 'mobilePhone', label: '휴대폰번호', inputType: 'text', required: true },
 ];
 
 const showPassword = ref(false);
