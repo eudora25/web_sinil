@@ -186,6 +186,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
 import { useNotifications } from '@/utils/notifications';
+import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -325,7 +326,20 @@ async function loadDetailData() {
     // 병원별 프로모션 실적 정보 조회
     const hospitalIds = [...new Set(allData.map(r => r.client_id).filter(id => id))];
     let hospitalPerformanceMap = new Map();
-    
+    // 이관 연속성: 병원-업체 배정 이력 (월 기간) → 정산월별 담당 판정
+    let assignmentHistoryMap = new Map();
+    if (hospitalIds.length > 0) {
+      const { data: histories } = await supabase
+        .from('client_company_assignment_history')
+        .select('client_id, company_id, effective_from_month, effective_to_month')
+        .in('client_id', hospitalIds);
+      (histories || []).forEach(h => {
+        const k = `${h.client_id}_${h.company_id}`;
+        if (!assignmentHistoryMap.has(k)) assignmentHistoryMap.set(k, []);
+        assignmentHistoryMap.get(k).push({ effective_from_month: h.effective_from_month, effective_to_month: h.effective_to_month });
+      });
+    }
+
     if (hospitalIds.length > 0 && companyId.value) {
       const { data: hospitalPerf, error: hospitalPerfError } = await supabase
         .from('promotion_product_hospital_performance')
@@ -335,14 +349,15 @@ async function loadDetailData() {
           promotion_product_list!inner(insurance_code, final_commission_rate, promotion_start_date, promotion_end_date)
         `)
         .in('hospital_id', hospitalIds)
-        .eq('first_performance_cso_id', companyId.value)
+        // 이관 연속성: 업체로 한정하지 않고 병원+제품 단위 대상 자격 행을 모두 조회
+        .not('first_performance_cso_id', 'is', null)
         .eq('has_performance', true);
-      
+
       if (!hospitalPerfError && hospitalPerf) {
         hospitalPerf.forEach(hp => {
           const insuranceCode = String(hp.promotion_product_list?.insurance_code || '');
-          const key = `${hp.hospital_id}_${insuranceCode}_${hp.first_performance_cso_id}`;
-          hospitalPerformanceMap.set(key, hp.promotion_product_list);
+          const key = `${hp.hospital_id}_${insuranceCode}`;
+          hospitalPerformanceMap.set(key, { ...hp.promotion_product_list, first_performance_cso_id: hp.first_performance_cso_id });
         });
       }
     }
@@ -386,14 +401,19 @@ async function loadDetailData() {
         const insuranceCode = productInsuranceCodeMap.get(productId);
         if (insuranceCode) {
           const hospitalId = row.client_id;
-          const key = `${hospitalId}_${insuranceCode}_${companyId.value}`;
+          const key = `${hospitalId}_${insuranceCode}`;
           const promotionInfo = hospitalPerformanceMap.get(key);
-          
+
           // 제외 병원 확인
           const excludedKey = `${insuranceCode}_${hospitalId}`;
           const isExcluded = excludedHospitalsMap.has(excludedKey);
-          
-          if (promotionInfo && !isExcluded) {
+
+          // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
+          const isAssigned = isAssignedForMonth(assignmentHistoryMap.get(`${hospitalId}_${companyId.value}`), month.value);
+          const isPromotionApplicable = promotionInfo
+            && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, companyId.value, month.value, isAssigned);
+
+          if (isPromotionApplicable && !isExcluded) {
             // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
             let isWithinPromotionPeriod = true;
             

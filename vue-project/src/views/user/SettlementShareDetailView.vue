@@ -257,6 +257,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { getNoticeModalHidePreference, setNoticeModalHidePreference } from '@/utils/userPreferences';
 import { useNotifications } from '@/utils/notifications';
+import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -494,7 +495,20 @@ async function fetchAllDataForMonth() {
   let hospitalPerformanceMap = new Map();
   let promotionProductsMap = new Map();
   let excludedHospitalsMap = new Set();
-  
+  // 이관 연속성: 병원-업체 배정 이력 (월 기간) → 정산월별 담당 판정
+  let assignmentHistoryMap = new Map(); // `${hospitalId}_${companyId}` -> [{effective_from_month, effective_to_month}]
+  if (hospitalIds.length > 0) {
+    const { data: histories } = await supabase
+      .from('client_company_assignment_history')
+      .select('client_id, company_id, effective_from_month, effective_to_month')
+      .in('client_id', hospitalIds);
+    (histories || []).forEach(h => {
+      const k = `${h.client_id}_${h.company_id}`;
+      if (!assignmentHistoryMap.has(k)) assignmentHistoryMap.set(k, []);
+      assignmentHistoryMap.get(k).push({ effective_from_month: h.effective_from_month, effective_to_month: h.effective_to_month });
+    });
+  }
+
   if (hospitalIds.length > 0 && companyId.value) {
     // 1. promotion_product_hospital_performance에서 조회 (조인 없이, RLS 정책 수정 후 조회 가능)
     // 관리자 페이지와 동일하게 has_performance = true 조건 추가
@@ -507,7 +521,8 @@ async function fetchAllDataForMonth() {
         promotion_product_id
       `)
       .in('hospital_id', hospitalIds)
-      .eq('first_performance_cso_id', companyId.value)
+      // 이관 연속성: 특정 업체로 한정하지 않고 병원+제품 단위 대상 자격(자격 있는 행)을 모두 조회
+      .not('first_performance_cso_id', 'is', null)
       .eq('has_performance', true);
     
     if (!hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
@@ -534,14 +549,15 @@ async function fetchAllDataForMonth() {
             if (promotionProduct) {
               const insuranceCode = String(promotionProduct.insurance_code).trim();
               const hospitalId = hp.hospital_id;
-              const companyIdValue = hp.first_performance_cso_id;
-              const key = `${hospitalId}_${insuranceCode}_${companyIdValue}`;
-              
+              // 병원+제품 단위 키 (업체 무관). 적용 업체 판정은 isPromotionApplicableToCompany 에서 처리
+              const key = `${hospitalId}_${insuranceCode}`;
+
               hospitalPerformanceMap.set(key, {
                 insurance_code: promotionProduct.insurance_code,
                 final_commission_rate: promotionProduct.final_commission_rate,
                 promotion_start_date: promotionProduct.promotion_start_date,
-                promotion_end_date: promotionProduct.promotion_end_date
+                promotion_end_date: promotionProduct.promotion_end_date,
+                first_performance_cso_id: hp.first_performance_cso_id
               });
             }
           });
@@ -592,14 +608,19 @@ async function fetchAllDataForMonth() {
       const insuranceCode = productInsuranceCodeMap.get(productId);
       if (insuranceCode) {
         const hospitalId = row.client_id;
-        const key = `${hospitalId}_${insuranceCode}_${companyId.value}`;
+        const key = `${hospitalId}_${insuranceCode}`;
         const promotionInfo = hospitalPerformanceMap.get(key);
-        
+
         // 제외 병원 확인
         const excludedKey = `${insuranceCode}_${hospitalId}`;
         const isExcluded = excludedHospitalsMap.has(excludedKey);
-        
-        if (promotionInfo && !isExcluded) {
+
+        // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
+        const isAssigned = isAssignedForMonth(assignmentHistoryMap.get(`${hospitalId}_${companyId.value}`), selectedMonth.value);
+        const isPromotionApplicable = promotionInfo
+          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, companyId.value, selectedMonth.value, isAssigned);
+
+        if (isPromotionApplicable && !isExcluded) {
           // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
           let isWithinPromotionPeriod = true;
           

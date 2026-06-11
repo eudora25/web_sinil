@@ -569,6 +569,7 @@ import Button from 'primevue/button';
 import ProgressBar from 'primevue/progressbar';
 import { v4 as uuidv4 } from 'uuid';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
+import { isPromotionApplicableToCompany, isTransferContinuityMonth, isAssignedForMonth } from '@/utils/promotion';
 import { useNotifications } from '@/utils/notifications';
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
@@ -1499,6 +1500,21 @@ async function loadPerformanceData() {
         }
       });
     }
+
+    // 이관 연속성: 병원-업체 배정 이력 (월 기간) → 정산월별 담당 판정
+    const assignmentHistoryMap = new Map();
+    const reviewHospitalIds = [...new Set((hospitalPerformance || []).map(hp => hp.hospital_id).filter(id => id))];
+    if (reviewHospitalIds.length > 0) {
+      const { data: histories } = await supabase
+        .from('client_company_assignment_history')
+        .select('client_id, company_id, effective_from_month, effective_to_month')
+        .in('client_id', reviewHospitalIds);
+      (histories || []).forEach(h => {
+        const k = `${h.client_id}_${h.company_id}`;
+        if (!assignmentHistoryMap.has(k)) assignmentHistoryMap.set(k, []);
+        assignmentHistoryMap.get(k).push({ effective_from_month: h.effective_from_month, effective_to_month: h.effective_to_month });
+      });
+    }
     
     // promotion_product_excluded_hospitals 조회 (제외 병원 목록)
     const { data: excludedHospitals, error: excludedError } = await supabase
@@ -1681,9 +1697,15 @@ async function loadPerformanceData() {
         const excludedKey = `${insuranceCode}_${hospitalId}`;
         const isExcluded = excludedHospitalsMap.has(excludedKey);
         
-        if (promotionProduct && 
-            hospitalPerformanceMap.has(performanceKey) &&
-            hospitalPerformanceMap.get(performanceKey).has(companyId) &&
+        // 이관 연속성: 병원+제품 대상 자격이 있고, 그 정산월에 담당이던 업체일 때만 적용 (cutoff 이전 월은 기존 최초업체 로직)
+        const csoSet = hospitalPerformanceMap.get(performanceKey);
+        const isPromotionApplicable = !!csoSet && csoSet.size > 0 &&
+          (isTransferContinuityMonth(settlementMonth)
+            ? isAssignedForMonth(assignmentHistoryMap.get(`${hospitalId}_${companyId}`), settlementMonth)
+            : csoSet.has(companyId));
+
+        if (promotionProduct &&
+            isPromotionApplicable &&
             !isExcluded) { // 제외 병원이 아닌 경우에만 프로모션 적용
           
           // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
@@ -2884,13 +2906,22 @@ async function handleEditCalculations(rowData, field) {
             .eq('hospital_id', hospitalId)
             .eq('has_performance', true);
           
-          // 프로모션 제품이고 해당 병원에 실적이 있으며, 현재 업체가 first_performance_cso_id와 동일한 경우 final_commission_rate 사용
+          // 이관 연속성: 그 정산월에 담당이던 업체인지 배정 이력으로 확인
+          const { data: assignHist } = await supabase
+            .from('client_company_assignment_history')
+            .select('effective_from_month, effective_to_month')
+            .eq('client_id', hospitalId)
+            .eq('company_id', companyId);
+          const isAssigned = isAssignedForMonth(assignHist, rowData.settlement_month);
+
+          // 프로모션 제품이고 해당 병원에 실적이 있으며, 그 정산월 담당 업체일 때 final_commission_rate 사용
           if (!hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
-            const promotionProduct = hospitalPerf.find(hp => 
+            // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직)
+            const promotionProduct = hospitalPerf.find(hp =>
               String(hp.promotion_product_list?.insurance_code) === insuranceCode &&
-              hp.first_performance_cso_id === companyId
+              isPromotionApplicableToCompany(hp.first_performance_cso_id, companyId, rowData.settlement_month, isAssigned)
             );
-            
+
             if (promotionProduct && promotionProduct.promotion_product_list?.final_commission_rate !== undefined) {
               // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
               const promotionInfo = promotionProduct.promotion_product_list;
@@ -3094,14 +3125,23 @@ async function applySelectedProduct(product, rowData) {
       `)
       .eq('hospital_id', hospitalId)
       .eq('has_performance', true);
-    
-    // 프로모션 제품이고 해당 병원에 실적이 있으며, 현재 업체가 first_performance_cso_id와 동일한 경우 final_commission_rate 사용
+
+    // 이관 연속성: 그 정산월에 담당이던 업체인지 배정 이력으로 확인
+    const { data: assignHist } = await supabase
+      .from('client_company_assignment_history')
+      .select('effective_from_month, effective_to_month')
+      .eq('client_id', hospitalId)
+      .eq('company_id', companyId);
+    const isAssigned = isAssignedForMonth(assignHist, reactiveRow.settlement_month);
+
+    // 프로모션 제품이고 해당 병원에 실적이 있으며, 그 정산월 담당 업체일 때 final_commission_rate 사용
     if (!hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
-      const promotionProduct = hospitalPerf.find(hp => 
+      // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직)
+      const promotionProduct = hospitalPerf.find(hp =>
         String(hp.promotion_product_list?.insurance_code) === insuranceCode &&
-        hp.first_performance_cso_id === companyId
+        isPromotionApplicableToCompany(hp.first_performance_cso_id, companyId, reactiveRow.settlement_month, isAssigned)
       );
-      
+
       if (promotionProduct && promotionProduct.promotion_product_list?.final_commission_rate !== undefined) {
         // 프로모션 기간 확인 (정산월 기준)
         const promotionInfo = promotionProduct.promotion_product_list;
