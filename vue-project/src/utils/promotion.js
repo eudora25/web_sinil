@@ -12,7 +12,8 @@
 //   병원이 다른 CSO 로 이관되면 신규 업체에서 프로모션이 끊겼다.
 // - 개선: 그 병원에 "현재 배정된(담당) 업체"(client_company_assignments)에게만 프로모션을 적용한다.
 //   이관되어 배정이 빠진 기존 업체는, 이관 이후 월에 실적을 올려도 적용받지 못한다.
-//   업체 그룹(NEWCSO 여부)과 무관하게 적용.
+// - 그룹 제한: cutoff 이후(이관 연속성) 분기에서는 그 정산월 담당 업체가 NEWCSO 그룹일 때만 적용한다.
+//   비-NEWCSO 업체로 이관되면 그 달부터 프로모션이 중단된다. (cutoff 이전 과거 월은 그룹 게이트 미적용)
 //
 // [과거 정산분 보존 (cutoff)]
 // - 이미 정산이 끝난 과거 월을 소급해서 바꾸지 않기 위해, 아래 기준월 이상(>=)부터만
@@ -48,14 +49,18 @@ export function isTransferContinuityMonth(settlementMonth) {
  * @param {boolean} isAssignedToHospital         그 업체가 해당 정산월에 그 병원의 담당이었는지
  *                                               (client_company_assignment_history 월 기간 판정,
  *                                                isAssignedForMonth 로 계산)
+ * @param {boolean} isNewCsoCompany              정산 대상 업체가 NEWCSO 그룹인지(companies.company_group==='NEWCSO').
+ *                                               cutoff 이후(이관 연속성) 분기에서만 사용 — 그 정산월 담당 업체가
+ *                                               NEWCSO일 때만 적용(비-NEWCSO로 이관되면 프로모션 중단).
  * @returns {boolean}
  */
-export function isPromotionApplicableToCompany(firstPerfCsoId, companyId, settlementMonth, isAssignedToHospital) {
+export function isPromotionApplicableToCompany(firstPerfCsoId, companyId, settlementMonth, isAssignedToHospital, isNewCsoCompany) {
   // 자격 없음(최초 처방이 프로모션 시작일 이전이거나 대상 아님)
   if (!firstPerfCsoId) return false;
-  // cutoff 이후: 그 정산월에 담당이던 업체만 적용 → 이관 연속성 (업체 그룹 무관)
-  if (isTransferContinuityMonth(settlementMonth)) return !!isAssignedToHospital;
-  // cutoff 이전: 기존 로직(최초 업체 == 현재 업체)으로 과거 정산분 보존
+  // cutoff 이후: 그 정산월에 담당이던 NEWCSO 업체만 적용 → 이관 연속성 + 그룹 제한
+  //   (비-NEWCSO 업체로 이관되면 그 달부터 프로모션 미적용)
+  if (isTransferContinuityMonth(settlementMonth)) return !!isAssignedToHospital && !!isNewCsoCompany;
+  // cutoff 이전: 기존 로직(최초 업체 == 현재 업체)으로 과거 정산분 보존(그룹 게이트 미적용)
   return firstPerfCsoId === companyId;
 }
 

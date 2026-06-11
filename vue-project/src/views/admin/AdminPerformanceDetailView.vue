@@ -1433,7 +1433,16 @@ async function fetchPromotionData(filteredRecords) {
     });
   }
 
-  return { productInsuranceCodeMap, hospitalPerformanceMap, excludedHospitalsSet, assignmentHistoryMap };
+  // NEWCSO 그룹 여부 맵: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 프로모션 적용
+  const companyGroupMap = new Map();
+  const promoCompanyIds = [...new Set(filteredRecords.map(r => r.company_id).filter(id => id))];
+  if (promoCompanyIds.length > 0) {
+    const { data: companyRows } = await supabase
+      .from('companies').select('id, company_group').in('id', promoCompanyIds);
+    (companyRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group));
+  }
+
+  return { productInsuranceCodeMap, hospitalPerformanceMap, excludedHospitalsSet, assignmentHistoryMap, companyGroupMap };
 }
 
 // 통계 데이터 조회
@@ -2370,7 +2379,7 @@ function aggregateByCompany(data, absorptionRates = {}, promotionData = null) {
         // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
         const isAssigned = isAssignedForMonth(promotionData.assignmentHistoryMap.get(`${record.client_id}_${record.company_id}`), record.settlement_month);
         const isPromotionApplicable = promotionInfo
-          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, record.company_id, record.settlement_month, isAssigned);
+          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, record.company_id, record.settlement_month, isAssigned, promotionData.companyGroupMap.get(record.company_id) === 'NEWCSO');
         if (isPromotionApplicable && !isExcluded) {
           let isWithinPeriod = true;
           const sd = new Date(record.settlement_month + '-01');
@@ -2492,7 +2501,7 @@ function aggregateByHospital(data, absorptionRates = {}, promotionData = null) {
         // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
         const isAssigned = isAssignedForMonth(promotionData.assignmentHistoryMap.get(`${record.client_id}_${record.company_id}`), record.settlement_month);
         const isPromotionApplicable = promotionInfo
-          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, record.company_id, record.settlement_month, isAssigned);
+          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, record.company_id, record.settlement_month, isAssigned, promotionData.companyGroupMap.get(record.company_id) === 'NEWCSO');
         if (isPromotionApplicable && !isExcluded) {
           let isWithinPeriod = true;
           const sd = new Date(record.settlement_month + '-01');
@@ -2622,7 +2631,7 @@ function aggregateByProduct(data, absorptionRates = {}, promotionData = null) {
         // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
         const isAssigned = isAssignedForMonth(promotionData.assignmentHistoryMap.get(`${record.client_id}_${record.company_id}`), record.settlement_month);
         const isPromotionApplicable = promotionInfo
-          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, record.company_id, record.settlement_month, isAssigned);
+          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, record.company_id, record.settlement_month, isAssigned, promotionData.companyGroupMap.get(record.company_id) === 'NEWCSO');
         if (isPromotionApplicable && !isExcluded) {
           let isWithinPeriod = true;
           const sd = new Date(record.settlement_month + '-01');
@@ -2754,7 +2763,7 @@ function aggregateByCompanyAndHospital(data, absorptionRates = {}, promotionData
         // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
         const isAssigned = isAssignedForMonth(promotionData.assignmentHistoryMap.get(`${record.client_id}_${record.company_id}`), record.settlement_month);
         const isPromotionApplicable = promotionInfo
-          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, record.company_id, record.settlement_month, isAssigned);
+          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, record.company_id, record.settlement_month, isAssigned, promotionData.companyGroupMap.get(record.company_id) === 'NEWCSO');
         if (isPromotionApplicable && !isExcluded) {
           let isWithinPeriod = true;
           const sd = new Date(record.settlement_month + '-01');
@@ -2842,7 +2851,7 @@ function aggregateByCompanyAndProduct(data, absorptionRates = {}, promotionData 
         // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
         const isAssigned = isAssignedForMonth(promotionData.assignmentHistoryMap.get(`${record.client_id}_${record.company_id}`), record.settlement_month);
         const isPromotionApplicable = promotionInfo
-          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, record.company_id, record.settlement_month, isAssigned);
+          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, record.company_id, record.settlement_month, isAssigned, promotionData.companyGroupMap.get(record.company_id) === 'NEWCSO');
         if (isPromotionApplicable && !isExcluded) {
           let isWithinPeriod = true;
           const sd = new Date(record.settlement_month + '-01');

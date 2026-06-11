@@ -1272,6 +1272,8 @@ async function loadAbsorptionAnalysisResults() {
     let hospitalPerformanceMap = new Map();
     let excludedHospitalsMap = new Set();
     let assignmentHistoryMap = new Map();
+    // NEWCSO 그룹 여부 맵: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 프로모션 적용
+    let companyGroupMap = new Map();
 
     if (productIds.length > 0) {
       // 제품 정보 조회
@@ -1303,6 +1305,11 @@ async function loadAbsorptionAnalysisResults() {
           if (!assignmentHistoryMap.has(k)) assignmentHistoryMap.set(k, []);
           assignmentHistoryMap.get(k).push({ effective_from_month: h.effective_from_month, effective_to_month: h.effective_to_month });
         });
+      }
+      if (companyIds.length > 0) {
+        const { data: companyRows } = await supabase
+          .from('companies').select('id, company_group').in('id', companyIds);
+        (companyRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group));
       }
 
       if (insuranceCodes.length > 0 && hospitalIds.length > 0 && companyIds.length > 0) {
@@ -1373,7 +1380,7 @@ async function loadAbsorptionAnalysisResults() {
               // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
               const isAssigned = isAssignedForMonth(assignmentHistoryMap.get(`${hospitalId}_${companyId}`), row.settlement_month);
               const isPromotionApplicable = promotionInfo
-                && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, companyId, row.settlement_month, isAssigned);
+                && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, companyId, row.settlement_month, isAssigned, companyGroupMap.get(companyId) === 'NEWCSO');
 
               if (isPromotionApplicable && !isExcluded) {
                 // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
@@ -1799,6 +1806,13 @@ const calculateAbsorptionRates = async () => {
         assignmentHistoryMap.get(k).push({ effective_from_month: h.effective_from_month, effective_to_month: h.effective_to_month });
       });
     }
+    // NEWCSO 그룹 여부 맵: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 프로모션 적용
+    const companyGroupMap = new Map();
+    if (companyIds.length > 0) {
+      const { data: companyRows } = await supabase
+        .from('companies').select('id, company_group').in('id', companyIds);
+      (companyRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group));
+    }
 
     if (hospitalIds.length > 0 && companyIds.length > 0) {
       const { data: hospitalPerf, error: hospitalPerfError } = await supabase
@@ -1877,7 +1891,7 @@ const calculateAbsorptionRates = async () => {
             // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
             const isAssigned = isAssignedForMonth(assignmentHistoryMap.get(`${hospitalId}_${companyId}`), record.settlement_month);
             const isPromotionApplicable = promotionInfo
-              && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, companyId, record.settlement_month, isAssigned);
+              && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, companyId, record.settlement_month, isAssigned, companyGroupMap.get(companyId) === 'NEWCSO');
 
             if (isPromotionApplicable && !isExcluded) {
               // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함

@@ -553,6 +553,13 @@ async function loadSettlementData() {
         assignmentHistoryMap.get(k).push({ effective_from_month: h.effective_from_month, effective_to_month: h.effective_to_month });
       });
     }
+    // NEWCSO 그룹 여부 맵: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 프로모션 적용
+    const companyGroupMap = new Map();
+    if (promotionCompanyIds.length > 0) {
+      const { data: companyRows } = await supabase
+        .from('companies').select('id, company_group').in('id', promotionCompanyIds);
+      (companyRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group));
+    }
 
     if (hospitalIds.length > 0 && promotionCompanyIds.length > 0) {
       const { data: hospitalPerf, error: hospitalPerfError } = await supabase
@@ -678,7 +685,7 @@ async function loadSettlementData() {
             // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
             const isAssigned = isAssignedForMonth(assignmentHistoryMap.get(`${hospitalId}_${companyId}`), record.settlement_month);
             const isPromotionApplicable = promotionInfo
-              && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, companyId, record.settlement_month, isAssigned);
+              && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, companyId, record.settlement_month, isAssigned, companyGroupMap.get(companyId) === 'NEWCSO');
 
             if (isPromotionApplicable && !isExcluded) {
               // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함

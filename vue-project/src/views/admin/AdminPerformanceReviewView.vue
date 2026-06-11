@@ -1596,6 +1596,15 @@ async function loadPerformanceData() {
     let registrarMap = new Map();
     let updaterMap = new Map();
 
+    // NEWCSO 그룹 여부 맵: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 프로모션 적용
+    const companyGroupMap = new Map();
+    const promoCompanyIds = [...new Set(allData.map(item => item.company_id).filter(id => id))];
+    if (promoCompanyIds.length > 0) {
+      const { data: companyGroupRows } = await supabase
+        .from('companies').select('id, company_group').in('id', promoCompanyIds);
+      (companyGroupRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group));
+    }
+
     if (registrarIds.length > 0) {
       const { data: registrars, error: registrarError } = await supabase
         .from('companies')
@@ -1698,10 +1707,12 @@ async function loadPerformanceData() {
         const isExcluded = excludedHospitalsMap.has(excludedKey);
         
         // 이관 연속성: 병원+제품 대상 자격이 있고, 그 정산월에 담당이던 업체일 때만 적용 (cutoff 이전 월은 기존 최초업체 로직)
+        // cutoff 이후엔 담당 업체가 NEWCSO 그룹일 때만 적용(비-NEWCSO 이관 시 중단)
         const csoSet = hospitalPerformanceMap.get(performanceKey);
         const isPromotionApplicable = !!csoSet && csoSet.size > 0 &&
           (isTransferContinuityMonth(settlementMonth)
-            ? isAssignedForMonth(assignmentHistoryMap.get(`${hospitalId}_${companyId}`), settlementMonth)
+            ? (isAssignedForMonth(assignmentHistoryMap.get(`${hospitalId}_${companyId}`), settlementMonth)
+               && companyGroupMap.get(companyId) === 'NEWCSO')
             : csoSet.has(companyId));
 
         if (promotionProduct &&
@@ -2913,13 +2924,17 @@ async function handleEditCalculations(rowData, field) {
             .eq('client_id', hospitalId)
             .eq('company_id', companyId);
           const isAssigned = isAssignedForMonth(assignHist, rowData.settlement_month);
+          // NEWCSO 그룹 여부: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 적용
+          const { data: companyRow } = await supabase
+            .from('companies').select('company_group').eq('id', companyId).maybeSingle();
+          const isNewCsoCompany = companyRow?.company_group === 'NEWCSO';
 
           // 프로모션 제품이고 해당 병원에 실적이 있으며, 그 정산월 담당 업체일 때 final_commission_rate 사용
           if (!hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
             // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직)
             const promotionProduct = hospitalPerf.find(hp =>
               String(hp.promotion_product_list?.insurance_code) === insuranceCode &&
-              isPromotionApplicableToCompany(hp.first_performance_cso_id, companyId, rowData.settlement_month, isAssigned)
+              isPromotionApplicableToCompany(hp.first_performance_cso_id, companyId, rowData.settlement_month, isAssigned, isNewCsoCompany)
             );
 
             if (promotionProduct && promotionProduct.promotion_product_list?.final_commission_rate !== undefined) {
@@ -3133,13 +3148,17 @@ async function applySelectedProduct(product, rowData) {
       .eq('client_id', hospitalId)
       .eq('company_id', companyId);
     const isAssigned = isAssignedForMonth(assignHist, reactiveRow.settlement_month);
+    // NEWCSO 그룹 여부: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 적용
+    const { data: companyRow } = await supabase
+      .from('companies').select('company_group').eq('id', companyId).maybeSingle();
+    const isNewCsoCompany = companyRow?.company_group === 'NEWCSO';
 
     // 프로모션 제품이고 해당 병원에 실적이 있으며, 그 정산월 담당 업체일 때 final_commission_rate 사용
     if (!hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
       // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직)
       const promotionProduct = hospitalPerf.find(hp =>
         String(hp.promotion_product_list?.insurance_code) === insuranceCode &&
-        isPromotionApplicableToCompany(hp.first_performance_cso_id, companyId, reactiveRow.settlement_month, isAssigned)
+        isPromotionApplicableToCompany(hp.first_performance_cso_id, companyId, reactiveRow.settlement_month, isAssigned, isNewCsoCompany)
       );
 
       if (promotionProduct && promotionProduct.promotion_product_list?.final_commission_rate !== undefined) {

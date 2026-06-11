@@ -508,6 +508,13 @@ async function fetchAllDataForMonth() {
       assignmentHistoryMap.get(k).push({ effective_from_month: h.effective_from_month, effective_to_month: h.effective_to_month });
     });
   }
+  // NEWCSO 그룹 여부: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 프로모션 적용
+  let isNewCsoCompany = false;
+  if (companyId.value) {
+    const { data: companyRow } = await supabase
+      .from('companies').select('company_group').eq('id', companyId.value).maybeSingle();
+    isNewCsoCompany = companyRow?.company_group === 'NEWCSO';
+  }
 
   if (hospitalIds.length > 0 && companyId.value) {
     // 1. promotion_product_hospital_performance에서 조회 (조인 없이, RLS 정책 수정 후 조회 가능)
@@ -618,7 +625,7 @@ async function fetchAllDataForMonth() {
         // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직 유지)
         const isAssigned = isAssignedForMonth(assignmentHistoryMap.get(`${hospitalId}_${companyId.value}`), selectedMonth.value);
         const isPromotionApplicable = promotionInfo
-          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, companyId.value, selectedMonth.value, isAssigned);
+          && isPromotionApplicableToCompany(promotionInfo.first_performance_cso_id, companyId.value, selectedMonth.value, isAssigned, isNewCsoCompany);
 
         if (isPromotionApplicable && !isExcluded) {
           // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
