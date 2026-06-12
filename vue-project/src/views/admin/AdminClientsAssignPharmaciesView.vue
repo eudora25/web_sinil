@@ -658,8 +658,16 @@ async function deleteAssignment(client, pharmacy = null) {
 
   let query = supabase.from('client_pharmacy_assignments').delete().eq('client_id', client.id)
   if (pharmacy) query = query.eq('pharmacy_id', pharmacy.id)
-  await query
-  await fetchClients()
+  const { error } = await query
+  if (error) {
+    console.error('문전약국 삭제 실패:', error)
+    showError('문전약국 삭제 중 오류가 발생했습니다: ' + error.message)
+    return
+  }
+
+  // 추가와 동일하게: 전체 목록 새로고침(fetchClients) 대신 해당 병원의 약국 목록만 갱신
+  // → 병원 검색 결과·스크롤 위치 등 화면 상태를 그대로 유지
+  await updateClientPharmacies(client.id)
 }
 
 const downloadTemplate = async () => {
