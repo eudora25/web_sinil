@@ -2227,7 +2227,9 @@ async function downloadExcel() {
       '최종 지급액': totalFinalPaymentAmountForExcel,
       '비고': '',
       '등록일시': '',
-      '등록자': ''
+      '등록자': '',
+      '수정일시': '',
+      '수정자': ''
     });
 
     // ExcelJS 워크북 생성
