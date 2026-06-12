@@ -103,7 +103,7 @@
                       :tabindex="isRowEditable(row) ? 0 : -1"
                       :readonly="!isRowEditable(row)"
                       @input="handleProductNameInput(rowIdx, $event)"
-                      @keydown.enter.prevent="applySelectedProductFromSearch(rowIdx)"
+                      @keydown.enter="onEnterProductSelect($event, rowIdx)"
                       @keydown.down.prevent="navigateProductSearchList('down')"
                       @keydown.up.prevent="navigateProductSearchList('up')"
                       @keydown="onArrowKey($event, rowIdx, 'product_name')"
@@ -165,7 +165,7 @@
                     v-model="row.prescription_qty"
                     :tabindex="isRowEditable(row) ? 0 : -1"
                     :readonly="!isRowEditable(row)"
-                    @keydown.enter.prevent="addOrFocusNextRow(rowIdx)"
+                    @keydown.enter="onEnterNextRow($event, rowIdx)"
                     @keydown="onArrowKey($event, rowIdx, 'prescription_qty')"
                     @keypress="onQtyKeypress($event)"
                     @input="onQtyInput(rowIdx, $event)"
@@ -225,7 +225,7 @@
                     v-model="row.remarks"
                     :tabindex="isRowEditable(row) ? 0 : -1"
                     :readonly="!isRowEditable(row)"
-                    @keydown.enter.prevent="addOrFocusNextRow(rowIdx)"
+                    @keydown.enter="onEnterNextRow($event, rowIdx)"
                     @keydown="onArrowKey($event, rowIdx, 'remarks')"
                     @focus="handleFieldFocus(rowIdx, 'remarks')"
                     :disabled="!isRowEditable(row)"
@@ -1018,6 +1018,21 @@ function focusField(rowIdx, col) {
       }
     }
   });
+}
+
+// 한글 IME 조합 중(isComposing/keyCode 229)에 엔터로 포커스를 옮기면 다음 칸 IME가
+// 영문으로 리셋되는 현상이 있어, 조합 중에는 엔터를 그대로 흘려보내 한글 확정에만 사용한다.
+// 조합이 끝난 뒤의 엔터에서만 preventDefault + 포커스 이동을 수행한다.
+function onEnterProductSelect(e, rowIdx) {
+  if (e.isComposing || e.keyCode === 229) return;
+  e.preventDefault();
+  applySelectedProductFromSearch(rowIdx);
+}
+
+function onEnterNextRow(e, rowIdx) {
+  if (e.isComposing || e.keyCode === 229) return;
+  e.preventDefault();
+  addOrFocusNextRow(rowIdx);
 }
 
 function addOrFocusNextRow(rowIdx) {
