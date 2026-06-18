@@ -928,11 +928,12 @@ function formatPrescriptionQty(rowIdx) {
 
 // 테이블 네비게이션 함수들
 function focusField(rowIdx, col) {
-  nextTick(() => {
+  // 대상 칸을 찾아 포커스. 찾아서 포커스했으면 true.
+  const doFocus = () => {
     const table = document.querySelector('.input-table');
-    if (!table) return;
+    if (!table) return false;
     const row = table.querySelectorAll('tbody tr')[rowIdx];
-    if (!row) return;
+    if (!row) return false;
 
     let el = null;
     if (col === 'prescription_month') el = row.querySelector('td:nth-child(3) select');
@@ -941,14 +942,21 @@ function focusField(rowIdx, col) {
     else if (col === 'commission_rate') el = row.querySelector('td:nth-child(9) input');
     else if (col === 'prescription_type') el = row.querySelector('td:nth-child(11) select');
     else if (col === 'remarks') el = row.querySelector('td:nth-child(12) input');
- 
-    if (el) {
-      el.focus();
-      if (el.tagName === 'INPUT') {
-        el.select();
-      }
+
+    if (!el) return false;
+    el.focus();
+    if (el.tagName === 'INPUT') {
+      el.select();
     }
-  });
+    return true;
+  };
+
+  // 한글 IME 영문전환 완화: 대상 칸이 이미 렌더돼 있으면 키 입력(사용자 제스처) 콜스택
+  // 안에서 동기로 포커스를 옮긴다. nextTick(제스처 밖)으로 옮기면 Chrome(Windows)에서
+  // IME가 영문으로 리셋되는 경향이 있어, 가능하면 동기로 처리하고 DOM에 아직 없을 때만 폴백한다.
+  // (trailing 빈 행은 inputRows watcher가 미리 추가해 두므로 다음 행은 보통 이미 렌더됨)
+  if (doFocus()) return;
+  nextTick(doFocus);
 }
 
 // 한글 IME 조합 중(isComposing/keyCode 229)에 엔터로 포커스를 옮기면 다음 칸 IME가
