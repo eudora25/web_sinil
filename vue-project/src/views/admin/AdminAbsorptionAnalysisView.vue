@@ -1091,6 +1091,8 @@ async function loadAbsorptionAnalysisResults() {
           commission_rate,
           remarks,
           review_action,
+          registered_by,
+          updated_by,
           wholesale_revenue,
           direct_revenue,
           total_revenue,
@@ -1463,9 +1465,9 @@ async function loadAbsorptionAnalysisResults() {
                 commission_rate: `${(commissionRate * 100).toFixed(1)}%`,
                 absorption_rate: absorptionRate,
                 created_date: formatDateTime(row.created_at),
-                created_by: userMap.get(row.registered_by) || '-',
+                created_by: userMap.get(row.registered_by) || '관리자',
                 updated_date: row.updated_at ? formatDateTime(row.updated_at) : null,
-                updated_by: row.updated_by ? userMap.get(row.updated_by) || '-' : null,
+                updated_by: row.updated_by ? userMap.get(row.updated_by) || '관리자' : null,
                 isPromotionRateApplied: isPromotionRateApplied, // 프로모션 수수료율 적용 여부
             };
         } catch (error) {
@@ -1702,6 +1704,8 @@ const calculateAbsorptionRates = async () => {
         remarks,
         review_status,
         review_action,
+        registered_by,
+        updated_by,
         created_at,
         updated_at
       `)
