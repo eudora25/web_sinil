@@ -11,7 +11,7 @@
     <div class="data-card">
       <div class="data-card-header">
         <div class="total-count-display">
-          전체 {{ hospitalPerformanceList.length }} 건
+          전체 {{ hospitalCount }} 건
         </div>
         <div class="action-buttons-group">
           <!-- <button class="btn-exclude" @click="openExcludedHospitalsModal">
@@ -23,13 +23,9 @@
       <DataTable
         :value="hospitalPerformanceList"
         :loading="loading"
-        paginator
-        :rows="50"
-        :rowsPerPageOptions="[20, 50, 100]"
         scrollable
         scrollHeight="calc(100vh - 250px)"
         class="admin-products-table"
-        v-model:first="currentPageFirstIndex"
         :rowClass="getRowClass"
       >
         <template #empty>
@@ -37,10 +33,10 @@
         </template>
         <Column header="No" :headerStyle="{ width: '5%' }">
           <template #body="slotProps">
-            {{ slotProps.index + currentPageFirstIndex + 1 }}
+            {{ slotProps.index + 1 }}
           </template>
         </Column>
-        <Column field="hospital_name" header="병의원명" :headerStyle="{ width: '25%' }" :sortable="true">
+        <Column field="hospital_name" header="병의원명" :headerStyle="{ width: '25%' }">
           <template #body="slotProps">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span>{{ slotProps.data.hospital_name }}</span>
@@ -50,27 +46,27 @@
             </div>
           </template>
         </Column>
-        <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+        <Column field="business_registration_number" header="사업자등록번호" :headerStyle="{ width: '15%' }" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
             {{ slotProps.data.business_registration_number || '-' }}
           </template>
         </Column>
-        <Column field="first_performance_month" header="최초 실적 처방월" :headerStyle="{ width: '12%' }" :sortable="true" :bodyStyle="{ textAlign: 'center' }">
+        <Column field="first_performance_month" header="최초 실적 처방월" :headerStyle="{ width: '12%' }" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
             {{ slotProps.data.first_performance_month || '-' }}
           </template>
         </Column>
-        <Column field="cso_name" header="적용 업체" :headerStyle="{ width: '15%' }" :sortable="true">
+        <Column field="cso_name" header="적용 업체" :headerStyle="{ width: '15%' }">
           <template #body="slotProps">
-            {{ slotProps.data.cso_name || '-' }}
+            {{ slotProps.data.rowType === 'company' ? (slotProps.data.cso_name || '-') : '' }}
           </template>
         </Column>
-        <Column field="after_promotion_amount" header="프로모션 실적 금액" :headerStyle="{ width: '15%' }" :sortable="true" :bodyStyle="{ textAlign: 'right' }">
+        <Column field="after_promotion_amount" header="프로모션 실적 금액" :headerStyle="{ width: '15%' }" :bodyStyle="{ textAlign: 'right' }">
           <template #body="slotProps">
             {{ slotProps.data.cso_name ? formatNumber(slotProps.data.after_promotion_amount) : '-' }}
           </template>
         </Column>
-        <Column header="생성 일시" :headerStyle="{ width: '13%' }" :sortable="true">
+        <Column header="생성 일시" :headerStyle="{ width: '13%' }">
           <template #body="slotProps">
             {{ formatDate(slotProps.data.created_at) }}
           </template>
@@ -343,7 +339,6 @@ const router = useRouter();
 const loading = ref(false);
 const hospitalPerformanceList = ref([]);
 const productName = ref('');
-const currentPageFirstIndex = ref(0);
 const insuranceCode = ref(''); // 표시용으로만 사용
 const promotionProductId = ref(null);
 const excludedHospitalIds = ref(new Set());
@@ -359,12 +354,18 @@ const searchResults = ref([]);
 const searchingHospitals = ref(false);
 const applyToAllProducts = ref(false);
 
-// 합계 계산 (프로모션 실적 금액 - 적용 업체가 있는 경우만)
+// 전체 병원 수 (행은 병원×업체로 분리되므로 병원 id 기준으로 집계)
+const hospitalCount = computed(() => {
+  const ids = new Set();
+  hospitalPerformanceList.value.forEach(row => ids.add(row.hospital_id));
+  return ids.size;
+});
+
+// 합계 계산 (적용 업체가 있는 행의 프로모션 실적 금액만 합산)
 const totalPromotionAmount = computed(() => {
-  return hospitalPerformanceList.value.reduce((sum, item) => {
-    // 적용 업체가 있는 경우만 합계에 포함
-    if (item.cso_name) {
-      return sum + (Number(item.after_promotion_amount) || 0);
+  return hospitalPerformanceList.value.reduce((sum, row) => {
+    if (row.cso_name) {
+      return sum + (Number(row.after_promotion_amount) || 0);
     }
     return sum;
   }, 0);
@@ -376,10 +377,10 @@ async function fetchHospitalPerformance() {
   try {
     const productIdFromRoute = route.params.id;
 
-    // 먼저 제품 정보 조회
+    // 먼저 제품 정보 조회 (적용 업체 파생을 위해 연관코드/프로모션 기간 포함)
     const { data: productData, error: productError } = await supabase
       .from('promotion_product_list')
-      .select('product_name, insurance_code')
+      .select('product_name, insurance_code, related_insurance_code, promotion_start_date, promotion_end_date')
       .eq('id', productIdFromRoute)
       .single();
 
@@ -389,6 +390,13 @@ async function fetchHospitalPerformance() {
       insuranceCode.value = productData.insurance_code; // 표시용
       promotionProductId.value = Number(productIdFromRoute);
     }
+
+    // 적용 업체(복수) 파생 기준 — AdminPromotionProductsView 의 after_promotion_amount 재계산과 동일:
+    //   프로모션 시작월(baseMonth)~종료월(endMonth), NEWCSO 그룹, insurance_code(+related) 기준
+    const relatedInsuranceCode = productData?.related_insurance_code || null;
+    const baseMonth = productData?.promotion_start_date ? String(productData.promotion_start_date).substring(0, 7) : null;
+    const endMonth = productData?.promotion_end_date ? String(productData.promotion_end_date).substring(0, 7) : null;
+    const insuranceCodesForPromotion = [productData?.insurance_code, relatedInsuranceCode].filter(Boolean).map(String);
 
     // 제외 병원 목록 조회 (데이터가 없어도 에러가 나지 않도록 처리)
     if (promotionProductId.value) {
@@ -450,23 +458,102 @@ async function fetchHospitalPerformance() {
       (companiesData || []).forEach(c => { companyNameByCsoId[c.id] = c.company_name; });
     }
 
-    // 데이터 변환 (관계 데이터를 평탄화)
-    hospitalPerformanceList.value = (data || []).map(item => ({
-      id: item.id,
-      hospital_id: item.hospital_id,
-      hospital_name: item.clients?.name || '-',
-      business_registration_number: item.clients?.business_registration_number || null,
-      has_performance: item.has_performance || false,
-      first_performance_cso_id: item.first_performance_cso_id,
-      first_performance_month: item.first_performance_month || null,
-      total_performance_amount: item.total_performance_amount || 0,
-      before_promotion_amount: item.before_promotion_amount || 0,
-      after_promotion_amount: item.after_promotion_amount || 0,
-      cso_name: item.first_performance_cso_id ? (companyNameByCsoId[item.first_performance_cso_id] ?? null) : null,
-      created_at: item.created_at,
-      updated_at: item.updated_at,
-      isExcluded: excludedHospitalIds.value.has(item.hospital_id)
-    }));
+    // 적용 업체(복수) 파생: performance_records 를 업체별로 합산
+    // - 기준: NEWCSO 그룹 + 프로모션 기간(>=시작월, <=종료월) + insurance_code(+related) + review완료/비삭제
+    // - 합산 기준이 after_promotion_amount 재계산(AdminPromotionProductsView)과 동일하므로 병원 소계가 일치한다.
+    // - first_performance_cso_id 가 있는(=자격) 병원만 업체별로 분해한다. (자격 없는 병원은 기존처럼 '-')
+    const qualifyingHospitalIds = (data || [])
+      .filter(item => item.first_performance_cso_id)
+      .map(item => item.hospital_id);
+    const companyAmountByHospital = new Map(); // hospital_id -> Map(company_id -> { company_name, amount })
+
+    if (baseMonth && insuranceCodesForPromotion.length > 0 && qualifyingHospitalIds.length > 0) {
+      const HOSPITAL_BATCH = 200;
+      for (let h = 0; h < qualifyingHospitalIds.length; h += HOSPITAL_BATCH) {
+        const hospitalBatch = qualifyingHospitalIds.slice(h, h + HOSPITAL_BATCH);
+        let from = 0;
+        const batchSize = 1000;
+        while (true) {
+          let prQuery = supabase
+            .from('performance_records')
+            .select('client_id, company_id, prescription_qty, prescription_month, products!inner(insurance_code, price), companies!inner(company_group, company_name)')
+            .in('client_id', hospitalBatch)
+            .in('products.insurance_code', insuranceCodesForPromotion)
+            .eq('companies.company_group', 'NEWCSO')
+            .eq('review_status', '완료')
+            .or('review_action.is.null,review_action.neq.삭제')
+            .gte('prescription_month', baseMonth);
+          if (endMonth) prQuery = prQuery.lte('prescription_month', endMonth);
+
+          const { data: prRecords, error: prError } = await prQuery.range(from, from + batchSize - 1);
+          if (prError) throw prError;
+          if (!prRecords || prRecords.length === 0) break;
+
+          for (const r of prRecords) {
+            if (!r.client_id || !r.company_id) continue;
+            const price = Number(r.products?.price) || 0;
+            const qty = Number(r.prescription_qty) || 0;
+            const amount = qty * price;
+            if (!companyAmountByHospital.has(r.client_id)) companyAmountByHospital.set(r.client_id, new Map());
+            const companyMap = companyAmountByHospital.get(r.client_id);
+            const entry = companyMap.get(r.company_id) || { company_name: r.companies?.company_name || '-', amount: 0, first_month: null };
+            entry.amount += amount;
+            if (r.companies?.company_name) entry.company_name = r.companies.company_name;
+            // 그 업체의 최초 실적 처방월 (가장 이른 prescription_month)
+            if (r.prescription_month && (!entry.first_month || r.prescription_month < entry.first_month)) {
+              entry.first_month = r.prescription_month;
+            }
+            companyMap.set(r.company_id, entry);
+          }
+
+          if (prRecords.length < batchSize) break;
+          from += batchSize;
+        }
+      }
+    }
+
+    // 표시 행 구성: 병원별로 적용 업체 수만큼 행 분리(각 행이 병원 정보를 모두 포함)
+    const displayRows = [];
+    for (const item of (data || [])) {
+      const hospitalBase = {
+        hospital_id: item.hospital_id,
+        hospital_name: item.clients?.name || '-',
+        business_registration_number: item.clients?.business_registration_number || null,
+        first_performance_month: item.first_performance_month || null,
+        created_at: item.created_at,
+        isExcluded: excludedHospitalIds.value.has(item.hospital_id),
+        rowType: 'company',
+      };
+
+      // 자격 없음(first_performance_cso_id null): 기존과 동일하게 단일 '-' 행
+      if (!item.first_performance_cso_id) {
+        displayRows.push({ ...hospitalBase, company_id: null, cso_name: null, after_promotion_amount: null });
+        continue;
+      }
+
+      const companyMap = companyAmountByHospital.get(item.hospital_id);
+      let companyRows = companyMap
+        ? [...companyMap.entries()].map(([companyId, v]) => ({ company_id: companyId, cso_name: v.company_name, after_promotion_amount: v.amount, first_month: v.first_month }))
+        : [];
+
+      // 파생 결과가 없으면(데이터 변동 등) 저장된 최초 업체/금액으로 폴백
+      if (companyRows.length === 0) {
+        companyRows = [{
+          company_id: item.first_performance_cso_id,
+          cso_name: companyNameByCsoId[item.first_performance_cso_id] ?? '-',
+          after_promotion_amount: item.after_promotion_amount || 0,
+        }];
+      }
+
+      // 금액 큰 업체부터 표시
+      companyRows.sort((a, b) => (Number(b.after_promotion_amount) || 0) - (Number(a.after_promotion_amount) || 0));
+
+      companyRows.forEach((c) => {
+        displayRows.push({ ...hospitalBase, company_id: c.company_id, cso_name: c.cso_name, after_promotion_amount: c.after_promotion_amount, first_performance_month: c.first_month ?? hospitalBase.first_performance_month });
+      });
+    }
+
+    hospitalPerformanceList.value = displayRows;
   } catch (error) {
     console.error('병원 실적 조회 오류:', error);
     showError('병원 실적 조회 중 오류가 발생했습니다: ' + (error.message || error));
