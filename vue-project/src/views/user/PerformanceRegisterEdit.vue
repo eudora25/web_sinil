@@ -115,6 +115,7 @@
                         { 'disabled-area': !isRowEditable(row) }
                       ]"
                       autocomplete="off"
+                      lang="ko"
                       :ref="el => setProductInputRef(rowIdx, el)"
                     />
                     <button 
@@ -233,6 +234,7 @@
                       cellClass(rowIdx, 'remarks'),
                       { 'disabled-area': !isRowEditable(row) }
                     ]"
+                    lang="ko"
                     style="text-align:left;"
                   />
                 </td>
@@ -394,7 +396,6 @@ const prescriptionTypeOptions = [
   '원외매출',
   '차감',
 ];
-const products = ref([]);
 const productSearchForRow = ref({
   query: '',
   results: [],
@@ -453,12 +454,13 @@ watch(inputRows, () => {
     updateProductDropdownPosition(productSearchForRow.value.activeRowIndex);
   }
 }, { deep: true });
-window.addEventListener('scroll', () => {
+// 스크롤 시 제품검색 드롭다운 위치 갱신 (onMounted에서 등록, onUnmounted에서 해제)
+function handleWindowScroll() {
   const rowIdx = productSearchForRow.value.activeRowIndex;
   if (productSearchForRow.value.show && rowIdx !== -1) {
     updateProductDropdownPosition(rowIdx);
   }
-}, true);
+}
 function getPrescriptionMonth(settlementMonth, offset) {
   if (!settlementMonth) return '';
   const [y, m] = settlementMonth.split('-');
@@ -600,81 +602,10 @@ watch(prescriptionOffset, (val) => {
 });
 // 처방월이 변경되면 편집 상태 재확인
 watch(prescriptionMonth, (val) => {
-  // console.log('처방월 변경 감지:', val);
   if (val) {
-    fetchProducts(val);
     checkPerformanceEditStatus();
   }
 });
-watch(
-  () => inputRows.value[0].prescription_month,
-  (val) => {
-    if (val) {
-      fetchProducts(val);
-    }
-  }
-);
-async function fetchProducts(prescriptionMonth) {
-  try {
-    // 1. 현재 사용자/관리자의 업체 정보 확인
-    const clientId = route.query?.clientId;
-    const companyId = route.query?.companyId;
-    let currentCompanyId;
-
-    if (companyId) {
-      // 관리자가 특정 업체의 실적을 등록하는 경우
-      currentCompanyId = companyId;
-    } else {
-      // 일반 사용자가 자신의 실적을 등록하는 경우
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-      
-      const { data: company } = await supabase
-        .from('companies')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .single();
-      
-      if (!company) return;
-      currentCompanyId = company.id;
-    }
-
-    // 2. product_company_not_assignments에서 현재 업체의 미할당 제품 ID 목록 조회
-    const { data: assignedProductIds, error: assignedError } = await supabase
-      .from('product_company_not_assignments')
-      .select('product_id')
-      .eq('company_id', currentCompanyId);
-
-    if (assignedError) {
-      console.error('미할당 제품 ID 조회 오류:', assignedError);
-      return;
-    }
-
-    const excludedProductIds = assignedProductIds.map(item => item.product_id);
-
-    // 3. 해당월의 모든 제품 조회 (미할당 제품 제외)
-    let query = supabase
-      .from('products')
-      .select('*')
-      .eq('status', 'active')
-      .eq('base_month', prescriptionMonth)
-      .order('product_name', { ascending: true })
-      .range(0, 2999);
-
-    if (excludedProductIds.length > 0) {
-      query = query.not('id', 'in', `(${excludedProductIds.join(',')})`);
-    }
-
-    const { data, error } = await query;
-
-    if (!error && data) {
-      products.value = data;
-      // console.log('불러온 제품 개수:', data.length, '처방월:', prescriptionMonth);
-    }
-  } catch (err) {
-    console.error('제품 데이터 로딩 오류:', err);
-  }
-}
 
 // 제품 검색 관련 함수들
 function handleProductNameInput(rowIndex, event) {
@@ -1071,6 +1002,9 @@ function addOrFocusNextRow(rowIdx) {
         remarks: '',
         commission_rate_a: null,
         commission_rate_b: null,
+        commission_rate_c: null,
+        commission_rate_d: null,
+        commission_rate_e: null,
         review_status: '대기',
         selected: false,
       });
@@ -1102,6 +1036,9 @@ function addOrFocusNextRow(rowIdx) {
         remarks: '',
         commission_rate_a: null,
         commission_rate_b: null,
+        commission_rate_c: null,
+        commission_rate_d: null,
+        commission_rate_e: null,
         review_status: '대기',
         selected: false,
       });
@@ -1344,7 +1281,7 @@ async function getCommissionGradeForClientCompany(companyId, clientId) {
   return data.modified_commission_grade || data.company?.default_commission_grade || 'A';
 }
 
-// 실적 저장로직 - 기존 데이터를 삭제 후 새로 저장
+// 실적 저장로직 - 원본(originalRows)과 비교해 변경/추가/삭제 행만 골라 increment 저장(INSERT/UPDATE/DELETE)
 async function savePerformanceData() {
   const clientId = route.query?.clientId;
   const settlementMonth = route.query?.settlementMonth;
@@ -1525,9 +1462,9 @@ async function savePerformanceData() {
           prescription_type: row.prescription_type,
           remarks: row.remarks,
           commission_rate: (() => {
-            // 소수점 3자리로 반올림
+            // 소수점 3자리로 반올림. 0(미입력 포함)이면 등급 기본율로 폴백 — INSERT와 동일 처리
             const roundedRate = Math.round(calculatedRate * 1000) / 1000;
-            return isNaN(roundedRate) ? commissionRate : roundedRate;
+            return isNaN(roundedRate) || roundedRate === 0 ? commissionRate : roundedRate;
           })(),
           review_status: reviewStatus,
           updated_by: currentUserUid,
@@ -1578,7 +1515,7 @@ async function savePerformanceData() {
   return currentValidRows.length;
 }
 
-// 저장 버튼 클릭 핸들러 (기존 데이터 삭제 후 새로 저장)
+// 저장 버튼 클릭 핸들러 (원본과 비교해 변경분만 increment 저장)
 async function onSave() {
   // 제품 검색 드롭다운이 열려있으면 차단
   if (isProductSearchOpen.value) {
@@ -1614,7 +1551,7 @@ async function onSave() {
   }
 
   try {
-    // 3. 저장 처리 (기존 데이터 삭제 후 새로 저장)
+    // 3. 저장 처리 (변경분만 increment 저장)
     const savedCount = await savePerformanceData();
     // 4. 성공 메시지
     showSuccess(`${savedCount}건의 실적이 저장되었습니다.`);
@@ -2035,6 +1972,8 @@ const clientSettlementRemarks = ref('');
 // 이탈방지 관련 변수
 const hasUnsavedChanges = ref(false);
 const isLeaving = ref(false);
+// 라우터 네비게이션 가드 해제 함수(onUnmounted에서 호출하기 위해 컴포넌트 스코프에 보관)
+let unregisterGuard = null;
 
 function isRowEditable(row) {
   const status = row.review_status;
@@ -2078,6 +2017,9 @@ watch(inputRows, (rows) => {
       review_status: '대기',
       commission_rate_a: null,
       commission_rate_b: null,
+      commission_rate_c: null,
+      commission_rate_d: null,
+      commission_rate_e: null,
       selected: false,
     });
   }
@@ -2104,7 +2046,6 @@ onMounted(async () => {
     prescriptionOffset.value = 1;
     prescriptionMonth.value = getPrescriptionMonth(selectedSettlementMonth.value, 1);
   }
-  await fetchProducts(prescriptionMonth.value);
   await loadClientSettlementRemarks(); // 클라이언트 정산 비고 정보 로드
   await loadExistingData(); // 기존 실적 데이터 불러오기
   // 편집 상태 확인
@@ -2124,9 +2065,11 @@ onMounted(async () => {
 
   // 이탈방지 이벤트 리스너 추가
   window.addEventListener('beforeunload', handleBeforeUnload);
+  // 스크롤 시 드롭다운 위치 갱신 리스너 (capture)
+  window.addEventListener('scroll', handleWindowScroll, true);
 
   // Vue Router 네비게이션 가드 추가
-  const unregisterGuard = router.beforeEach((to, from, next) => {
+  unregisterGuard = router.beforeEach((to, from, next) => {
     if (from.path === route.path && hasUnsavedChanges.value && !isLeaving.value) {
       if (confirmAndLeave()) {
         next();
@@ -2149,6 +2092,7 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleGlobalKeydown);
   document.removeEventListener('click', handleGlobalClick);
   window.removeEventListener('beforeunload', handleBeforeUnload);
+  window.removeEventListener('scroll', handleWindowScroll, true);
   // 네비게이션 가드 제거
   if (typeof unregisterGuard === 'function') {
     unregisterGuard();
@@ -2213,6 +2157,9 @@ function deleteSelected() {
         row.remarks = '';
         row.commission_rate_a = null;
         row.commission_rate_b = null;
+        row.commission_rate_c = null;
+        row.commission_rate_d = null;
+        row.commission_rate_e = null;
         row.selected = false;
       }
     });
@@ -2241,10 +2188,6 @@ function goBackToList() {
       router.push('/performance/register');
     }
   }
-}
-
-if (typeof window !== 'undefined') {
-  window.products = products;
 }
 
 async function fetchProductsForMonth(month) {
