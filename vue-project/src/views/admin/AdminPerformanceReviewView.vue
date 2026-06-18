@@ -2929,8 +2929,15 @@ async function handleEditCalculations(rowData, field) {
             .from('companies').select('company_group').eq('id', companyId).maybeSingle();
           const isNewCsoCompany = companyRow?.company_group === 'NEWCSO';
 
+          // 제외 병원이면 프로모션율 미적용 (정산/표시 로직과 동일 기준)
+          const { data: excludedRows } = await supabase
+            .from('promotion_product_excluded_hospitals')
+            .select('hospital_id, promotion_product_list!inner(insurance_code)')
+            .eq('hospital_id', hospitalId);
+          const isExcluded = (excludedRows || []).some(e => String(e.promotion_product_list?.insurance_code) === insuranceCode);
+
           // 프로모션 제품이고 해당 병원에 실적이 있으며, 그 정산월 담당 업체일 때 final_commission_rate 사용
-          if (!hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
+          if (!isExcluded && !hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
             // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직)
             const promotionProduct = hospitalPerf.find(hp =>
               String(hp.promotion_product_list?.insurance_code) === insuranceCode &&
@@ -3153,8 +3160,15 @@ async function applySelectedProduct(product, rowData) {
       .from('companies').select('company_group').eq('id', companyId).maybeSingle();
     const isNewCsoCompany = companyRow?.company_group === 'NEWCSO';
 
+    // 제외 병원이면 프로모션율 미적용 (정산/표시 로직과 동일 기준)
+    const { data: excludedRows } = await supabase
+      .from('promotion_product_excluded_hospitals')
+      .select('hospital_id, promotion_product_list!inner(insurance_code)')
+      .eq('hospital_id', hospitalId);
+    const isExcluded = (excludedRows || []).some(e => String(e.promotion_product_list?.insurance_code) === insuranceCode);
+
     // 프로모션 제품이고 해당 병원에 실적이 있으며, 그 정산월 담당 업체일 때 final_commission_rate 사용
-    if (!hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
+    if (!isExcluded && !hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
       // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직)
       const promotionProduct = hospitalPerf.find(hp =>
         String(hp.promotion_product_list?.insurance_code) === insuranceCode &&
