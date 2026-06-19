@@ -2307,8 +2307,13 @@ async function updateProductInfoForMonthChange(rowIdx) {
       row.price = '';
       row.prescription_qty = '';
       row.prescription_amount = '';
+      row.commission_rate = '';
+      row.payment_amount = '';
       row.commission_rate_a = null;
       row.commission_rate_b = null;
+      row.commission_rate_c = null;
+      row.commission_rate_d = null;
+      row.commission_rate_e = null;
       return;
     }
 
@@ -2324,15 +2329,40 @@ async function updateProductInfoForMonthChange(rowIdx) {
     row.price = productData.price ? Number(productData.price).toLocaleString() : '';
     row.commission_rate_a = productData.commission_rate_a;
     row.commission_rate_b = productData.commission_rate_b;
+    row.commission_rate_c = productData.commission_rate_c;
+    row.commission_rate_d = productData.commission_rate_d;
+    row.commission_rate_e = productData.commission_rate_e;
 
-    // 처방수량이 있으면 처방액 재계산
-    if (row.prescription_qty) {
-      const qty = parseFloat(row.prescription_qty.toString().replace(/,/g, ''));
-      const price = Number(productData.price) || 0;
-      if (!isNaN(qty) && !isNaN(price) && price > 0) {
-        row.prescription_amount = (qty * price).toLocaleString();
-      }
+    // 등급 기본율로 표시 수수료율 재계산 (검수 화면과 동일하게 새 약품의 등급 기본율 적용 — A~E 전 등급, stale 요율 방지)
+    const clientId = route.query?.clientId;
+    const companyId = route.query?.companyId;
+    let myCompany;
+    if (companyId) {
+      const { data: comp } = await supabase.from('companies').select('id').eq('id', companyId).single();
+      myCompany = comp;
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data: comp } = await supabase.from('companies').select('id').eq('user_id', session?.user?.id).single();
+      myCompany = comp;
     }
+    let commissionRate = null;
+    if (myCompany && clientId) {
+      const grade = await getCommissionGradeForClientCompany(myCompany.id, Number(clientId));
+      if (grade === 'A') commissionRate = productData.commission_rate_a;
+      else if (grade === 'B') commissionRate = productData.commission_rate_b;
+      else if (grade === 'C') commissionRate = productData.commission_rate_c;
+      else if (grade === 'D') commissionRate = productData.commission_rate_d;
+      else if (grade === 'E') commissionRate = productData.commission_rate_e;
+    } else {
+      // 회사/거래처 정보가 없으면 A등급 기본율 (applySelectedProduct와 동일)
+      commissionRate = productData.commission_rate_a;
+    }
+    row.commission_rate = (commissionRate !== null && commissionRate !== undefined)
+      ? (Number(commissionRate) * 100).toFixed(1) + '%'
+      : '';
+
+    // 처방액·지급액 재계산 (수수료율 변경 반영)
+    calculateAmounts(rowIdx);
   } catch (err) {
     console.error('제품 정보 업데이트 오류:', err);
   }

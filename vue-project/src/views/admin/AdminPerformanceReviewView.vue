@@ -1911,6 +1911,24 @@ async function saveEdit(rowData) {
       throw new Error('수수료율은 100%를 초과할 수 없습니다.');
     }
 
+    // 저장값 정규화: 소수점 3자리 반올림 + 0/NaN이면 등급 기본율로 fallback (등록 화면 PerformanceRegisterEdit과 동일)
+    let finalCommissionRate = Math.round(calculatedRate * 1000) / 1000;
+    if (isNaN(finalCommissionRate) || finalCommissionRate === 0) {
+      const grade = await getCommissionGradeForClientCompany(rowData.company_id, rowData.client_id);
+      const product = products.value.find(p => p.id === rowData.product_id_modify);
+      if (product) {
+        let gradeRate = 0;
+        if (grade === 'A') gradeRate = product.commission_rate_a;
+        else if (grade === 'B') gradeRate = product.commission_rate_b;
+        else if (grade === 'C') gradeRate = product.commission_rate_c;
+        else if (grade === 'D') gradeRate = product.commission_rate_d;
+        else if (grade === 'E') gradeRate = product.commission_rate_e;
+        if (gradeRate !== null && gradeRate !== undefined) {
+          finalCommissionRate = Number(gradeRate);
+        }
+      }
+    }
+
     let saveData = {
       settlement_month: rowData.settlement_month,
       company_id: rowData.company_id,
@@ -1919,7 +1937,7 @@ async function saveEdit(rowData) {
       prescription_month: rowData.prescription_month_modify,
       prescription_qty: Number(rowData.prescription_qty_modify) || 0,
       prescription_type: rowData.prescription_type_modify,
-      commission_rate: calculatedRate,
+      commission_rate: finalCommissionRate,
       remarks: rowData.remarks_modify,
       updated_at: new Date().toISOString(),
       updated_by: adminUserId,
@@ -2871,7 +2889,7 @@ async function updatePromotionDataForChangedRecords(changedRecords) {
 async function getCommissionGradeForClientCompany(companyId, clientId) {
   const { data, error } = await supabase
     .from('client_company_assignments')
-    .select('modified_commission_grade, company_default_commission_grade')
+    .select('modified_commission_grade, company:companies(default_commission_grade)')
     .eq('company_id', companyId)
     .eq('client_id', clientId)
     .single();
@@ -2886,8 +2904,9 @@ async function getCommissionGradeForClientCompany(companyId, clientId) {
     return company?.default_commission_grade || 'A';
   }
 
-  // modified_commission_grade가 있으면 우선 사용, 없으면 company_default_commission_grade 사용
-  return data.modified_commission_grade || data.company_default_commission_grade || 'A';
+  // modified_commission_grade가 있으면 우선 사용, 없으면 companies 테이블의 default_commission_grade 사용
+  // (등록 화면 PerformanceRegisterEdit과 동일하게 비정규화 컬럼 대신 live 조인값을 사용해 drift 방지)
+  return data.modified_commission_grade || data.company?.default_commission_grade || 'A';
 }
 
 async function handleEditCalculations(rowData, field) {
@@ -3256,14 +3275,14 @@ async function updateProductInfoForMonthChange(rowData) {
     reactiveRow.insurance_code = productData.insurance_code;
     reactiveRow.price_for_calc = productData.price || 0;
 
-    // 회사-거래처 매핑에서 수수료율 등급 조회
+    // 회사-거래처 매핑에서 수수료율 등급 조회 (등록 화면과 동일하게 A~E 전체 등급 처리)
     const grade = await getCommissionGradeForClientCompany(reactiveRow.company_id, reactiveRow.client_id);
     let commissionRate = 0;
-    if (grade === 'A') {
-      commissionRate = productData.commission_rate_a;
-    } else if (grade === 'B') {
-      commissionRate = productData.commission_rate_b;
-    }
+    if (grade === 'A') commissionRate = productData.commission_rate_a;
+    else if (grade === 'B') commissionRate = productData.commission_rate_b;
+    else if (grade === 'C') commissionRate = productData.commission_rate_c;
+    else if (grade === 'D') commissionRate = productData.commission_rate_d;
+    else if (grade === 'E') commissionRate = productData.commission_rate_e;
     // 수수료율을 퍼센트로 변환해서 표시 (소수점 0.36 -> 36)
     reactiveRow.commission_rate_modify = commissionRate !== null && commissionRate !== undefined
       ? (commissionRate * 100).toFixed(1)
@@ -3274,10 +3293,12 @@ async function updateProductInfoForMonthChange(rowData) {
       const qty = Number(reactiveRow.prescription_qty_modify);
       const price = Number(productData.price) || 0;
       if (!isNaN(qty) && !isNaN(price) && price > 0) {
-        const prescriptionAmount = qty * price;
-        const paymentPrescriptionAmount = (commissionRate > 0) ? prescriptionAmount : 0;
-        const paymentAmount = prescriptionAmount * (commissionRate / 100);
-        
+        // commissionRate는 소수(0.36) 단위이므로 그대로 곱한다 (/100 아님)
+        const rate = Number(commissionRate) || 0;
+        const prescriptionAmount = Math.round(qty * price);
+        const paymentPrescriptionAmount = (rate > 0) ? prescriptionAmount : 0;
+        const paymentAmount = Math.round(prescriptionAmount * rate);
+
         // 화면 표시용 값 업데이트
         reactiveRow.prescription_amount_modify = prescriptionAmount;
         reactiveRow.payment_prescription_amount_modify = paymentPrescriptionAmount;
