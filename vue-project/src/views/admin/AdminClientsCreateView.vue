@@ -177,7 +177,7 @@ const handleSubmit = async () => {
         .from('clients')
         .select('id, name, client_code')
         .eq('client_code', clientCode.value.trim())
-        .single();
+        .maybeSingle();
       
       if (codeCheckError) {
         if (codeCheckError.code === 'PGRST116') {

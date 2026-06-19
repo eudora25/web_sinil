@@ -148,7 +148,7 @@ const handleSubmit = async () => {
   }
 
   // 수수료율 A 변환 및 검증
-  let commissionRateA = null;
+  let commissionRateA = 0;
   if (commissionA.value && commissionA.value.toString().trim() !== '') {
     commissionRateA = convertCommissionRateToDecimal(commissionA.value);
     if (commissionRateA < 0 || commissionRateA > 1) {
@@ -167,7 +167,7 @@ const handleSubmit = async () => {
   }
 
   // 수수료율 B 변환 및 검증
-  let commissionRateB = null;
+  let commissionRateB = 0;
   if (commissionB.value && commissionB.value.toString().trim() !== '') {
     commissionRateB = convertCommissionRateToDecimal(commissionB.value);
     if (commissionRateB < 0 || commissionRateB > 1) {
@@ -186,7 +186,7 @@ const handleSubmit = async () => {
   }
 
   // 수수료율 C 변환 및 검증
-  let commissionRateC = null;
+  let commissionRateC = 0;
   if (commissionC.value && commissionC.value.toString().trim() !== '') {
     commissionRateC = convertCommissionRateToDecimal(commissionC.value);
     if (commissionRateC < 0 || commissionRateC > 1) {
@@ -205,7 +205,7 @@ const handleSubmit = async () => {
   }
 
   // 수수료율 D 변환 및 검증
-  let commissionRateD = null;
+  let commissionRateD = 0;
   if (commissionD.value && commissionD.value.toString().trim() !== '') {
     commissionRateD = convertCommissionRateToDecimal(commissionD.value);
     if (commissionRateD < 0 || commissionRateD > 1) {
@@ -224,7 +224,7 @@ const handleSubmit = async () => {
   }
 
   // 수수료율 E 변환 및 검증
-  let commissionRateE = null;
+  let commissionRateE = 0;
   if (commissionE.value && commissionE.value.toString().trim() !== '') {
     commissionRateE = convertCommissionRateToDecimal(commissionE.value);
     if (commissionRateE < 0 || commissionRateE > 1) {

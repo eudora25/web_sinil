@@ -101,7 +101,7 @@ const handleSubmit = async () => {
     .from('settlement_months')
     .select('id')
     .eq('settlement_month', settlementMonth.value)
-    .single();
+    .maybeSingle();
 
   if (existingMonth) {
     showWarning('이미 등록된 정산월이 있습니다.');
