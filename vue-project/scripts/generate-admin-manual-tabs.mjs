@@ -115,10 +115,20 @@ function cautionBlock(items) {
   return `<div class="caution"><h4>⚠️ 주의사항</h4><ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul></div>`;
 }
 
+// 상세 프로세스(단계별) 블록 — process: [{ title, steps: [{ heading, lines: [...] }] }]
+function processBlock(sections) {
+  if (!sections?.length) return '';
+  return sections.map((sec) =>
+    `<h4>${sec.title}</h4><div class="process-steps">${
+      sec.steps.map((st) => `<div class="step"><strong>${st.heading}</strong><br>${st.lines.join('<br>')}</div>`).join('')
+    }</div>`
+  ).join('');
+}
+
 function curationBlocks(name) {
   const c = ADMIN_CURATION[name];
   if (!c) return '';
-  return `${usageBlock(c.usageSteps)}${cautionBlock(c.cautions)}`;
+  return `${usageBlock(c.usageSteps)}${processBlock(c.process)}${cautionBlock(c.cautions)}`;
 }
 
 function screenshotBlock(p) {
