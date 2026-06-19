@@ -1414,9 +1414,14 @@ async function fetchPromotionData(filteredRecords) {
     }
   });
 
-  const { data: excludedData } = await supabase.from('promotion_product_excluded_hospitals').select('hospital_id, insurance_code');
+  // 제외 병원: promotion_product_excluded_hospitals 는 promotion_product_id 기준이므로
+  // promotion_product_list 조인으로 insurance_code 를 얻는다. (insurance_code 직접 컬럼은 없음)
+  const { data: excludedData } = await supabase.from('promotion_product_excluded_hospitals').select('hospital_id, promotion_product_list!inner(insurance_code)');
   const excludedHospitalsSet = new Set();
-  (excludedData || []).forEach(e => excludedHospitalsSet.add(`${e.insurance_code}_${e.hospital_id}`));
+  (excludedData || []).forEach(e => {
+    const ic = e.promotion_product_list?.insurance_code;
+    if (ic) excludedHospitalsSet.add(`${String(ic)}_${e.hospital_id}`);
+  });
 
   // 이관 연속성: 병원-업체 배정 이력 (월 기간) → 정산월별 담당 판정
   const hospitalIds = [...new Set(filteredRecords.map(r => r.client_id).filter(id => id))];
