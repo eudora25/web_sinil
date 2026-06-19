@@ -170,16 +170,17 @@ const userTabs = [
         
         <h4>주요 기능:</h4>
         <ul class="feature-list">
-          <li><strong>제품 목록 조회</strong> - 판매 가능한 제품들의 제품명, 보험코드, 가격, 표준코드 정보를 테이블 형태로 확인할 수 있습니다.</li>
-          <li><strong>제품 상세 정보 조회</strong> - 특정 제품을 선택하여 상세한 제품 정보와 규격을 확인할 수 있습니다.</li>
-          <li><strong>제품 검색</strong> - 제품명, 보험코드, 표준코드로 원하는 제품을 빠르게 검색할 수 있습니다.</li>
-          <li><strong>정렬 기능</strong> - 제품명, 가격, 등록일 등 다양한 기준으로 목록을 정렬하여 확인할 수 있습니다.</li>
-          <li><strong>필터링 기능</strong> - 제품 카테고리나 가격 범위 등으로 제품 목록을 필터링할 수 있습니다.</li>
+          <li><strong>기준월 선택</strong> - 상단 드롭다운에서 기준월을 선택하면 해당 월의 제품·약가·수수료율이 표시됩니다.</li>
+          <li><strong>제품 목록 조회</strong> - 제품명, 보험코드, 약가, 수수료율(%), 비고를 테이블 형태로 확인할 수 있습니다.</li>
+          <li><strong>제품 상세 조회</strong> - 제품명을 클릭하면 상세 화면으로 이동합니다.</li>
+          <li><strong>제품 검색</strong> - 제품명, 보험코드로 목록을 검색할 수 있습니다.</li>
+          <li><strong>정렬·엑셀 다운로드</strong> - 컬럼 헤더로 정렬하고, 목록을 엑셀 파일로 내려받을 수 있습니다.</li>
         </ul>
         <h4>📋 사용 방법</h4>
         <ol class="usage-steps">
-          <li>검색창에 <strong>제품명·보험코드·표준코드</strong>를 입력하고 검색합니다.</li>
-          <li>목록에서 제품을 선택해 상세 정보를 확인합니다.</li>
+          <li>상단 <strong>기준월</strong>을 선택합니다.</li>
+          <li>검색창에 <strong>제품명·보험코드</strong>를 입력해 목록을 좁힙니다.</li>
+          <li>확인할 <strong>제품명</strong>을 클릭해 상세 정보를 봅니다.</li>
         </ol>
         <div class="caution"><h4>⚠️ 주의사항</h4><ul>
           <li>보험코드·약가는 <strong>기준월(base_month)</strong>에 따라 다를 수 있습니다.</li>
@@ -199,16 +200,15 @@ const userTabs = [
         
         <h4>주요 기능:</h4>
         <ul class="feature-list">
-          <li><strong>병의원 목록 조회</strong> - 본인이 담당하는 병의원들의 병의원명, 사업자번호, 담당자, 연락처 정보를 확인할 수 있습니다.</li>
-          <li><strong>병의원 상세 정보 조회</strong> - 특정 병의원을 선택하여 주소, 원장명, 진료과목 등 상세 정보를 확인할 수 있습니다.</li>
-          <li><strong>병의원 검색</strong> - 병의원명이나 사업자번호로 담당 병의원을 빠르게 검색할 수 있습니다.</li>
-          <li><strong>정렬 기능</strong> - 병의원명, 등록일, 지역 등 다양한 기준으로 목록을 정렬하여 확인할 수 있습니다.</li>
-          <li><strong>필터링 기능</strong> - 지역이나 진료과목 등으로 병의원 목록을 필터링할 수 있습니다.</li>
+          <li><strong>병의원 목록 조회</strong> - 담당 병의원의 병의원코드, 병의원명, 사업자등록번호, 원장명, 주소, 비고를 확인할 수 있습니다.</li>
+          <li><strong>병의원 상세 조회</strong> - 병의원명을 클릭하면 상세 화면으로 이동합니다.</li>
+          <li><strong>병의원 검색</strong> - 병의원코드, 병의원명, 사업자등록번호로 검색할 수 있습니다.</li>
+          <li><strong>정렬·엑셀 다운로드</strong> - 컬럼 헤더로 정렬하고, 목록을 엑셀 파일로 내려받을 수 있습니다.</li>
         </ul>
         <h4>📋 사용 방법</h4>
         <ol class="usage-steps">
-          <li>검색창에 병의원명·사업자번호 등으로 검색합니다.</li>
-          <li>목록에서 병의원을 선택해 상세 정보를 확인합니다.</li>
+          <li>검색창에 <strong>병의원코드·병의원명·사업자등록번호</strong>로 검색합니다.</li>
+          <li>확인할 <strong>병의원명</strong>을 클릭해 상세 정보를 봅니다.</li>
         </ol>
         <div class="caution"><h4>⚠️ 주의사항</h4><ul>
           <li><strong>본인 담당 병의원만</strong> 목록에 표시됩니다.</li>
@@ -287,16 +287,17 @@ const userTabs = [
         
         <h4>주요 기능:</h4>
         <ul class="feature-list">
-          <li><strong>정산내역서 목록 조회</strong> - 관리자가 공유한 월별 정산내역서를 년월, 정산액, 공유 상태와 함께 확인할 수 있습니다.</li>
-          <li><strong>정산내역서 상세 조회</strong> - 특정 월의 정산내역서를 선택하여 상세한 정산 내용과 실적 데이터를 확인할 수 있습니다.</li>
-          <li><strong>정산내역서 다운로드</strong> - 정산내역서를 PDF나 Excel 파일로 다운로드하여 보관할 수 있습니다.</li>
-          <li><strong>정렬 기능</strong> - 정산월, 정산액, 공유일 등 다양한 기준으로 정산내역서 목록을 정렬할 수 있습니다.</li>
-          <li><strong>필터링 기능</strong> - 특정 기간이나 정산액 범위로 정산내역서를 필터링하여 조회할 수 있습니다.</li>
+          <li><strong>정산월 선택</strong> - 관리자가 공유한 정산월만 드롭다운에 표시되며, 선택한 월의 정산 내역이 한 화면에 표시됩니다.</li>
+          <li><strong>처방월·병의원 필터</strong> - 처방월, 병의원으로 상세 목록을 좁혀 볼 수 있습니다.</li>
+          <li><strong>정산 요약</strong> - 지급 처방액, 구간수수료, 공급가, 부가세, 합계액(총 지급액)을 상단에서 확인할 수 있습니다.</li>
+          <li><strong>실적 상세 목록</strong> - 병의원·처방월·제품별 정산 상세 행을 테이블로 확인할 수 있습니다.</li>
+          <li><strong>전달사항·엑셀 다운로드</strong> - 관리자 전달사항을 확인하고, 정산 내역을 <strong>엑셀</strong> 파일로 내려받을 수 있습니다.</li>
         </ul>
         <h4>📋 사용 방법</h4>
         <ol class="usage-steps">
-          <li>목록에서 확인할 <strong>정산월</strong>을 선택합니다.</li>
-          <li><strong>상세</strong>에서 정산 내역을 확인하고, 필요 시 <strong>엑셀 다운로드</strong>합니다.</li>
+          <li>상단 <strong>정산월</strong>을 선택합니다(공유된 월만 표시).</li>
+          <li>필요 시 <strong>처방월</strong>·<strong>병의원</strong> 필터를 적용하고, <strong>전달사항</strong>을 확인합니다.</li>
+          <li>상단 요약·하단 상세 목록을 확인한 뒤, 필요 시 <strong>엑셀 다운로드</strong>합니다.</li>
         </ol>
         <div class="caution"><h4>⚠️ 주의사항</h4><ul>
           <li>관리자가 <strong>공유한 정산월</strong>만 조회할 수 있습니다.</li>
