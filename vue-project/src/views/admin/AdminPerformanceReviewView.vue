@@ -569,7 +569,7 @@ import Button from 'primevue/button';
 import ProgressBar from 'primevue/progressbar';
 import { v4 as uuidv4 } from 'uuid';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
-import { isPromotionApplicableToCompany, isTransferContinuityMonth, isAssignedForMonth } from '@/utils/promotion';
+import { isTransferContinuityMonth, isAssignedForMonth } from '@/utils/promotion';
 import { useNotifications } from '@/utils/notifications';
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
@@ -2897,102 +2897,16 @@ async function handleEditCalculations(rowData, field) {
       if (product) {
           rowData.price_for_calc = product.price;
           
-          // 프로모션 제품 확인:
-          // 1. 제품이 promotion_product_list에 있는지 확인 (보험코드로)
-          // 2. 해당 병원이 promotion_product_hospital_performance에 있는지 확인 (hospital_id로)
-          // 3. 업체가 first_performance_cso_id와 동일한지 확인
-          const insuranceCode = String(product.insurance_code || '');
-          const hospitalId = rowData.client_id;
-          const companyId = rowData.company_id;
-          
+          // 저장값은 등급 기본율로 통일 (프로모션은 정산/표시 단계에서만 동적 적용 — 저장값 drift 방지)
+          // 등록 화면(PerformanceRegisterEdit)과 동일하게 검수에서도 프로모션율을 박지 않는다.
+          const grade = await getCommissionGradeForClientCompany(rowData.company_id, rowData.client_id);
           let commissionRate = 0;
-          
-          // promotion_product_hospital_performance 조회
-          const { data: hospitalPerf, error: hospitalPerfError } = await supabase
-            .from('promotion_product_hospital_performance')
-            .select(`
-              first_performance_cso_id,
-              promotion_product_list!inner(insurance_code, final_commission_rate, promotion_start_date, promotion_end_date)
-            `)
-            .eq('hospital_id', hospitalId)
-            .eq('has_performance', true);
-          
-          // 이관 연속성: 그 정산월에 담당이던 업체인지 배정 이력으로 확인
-          const { data: assignHist } = await supabase
-            .from('client_company_assignment_history')
-            .select('effective_from_month, effective_to_month')
-            .eq('client_id', hospitalId)
-            .eq('company_id', companyId);
-          const isAssigned = isAssignedForMonth(assignHist, rowData.settlement_month);
-          // NEWCSO 그룹 여부: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 적용
-          const { data: companyRow } = await supabase
-            .from('companies').select('company_group').eq('id', companyId).maybeSingle();
-          const isNewCsoCompany = companyRow?.company_group === 'NEWCSO';
+          if (grade === 'A') commissionRate = product.commission_rate_a;
+          else if (grade === 'B') commissionRate = product.commission_rate_b;
+          else if (grade === 'C') commissionRate = product.commission_rate_c;
+          else if (grade === 'D') commissionRate = product.commission_rate_d;
+          else if (grade === 'E') commissionRate = product.commission_rate_e;
 
-          // 제외 병원이면 프로모션율 미적용 (정산/표시 로직과 동일 기준)
-          const { data: excludedRows } = await supabase
-            .from('promotion_product_excluded_hospitals')
-            .select('hospital_id, promotion_product_list!inner(insurance_code)')
-            .eq('hospital_id', hospitalId);
-          const isExcluded = (excludedRows || []).some(e => String(e.promotion_product_list?.insurance_code) === insuranceCode);
-
-          // 프로모션 제품이고 해당 병원에 실적이 있으며, 그 정산월 담당 업체일 때 final_commission_rate 사용
-          if (!isExcluded && !hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
-            // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직)
-            const promotionProduct = hospitalPerf.find(hp =>
-              String(hp.promotion_product_list?.insurance_code) === insuranceCode &&
-              isPromotionApplicableToCompany(hp.first_performance_cso_id, companyId, rowData.settlement_month, isAssigned, isNewCsoCompany)
-            );
-
-            if (promotionProduct && promotionProduct.promotion_product_list?.final_commission_rate !== undefined) {
-              // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
-              const promotionInfo = promotionProduct.promotion_product_list;
-              const settlementMonth = rowData.settlement_month; // YYYY-MM 형식
-              let isWithinPromotionPeriod = true;
-              
-              const settlementDate = new Date(settlementMonth + '-01'); // 정산월의 첫 날
-              const lastDayOfSettlementMonth = new Date(settlementDate.getFullYear(), settlementDate.getMonth() + 1, 0); // 정산월의 마지막 날
-              
-              if (promotionInfo.promotion_start_date) {
-                const startDate = new Date(promotionInfo.promotion_start_date);
-                // 정산월의 첫 날이 시작일 이후 또는 같아야 함
-                if (settlementDate < startDate) {
-                  isWithinPromotionPeriod = false;
-                }
-              }
-              
-              if (promotionInfo.promotion_end_date) {
-                const endDate = new Date(promotionInfo.promotion_end_date);
-                // 정산월의 마지막 날이 종료일 이전 또는 같아야 함
-                if (lastDayOfSettlementMonth > endDate) {
-                  isWithinPromotionPeriod = false;
-                }
-              }
-              
-              // 프로모션 기간 내에 있는 경우에만 final_commission_rate 사용
-              if (isWithinPromotionPeriod) {
-                commissionRate = promotionInfo.final_commission_rate;
-              }
-            }
-          }
-          
-          // 프로모션 제품이 아닌 경우 기존 로직 사용
-          if (commissionRate === 0) {
-            // 회사-거래처 매핑에서 수수료율 등급 조회
-            const grade = await getCommissionGradeForClientCompany(rowData.company_id, rowData.client_id);
-            if (grade === 'A') {
-              commissionRate = product.commission_rate_a;
-            } else if (grade === 'B') {
-              commissionRate = product.commission_rate_b;
-            } else if (grade === 'C') {
-              commissionRate = product.commission_rate_c;
-            } else if (grade === 'D') {
-              commissionRate = product.commission_rate_d;
-            } else if (grade === 'E') {
-              commissionRate = product.commission_rate_e;
-            }
-          }
-          
           // 수수료율을 퍼센트로 변환해서 표시 (소수점 0.36 -> 36)
           rowData.commission_rate_modify = commissionRate !== null && commissionRate !== undefined
             ? (commissionRate * 100).toFixed(1)
@@ -3128,108 +3042,15 @@ async function applySelectedProduct(product, rowData) {
     reactiveRow.insurance_code = product.insurance_code;
     reactiveRow.price_for_calc = product.price;
 
-    // 프로모션 제품 확인:
-    // 1. 제품이 promotion_product_list에 있는지 확인 (보험코드로)
-    // 2. 해당 병원이 promotion_product_hospital_performance에 있는지 확인 (hospital_id로)
-    // 3. 업체가 first_performance_cso_id와 동일한지 확인
-    const insuranceCode = String(product.insurance_code || '');
-    const hospitalId = reactiveRow.client_id;
-    const companyId = reactiveRow.company_id;
-    
+    // 저장값은 등급 기본율로 통일 (프로모션은 정산/표시 단계에서만 동적 적용 — 저장값 drift 방지)
+    // 등록 화면(PerformanceRegisterEdit)과 동일하게 검수에서도 프로모션율을 박지 않는다.
+    const grade = await getCommissionGradeForClientCompany(reactiveRow.company_id, reactiveRow.client_id);
     let commissionRate = 0;
-    
-    // promotion_product_hospital_performance 조회
-    const { data: hospitalPerf, error: hospitalPerfError } = await supabase
-      .from('promotion_product_hospital_performance')
-      .select(`
-        first_performance_cso_id,
-        promotion_product_list!inner(insurance_code, final_commission_rate, promotion_start_date, promotion_end_date)
-      `)
-      .eq('hospital_id', hospitalId)
-      .eq('has_performance', true);
-
-    // 이관 연속성: 그 정산월에 담당이던 업체인지 배정 이력으로 확인
-    const { data: assignHist } = await supabase
-      .from('client_company_assignment_history')
-      .select('effective_from_month, effective_to_month')
-      .eq('client_id', hospitalId)
-      .eq('company_id', companyId);
-    const isAssigned = isAssignedForMonth(assignHist, reactiveRow.settlement_month);
-    // NEWCSO 그룹 여부: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 적용
-    const { data: companyRow } = await supabase
-      .from('companies').select('company_group').eq('id', companyId).maybeSingle();
-    const isNewCsoCompany = companyRow?.company_group === 'NEWCSO';
-
-    // 제외 병원이면 프로모션율 미적용 (정산/표시 로직과 동일 기준)
-    const { data: excludedRows } = await supabase
-      .from('promotion_product_excluded_hospitals')
-      .select('hospital_id, promotion_product_list!inner(insurance_code)')
-      .eq('hospital_id', hospitalId);
-    const isExcluded = (excludedRows || []).some(e => String(e.promotion_product_list?.insurance_code) === insuranceCode);
-
-    // 프로모션 제품이고 해당 병원에 실적이 있으며, 그 정산월 담당 업체일 때 final_commission_rate 사용
-    if (!isExcluded && !hospitalPerfError && hospitalPerf && hospitalPerf.length > 0) {
-      // 이관 연속성: 그 정산월에 담당이던 업체에게만 적용 (cutoff 이전 월은 기존 최초업체 로직)
-      const promotionProduct = hospitalPerf.find(hp =>
-        String(hp.promotion_product_list?.insurance_code) === insuranceCode &&
-        isPromotionApplicableToCompany(hp.first_performance_cso_id, companyId, reactiveRow.settlement_month, isAssigned, isNewCsoCompany)
-      );
-
-      if (promotionProduct && promotionProduct.promotion_product_list?.final_commission_rate !== undefined) {
-        // 프로모션 기간 확인 (정산월 기준)
-        const promotionInfo = promotionProduct.promotion_product_list;
-        const settlementMonth = reactiveRow.settlement_month; // YYYY-MM 형식
-        
-        if (settlementMonth) {
-          // 프로모션 기간 확인: 정산월이 프로모션 시작일과 종료일 사이에 포함되어야 함
-          let isWithinPromotionPeriod = true;
-          
-          const settlementDate = new Date(settlementMonth + '-01'); // 정산월의 첫 날
-          const lastDayOfSettlementMonth = new Date(settlementDate.getFullYear(), settlementDate.getMonth() + 1, 0); // 정산월의 마지막 날
-          
-          if (promotionInfo.promotion_start_date) {
-            const startDate = new Date(promotionInfo.promotion_start_date);
-            // 정산월의 첫 날이 시작일 이후 또는 같아야 함
-            if (settlementDate < startDate) {
-              isWithinPromotionPeriod = false;
-            }
-          }
-          
-          if (promotionInfo.promotion_end_date) {
-            const endDate = new Date(promotionInfo.promotion_end_date);
-            // 정산월의 마지막 날이 종료일 이전 또는 같아야 함
-            if (lastDayOfSettlementMonth > endDate) {
-              isWithinPromotionPeriod = false;
-            }
-          }
-          
-          // 프로모션 기간 내에 있는 경우에만 final_commission_rate 사용
-          if (isWithinPromotionPeriod) {
-            commissionRate = promotionInfo.final_commission_rate;
-          }
-        } else {
-          // 정산월이 없으면 프로모션 기간 확인 없이 적용
-          commissionRate = promotionInfo.final_commission_rate;
-        }
-      }
-    }
-    
-    // 프로모션 제품이 아닌 경우 기존 로직 사용
-    if (commissionRate === 0) {
-      // 회사-거래처 매핑에서 수수료율 등급 조회
-      const grade = await getCommissionGradeForClientCompany(reactiveRow.company_id, reactiveRow.client_id);
-      if (grade === 'A') {
-        commissionRate = product.commission_rate_a;
-      } else if (grade === 'B') {
-        commissionRate = product.commission_rate_b;
-      } else if (grade === 'C') {
-        commissionRate = product.commission_rate_c;
-      } else if (grade === 'D') {
-        commissionRate = product.commission_rate_d;
-      } else if (grade === 'E') {
-        commissionRate = product.commission_rate_e;
-      }
-    }
+    if (grade === 'A') commissionRate = product.commission_rate_a;
+    else if (grade === 'B') commissionRate = product.commission_rate_b;
+    else if (grade === 'C') commissionRate = product.commission_rate_c;
+    else if (grade === 'D') commissionRate = product.commission_rate_d;
+    else if (grade === 'E') commissionRate = product.commission_rate_e;
     
     // 수수료율을 퍼센트로 변환해서 표시 (소수점 0.36 -> 36)
     reactiveRow.commission_rate_modify = commissionRate !== null && commissionRate !== undefined
