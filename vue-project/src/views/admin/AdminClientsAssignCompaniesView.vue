@@ -443,11 +443,65 @@ async function assignCompanies() {
     company_id: company.id,
     company_default_commission_grade: company.default_commission_grade
   }))
-  await supabase
-    .from('client_company_assignments')
-    .upsert(assignments, { onConflict: 'client_id,company_id' })
-  closeAssignModal()
-  await fetchClients()
+  try {
+    const { error } = await supabase
+      .from('client_company_assignments')
+      .upsert(assignments, { onConflict: 'client_id,company_id' })
+    if (error) throw error
+
+    const addedCount = selectedCompanies.value.length
+    showSuccess(`${addedCount}개의 담당업체가 지정되었습니다.`)
+
+    // 선택된 업체 초기화 (모달은 유지)
+    selectedCompanies.value = []
+
+    // 해당 병원의 담당업체 목록만 업데이트
+    await updateClientCompanies(selectedClient.value.id)
+  } catch (error) {
+    console.error('담당업체 지정 실패:', error)
+    showError('담당업체 지정 중 오류가 발생했습니다: ' + error.message)
+  }
+}
+
+// 특정 병원의 담당업체 목록만 업데이트하는 함수
+async function updateClientCompanies(clientId) {
+  try {
+    // 해당 병원의 담당업체 정보만 다시 조회
+    const { data: clientData, error } = await supabase
+      .from('clients')
+      .select(
+        `*, companies:client_company_assignments(created_at, company:companies(id, company_name, business_registration_number, company_group))`
+      )
+      .eq('id', clientId)
+      .eq('status', 'active')
+      .single()
+
+    if (error) {
+      console.error('병원 담당업체 정보 업데이트 오류:', error)
+      return
+    }
+
+    if (clientData) {
+      const companiesArr = (clientData.companies || []).map((c) => ({
+        ...c.company,
+        assignment_created_at: c.created_at
+      }))
+
+      // clients 배열에서 해당 병원 찾아서 업데이트
+      const clientIndex = clients.value.findIndex(c => c.id === clientId)
+      if (clientIndex !== -1) {
+        clients.value[clientIndex].companies = companiesArr
+
+        // filteredClients도 업데이트
+        const filteredIndex = filteredClients.value.findIndex(c => c.id === clientId)
+        if (filteredIndex !== -1) {
+          filteredClients.value[filteredIndex].companies = companiesArr
+        }
+      }
+    }
+  } catch (err) {
+    console.error('병원 담당업체 정보 업데이트 예외:', err)
+  }
 }
 async function deleteAssignment(client, company = null) {
   if (!confirm('정말 삭제하시겠습니까?')) {
@@ -456,8 +510,16 @@ async function deleteAssignment(client, company = null) {
 
   let query = supabase.from('client_company_assignments').delete().eq('client_id', client.id)
   if (company) query = query.eq('company_id', company.id)
-  await query
-  await fetchClients()
+  const { error } = await query
+  if (error) {
+    console.error('담당업체 삭제 실패:', error)
+    showError('담당업체 삭제 중 오류가 발생했습니다: ' + error.message)
+    return
+  }
+
+  // 추가와 동일하게: 전체 목록 새로고침(fetchClients) 대신 해당 병원의 담당업체 목록만 갱신
+  // → 병원 검색 결과·스크롤 위치 등 화면 상태를 그대로 유지
+  await updateClientCompanies(client.id)
 }
 
 const downloadTemplate = async () => {
