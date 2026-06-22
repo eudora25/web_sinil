@@ -2561,7 +2561,7 @@ async function checkPromotionStatistics() {
   }
 }
 
-function closeStatisticsModal() {
+async function closeStatisticsModal() {
   showStatisticsModal.value = false;
   statisticsCompleted.value = false;
   statisticsProgress.value = 0;
@@ -2569,6 +2569,8 @@ function closeStatisticsModal() {
   statisticsTotalCount.value = 0;
   statisticsCurrentProduct.value = '';
   statisticsStatus.value = '';
+  // 데이터 업데이트 결과를 화면에 반영: 검수 목록 재조회(전체 새로고침 없이)
+  await loadPerformanceData();
 }
 
 // 마지막 업데이트 시간을 DB에 저장 (로그 테이블 사용)

@@ -1256,7 +1256,7 @@ function formatLastUpdateTime(date) {
 }
 
 // 통계 확인 모달 닫기
-function closeStatisticsModal() {
+async function closeStatisticsModal() {
   showStatisticsModal.value = false;
   statisticsProgress.value = 0;
   statisticsCurrentIndex.value = 0;
@@ -1264,6 +1264,8 @@ function closeStatisticsModal() {
   statisticsCurrentProduct.value = '';
   statisticsStatus.value = '';
   statisticsCompleted.value = false;
+  // 데이터 업데이트 결과를 화면에 반영: 제품 목록·병원수·제외수·갱신시간 재조회(전체 새로고침 없이)
+  await fetchPromotionProducts();
 }
 
 // promotion_product_hospital_performance 테이블 초기화
