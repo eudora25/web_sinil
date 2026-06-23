@@ -570,6 +570,7 @@ import ProgressBar from 'primevue/progressbar';
 import { v4 as uuidv4 } from 'uuid';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
 import { isTransferContinuityMonth, isAssignedForMonth } from '@/utils/promotion';
+import { isSmallClientZeroApplicable } from '@/utils/smallClient';
 import { useNotifications } from '@/utils/notifications';
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
@@ -1456,7 +1457,7 @@ async function loadPerformanceData() {
     let query = supabase.from('performance_records').select(`
       *,
       companies(company_name, company_group),
-      clients ( name ),
+      clients ( name, created_at ),
       products ( product_name, insurance_code, price )
     `);
     
@@ -1605,6 +1606,26 @@ async function loadPerformanceData() {
       (companyGroupRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group));
     }
 
+    // 소액처 0원: (업체×병의원)별 처방액 합계 선계산(삭제 제외)
+    const ccPrescriptionTotalMap = new Map();
+    for (const item of allData) {
+      if (item.review_action === '삭제') continue;
+      const amt = Math.round((item.prescription_qty || 0) * (item.products?.price || 0));
+      const k = `${item.company_id}_${item.client_id}`;
+      ccPrescriptionTotalMap.set(k, (ccPrescriptionTotalMap.get(k) || 0) + amt);
+    }
+    // 흡수율: 반영 흡수율(applied_absorption_rates) 배치 조회 (미설정 시 100%)
+    const appliedAbsorptionMap = {};
+    const reviewRecordIds = allData.map(i => i.id).filter(Boolean);
+    for (let af = 0; af < reviewRecordIds.length; af += 100) {
+      const batchIds = reviewRecordIds.slice(af, af + 100);
+      const { data: arData } = await supabase
+        .from('applied_absorption_rates')
+        .select('performance_record_id, applied_absorption_rate')
+        .in('performance_record_id', batchIds);
+      (arData || []).forEach(a => { appliedAbsorptionMap[a.performance_record_id] = a.applied_absorption_rate; });
+    }
+
     if (registrarIds.length > 0) {
       const { data: registrars, error: registrarError } = await supabase
         .from('companies')
@@ -1748,12 +1769,18 @@ async function loadPerformanceData() {
           }
         }
         
-        // 수수료율이 있고 0보다 클 때만 지급 처방액 계산
-        if (commissionRate !== null && commissionRate !== undefined && commissionRate > 0) {
+        // 소액처 0원 판정: (업체×병의원) 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
+        const ccTotal = ccPrescriptionTotalMap.get(`${companyId}_${hospitalId}`) || 0;
+        const isSmallZero = isSmallClientZeroApplicable(settlementMonth, ccTotal, item.clients?.created_at);
+        // 반영 흡수율 (미설정 시 100%) — 정산내역서와 동일하게 지급액에 반영
+        const appliedAbsorptionRate = (appliedAbsorptionMap[item.id] !== null && appliedAbsorptionMap[item.id] !== undefined) ? appliedAbsorptionMap[item.id] : 1.0;
+
+        // 수수료율이 있고 0보다 크며 소액처가 아닐 때만 지급 처방액·지급액 계산
+        if (!isSmallZero && commissionRate !== null && commissionRate !== undefined && commissionRate > 0) {
           paymentPrescriptionAmount = prescriptionAmount; // 지급 처방액: 수수료가 지급되는 제품의 처방액
-          paymentAmount = Math.round(prescriptionAmount * commissionRate);
+          paymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate); // 흡수율 반영
         } else {
-          // 수수료율이 없거나 0인 경우 지급 처방액과 지급액 모두 0
+          // 수수료율 없음/0 또는 소액처면 지급 처방액·지급액 0
           paymentPrescriptionAmount = 0;
           paymentAmount = 0;
         }
