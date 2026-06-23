@@ -6,7 +6,10 @@
 
     <div class="data-card">
       <div class="data-card-header">
-        <div class="total-count-display">전체 {{ exclusions.length.toLocaleString() }} 건</div>
+        <div class="total-count-display">
+          전체 {{ exclusions.length.toLocaleString() }} 건
+          <span class="cutoff-badge">{{ cutoffMonth }} 정산월부터 적용</span>
+        </div>
         <div class="action-buttons-group">
           <button class="btn-save" @click="openAddModal">신규 등록</button>
         </div>
@@ -161,11 +164,13 @@ import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import { supabase } from '@/supabase'
 import { useNotifications } from '@/utils/notifications'
+import { loadSettlementSettings, getAbsorptionExclusionCutoffMonth } from '@/utils/settlementSettings'
 
 const { showSuccess, showError } = useNotifications()
 
 const exclusions = ref([])
 const loading = ref(false)
+const cutoffMonth = ref(getAbsorptionExclusionCutoffMonth())
 
 const modalVisible = ref(false)
 const pharmacySearch = ref('')
@@ -281,10 +286,25 @@ async function removeExclusion(row) {
   await fetchExclusions()
 }
 
-onMounted(fetchExclusions)
+onMounted(async () => {
+  // cutoff(흡수율 제외 적용 시작월)은 settlement_settings 단일 소스에서 로드
+  await loadSettlementSettings()
+  cutoffMonth.value = getAbsorptionExclusionCutoffMonth()
+  await fetchExclusions()
+})
 </script>
 
 <style scoped>
+/* 적용 시작월(cutoff) 배지 */
+.total-count-display { display: inline-flex; align-items: center; gap: 10px; }
+.cutoff-badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px;
+  background: #eef4ff; color: #1565c0;
+  border: 1px solid #c5d9f5; border-radius: 999px;
+  font-size: 0.8rem; font-weight: 600; letter-spacing: -0.2px;
+}
+
 /* 모달 (프로모션 제외병원 등록 디자인 참고) */
 .exclusion-modal-content { display: flex; flex-direction: column; gap: 20px; padding: 4px; }
 
