@@ -29,6 +29,14 @@ async function bootstrap() {
   const ConfirmationService = (await import('primevue/confirmationservice')).default;
   const ToastService = (await import('primevue/toastservice')).default;
 
+  // 정산 정책 cutoff(settlement_settings) 캐시 워밍 — 실패해도 기본값으로 진행(앱 부팅 차단 안 함)
+  try {
+    const { loadSettlementSettings } = await import('@/utils/settlementSettings');
+    await loadSettlementSettings();
+  } catch (e) {
+    console.warn('[main] settlement_settings 워밍 실패, 기본 cutoff 사용:', e?.message || e);
+  }
+
   const app = createApp(App);
   app.use(router);
   app.use(PrimeVue, {

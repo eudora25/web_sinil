@@ -12,7 +12,11 @@
 // DB 측 동일 규칙: database/migrations/statistics/add_small_client_zero_to_calculate_statistics.sql
 // ============================================================================
 
-export const SMALL_CLIENT_CUTOFF_MONTH = '2026-06';
+import { getSmallClientCutoffMonth, DEFAULT_CUTOFFS } from '@/utils/settlementSettings';
+
+// 런타임 cutoff 는 settlement_settings(DB) 단일 소스에서 가져온다(getSmallClientCutoffMonth).
+// 아래 상수는 기본값/문서용일 뿐, 실제 판정은 getter 를 쓴다.
+export const SMALL_CLIENT_CUTOFF_MONTH = DEFAULT_CUTOFFS.small_client_cutoff_month;
 export const SMALL_CLIENT_THRESHOLD = 100000;
 export const NEW_CLIENT_PROTECTION_MONTHS = 3;
 
@@ -22,7 +26,7 @@ export const NEW_CLIENT_PROTECTION_MONTHS = 3;
  */
 export function isSmallClientCutoffMonth(settlementMonth) {
   if (!settlementMonth) return false;
-  return String(settlementMonth) >= SMALL_CLIENT_CUTOFF_MONTH;
+  return String(settlementMonth) >= getSmallClientCutoffMonth();
 }
 
 /**

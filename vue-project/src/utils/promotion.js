@@ -25,16 +25,21 @@
 //   직전 업체의 과거 정산분이 바뀔 수 있다(배정 이력 테이블이 없기 때문).
 // ============================================================================
 
-export const PROMOTION_TRANSFER_CUTOFF_MONTH = '2026-06';
+import { getTransferCutoffMonth, DEFAULT_CUTOFFS } from '@/utils/settlementSettings';
+
+// 런타임 cutoff 는 settlement_settings(DB) 단일 소스에서 가져온다(getTransferCutoffMonth).
+// 아래 상수는 기본값/문서용일 뿐, 실제 판정은 getter 를 쓴다.
+export const PROMOTION_TRANSFER_CUTOFF_MONTH = DEFAULT_CUTOFFS.transfer_cutoff_month;
 
 /**
  * 해당 정산월이 이관 연속성(새) 로직 적용 대상인지 여부.
+ * cutoff 는 settlement_settings 테이블에서 읽은 값(앱 시작 시 워밍, 미워밍 시 기본값).
  * @param {string} settlementMonth 'YYYY-MM'
  * @returns {boolean}
  */
 export function isTransferContinuityMonth(settlementMonth) {
   if (!settlementMonth) return false;
-  return String(settlementMonth) >= PROMOTION_TRANSFER_CUTOFF_MONTH;
+  return String(settlementMonth) >= getTransferCutoffMonth();
 }
 
 /**
