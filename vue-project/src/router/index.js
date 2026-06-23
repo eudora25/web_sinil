@@ -335,6 +335,12 @@ const router = createRouter({
       meta: { menu: '정산 관리', submenu: '흡수율 분석', requiresAuth: true, isAdmin: true },
     },
     {
+      path: '/admin/absorption-exclusions',
+      name: 'AdminAbsorptionExclusions',
+      component: () => import('@/views/admin/AdminAbsorptionExclusionsView.vue'),
+      meta: { menu: '정산 관리', submenu: '흡수율 제외 설정', requiresAuth: true, isAdmin: true },
+    },
+    {
       path: '/admin/settlement-months',
       name: 'AdminSettlementMonths',
       component: () => import('@/views/admin/AdminSettlementMonthsView.vue'),

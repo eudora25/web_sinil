@@ -123,6 +123,7 @@ const adminMenuTree = [
     { label: '프로모션 관리', path: '/admin/products/promotion' },
     { label: '실적 검수', path: '/admin/performance/review' },
     { label: '흡수율 분석', path: '/admin/absorption-analysis' },
+    { label: '흡수율 제외 설정', path: '/admin/absorption-exclusions' },
     { label: '정산내역서 공유', path: '/admin/settlement-share' }
   ]},
   { label: '실적 통계', icon: 'pi pi-chart-line', children: [
