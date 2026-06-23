@@ -256,6 +256,7 @@ import { supabase } from '@/supabase';
 import { formatBusinessNumber, convertCommissionRateToDecimal } from '@/utils/formatUtils';
 import { useNotifications } from '@/utils/notifications';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
+import { isSmallClientZeroApplicable } from '@/utils/smallClient';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -602,6 +603,21 @@ async function loadSettlementData() {
       });
     }
 
+    // 소액처 0원: 병의원 등록일(created_at) 조회 + (업체,병의원)별 처방액 합계 선계산
+    const clientCreatedAtMap = new Map();
+    if (hospitalIds.length > 0) {
+      const { data: clientRows } = await supabase
+        .from('clients').select('id, created_at').in('id', hospitalIds);
+      (clientRows || []).forEach(c => clientCreatedAtMap.set(c.id, c.created_at));
+    }
+    const ccPrescriptionTotalMap = new Map(); // key: `${company_id}_${client_id}` → 처방액 합계(삭제 제외)
+    for (const record of allRecords) {
+      if (record.review_action === '삭제') continue;
+      const amt = Math.round((record.prescription_qty ?? 0) * (record.product?.price ?? 0));
+      const k = `${record.company_id}_${record.client_id}`;
+      ccPrescriptionTotalMap.set(k, (ccPrescriptionTotalMap.get(k) || 0) + amt);
+    }
+
     // 3. 회사별로 데이터를 집계합니다.
     const summaryMap = new Map();
     for (const record of allRecords) {
@@ -647,8 +663,12 @@ async function loadSettlementData() {
       
       // 삭제되지 않은 건만 지급 처방액과 지급액 계산에 포함
       if (record.review_action !== '삭제') {
-        // 지급 처방액: 수수료율이 있는 정상 건의 처방액만 합계
-        if (record.commission_rate !== null && record.commission_rate !== undefined && record.commission_rate > 0) {
+        // 소액처 0원 판정: (업체,병의원) 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
+        const ccTotal = ccPrescriptionTotalMap.get(`${record.company_id}_${record.client_id}`) || 0;
+        const isSmallZero = isSmallClientZeroApplicable(record.settlement_month, ccTotal, clientCreatedAtMap.get(record.client_id));
+
+        // 지급 처방액: 수수료율이 있는 정상 건의 처방액만 합계 (소액처는 제외)
+        if (!isSmallZero && record.commission_rate !== null && record.commission_rate !== undefined && record.commission_rate > 0) {
           summary.payment_prescription_amount += prescriptionAmount;
         }
         
@@ -718,9 +738,9 @@ async function loadSettlementData() {
           }
         }
         
-        // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
-        const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
-        
+        // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림). 소액처는 0원
+        const finalPaymentAmount = isSmallZero ? 0 : Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
+
         summary.payment_amount += finalPaymentAmount;
       }
     }

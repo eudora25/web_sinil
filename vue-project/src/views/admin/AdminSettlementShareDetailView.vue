@@ -187,6 +187,7 @@ import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
 import { useNotifications } from '@/utils/notifications';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
+import { isSmallClientZeroApplicable } from '@/utils/smallClient';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -242,7 +243,7 @@ async function loadDetailData() {
         .from('performance_records')
         .select(`
           *,
-          clients ( name ),
+          clients ( name, created_at ),
           products ( id, product_name, insurance_code, price )
         `)
         .eq('settlement_month', month.value)
@@ -391,6 +392,13 @@ async function loadDetailData() {
     // 데이터 가공 (약가, 처방액, 지급액 계산)
     let mappedData = [];
     if (allData && allData.length > 0) {
+      // 소액처 0원: 단일 업체 화면이므로 병의원(client)별 처방액 합계 선계산(삭제 제외)
+      const clientPrescriptionTotalMap = new Map();
+      for (const row of allData) {
+        if (row.review_action === '삭제') continue;
+        const amt = Math.round((row.prescription_qty ?? 0) * (row.products?.price ?? 0));
+        clientPrescriptionTotalMap.set(row.client_id, (clientPrescriptionTotalMap.get(row.client_id) || 0) + amt);
+      }
         mappedData = allData.map(row => {
       // 데이터 매핑 시
       const qty = row.prescription_qty ?? 0;
@@ -451,13 +459,17 @@ async function loadDetailData() {
         }
       }
       
-      const paymentAmount = Math.round(prescriptionAmount * commissionRate);
-      
+      // 소액처 0원 판정: 병의원 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
+      const ccTotal = clientPrescriptionTotalMap.get(row.client_id) || 0;
+      const isSmallZero = isSmallClientZeroApplicable(month.value, ccTotal, row.clients?.created_at);
+
+      const paymentAmount = isSmallZero ? 0 : Math.round(prescriptionAmount * commissionRate);
+
       // 반영 흡수율 처리 (별도 조회한 performance_records_absorption 테이블에서 가져온 값 사용)
       const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1.0;
-      
-      // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림)
-      const finalPaymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
+
+      // 최종 지급액 계산: 처방액 × 반영 흡수율 × 수수료율 (정수 반올림). 소액처는 0원
+      const finalPaymentAmount = isSmallZero ? 0 : Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
       
       return {
         ...row,
@@ -478,6 +490,7 @@ async function loadDetailData() {
         _raw_prescription_amount: prescriptionAmount,
         _raw_payment_amount: paymentAmount, // 기본 지급액
         _raw_final_payment_amount: finalPaymentAmount, // 최종 지급액
+        _isSmallZero: isSmallZero, // 소액처 0원 여부(지급처방액 집계에서 제외용)
       };
     });
 
@@ -592,6 +605,7 @@ const settlementSummary = computed(() => {
   // 지급 처방액 계산 (수수료율이 있는 정상 건의 처방액만)
   const paymentPrescriptionAmount = detailRows.value.reduce((sum, row) => {
     if (row.review_action === '삭제') return sum;
+    if (row._isSmallZero) return sum; // 소액처는 지급 처방액에서 제외
     // 수수료율을 숫자로 변환하여 비교 (목록 페이지와 동일한 로직)
     const commissionRate = parseFloat(row.commission_rate?.replace('%', '') || '0') / 100;
     if (commissionRate > 0) {
