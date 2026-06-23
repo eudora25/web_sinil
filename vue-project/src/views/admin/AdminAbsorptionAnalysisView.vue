@@ -336,6 +336,8 @@
               <Column footer="" footerClass="footer-cell" />
               <Column footer="" footerClass="footer-cell" />
               <Column footer="" footerClass="footer-cell" />
+              <Column footer="" footerClass="footer-cell" />
+              <Column footer="" footerClass="footer-cell" />
             </Row>
           </ColumnGroup>
         </DataTable>
@@ -1473,7 +1475,7 @@ async function loadAbsorptionAnalysisResults() {
                 direct_revenue: Number(row.direct_revenue) || 0,
                 total_revenue: Number(row.total_revenue) || 0,
                 absorption_rate: absorptionRate,
-                company_type: row.company?.company_group || 'N/A',
+                company_type: row.company?.company_group || '',
                 company_name: row.company?.company_name || 'N/A',
                 client_name: row.client?.name || 'N/A',
                 product_name_display: row.product?.product_name || 'N/A',
