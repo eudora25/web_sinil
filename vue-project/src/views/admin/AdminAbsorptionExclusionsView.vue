@@ -33,10 +33,10 @@
           <template #body="slotProps">{{ slotProps.index + 1 }}</template>
         </Column>
         <Column field="pharmacy_name" header="약국" :headerStyle="{ width: '22%' }" />
-        <Column field="pharmacy_business_reg_no" header="약국 사업자번호" :headerStyle="{ width: '16%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }" />
-        <Column field="insurance_code" header="보험코드" :headerStyle="{ width: '13%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }" />
+        <Column field="pharmacy_business_reg_no" header="약국 사업자번호" :headerStyle="{ width: '11%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }" />
+        <Column field="insurance_code" header="보험코드" :headerStyle="{ width: '11%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }" />
         <Column field="product_name" header="품목" :headerStyle="{ width: '23%' }" />
-        <Column field="remarks" header="비고" :headerStyle="{ width: '14%' }" />
+        <Column field="remarks" header="비고" :headerStyle="{ width: '21%' }" />
         <Column header="작업" :headerStyle="{ width: '6%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
             <button class="btn-delete-sm" @click="removeExclusion(slotProps.data)">삭제</button>
