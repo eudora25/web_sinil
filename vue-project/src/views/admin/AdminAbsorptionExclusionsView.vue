@@ -32,11 +32,23 @@
         <Column header="No" :headerStyle="{ width: '6%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">{{ slotProps.index + 1 }}</template>
         </Column>
-        <Column field="pharmacy_name" header="약국" :headerStyle="{ width: '22%' }" />
+        <Column header="제외 구분" :headerStyle="{ width: '9%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }">
+          <template #body="slotProps">
+            <span
+              class="type-badge"
+              :class="{
+                'type-wholesale': saleTypeLabel(slotProps.data) === '도매',
+                'type-direct': saleTypeLabel(slotProps.data) === '직거래',
+                'type-both': saleTypeLabel(slotProps.data) === '모두'
+              }"
+            >{{ saleTypeLabel(slotProps.data) }}</span>
+          </template>
+        </Column>
+        <Column field="pharmacy_name" header="약국" :headerStyle="{ width: '20%' }" />
         <Column field="pharmacy_business_reg_no" header="약국 사업자번호" :headerStyle="{ width: '11%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }" />
         <Column field="insurance_code" header="보험코드" :headerStyle="{ width: '11%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }" />
-        <Column field="product_name" header="품목" :headerStyle="{ width: '23%' }" />
-        <Column field="remarks" header="비고" :headerStyle="{ width: '21%' }" />
+        <Column field="product_name" header="품목" :headerStyle="{ width: '18%' }" />
+        <Column field="remarks" header="비고" :headerStyle="{ width: '19%' }" />
         <Column header="작업" :headerStyle="{ width: '6%', textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
             <button class="btn-delete-sm" @click="removeExclusion(slotProps.data)">삭제</button>
@@ -61,6 +73,32 @@
       class="absorption-exclusion-modal"
     >
       <div class="exclusion-modal-content">
+        <!-- 제외 매출 구분 (도매/직거래) -->
+        <div class="search-section">
+          <div class="search-header">
+            <div class="search-header-icon icon-type"><i class="pi pi-sliders-h"></i></div>
+            <div class="search-header-text">
+              <h3 class="search-title">제외 매출 구분</h3>
+              <p class="search-subtitle">흡수율에서 제외할 매출을 선택하세요 (하나 이상 필수)</p>
+            </div>
+          </div>
+          <div class="type-checkbox-group">
+            <label class="type-checkbox" :class="{ checked: excludeWholesale }">
+              <input type="checkbox" v-model="excludeWholesale" />
+              <span class="type-checkbox-box"><i class="pi pi-check"></i></span>
+              <span class="type-checkbox-label">도매</span>
+            </label>
+            <label class="type-checkbox" :class="{ checked: excludeDirect }">
+              <input type="checkbox" v-model="excludeDirect" />
+              <span class="type-checkbox-box"><i class="pi pi-check"></i></span>
+              <span class="type-checkbox-label">직거래</span>
+            </label>
+          </div>
+          <p v-if="!excludeWholesale && !excludeDirect" class="type-warning">
+            <i class="pi pi-exclamation-triangle"></i> 도매 또는 직거래 중 하나 이상을 선택해야 합니다.
+          </p>
+        </div>
+
         <!-- 약국 선택 -->
         <div class="search-section">
           <div class="search-header">
@@ -149,7 +187,7 @@
       </div>
       <template #footer>
         <Button label="취소" icon="pi pi-times" @click="modalVisible = false" class="p-button-text" />
-        <Button label="저장" icon="pi pi-check" @click="saveExclusion" :disabled="!selectedPharmacy || !selectedProduct" />
+        <Button label="저장" icon="pi pi-check" @click="saveExclusion" :disabled="!selectedPharmacy || !selectedProduct || (!excludeWholesale && !excludeDirect)" />
       </template>
     </Dialog>
   </div>
@@ -179,6 +217,8 @@ const selectedPharmacy = ref(null)
 const productSearch = ref('')
 const productResults = ref([])
 const selectedProduct = ref(null)
+const excludeWholesale = ref(true)   // 기본값: 도매 선택
+const excludeDirect = ref(false)
 const remarks = ref('')
 
 async function fetchExclusions() {
@@ -222,9 +262,18 @@ async function fetchExclusions() {
   }
 }
 
+// 제외 구분 라벨: 도매/직거래/모두
+function saleTypeLabel(row) {
+  if (row.exclude_wholesale && row.exclude_direct) return '모두'
+  if (row.exclude_wholesale) return '도매'
+  if (row.exclude_direct) return '직거래'
+  return '-'
+}
+
 function openAddModal() {
   pharmacySearch.value = ''; pharmacyResults.value = []; selectedPharmacy.value = null
   productSearch.value = ''; productResults.value = []; selectedProduct.value = null
+  excludeWholesale.value = true; excludeDirect.value = false  // 기본값: 도매만 선택
   remarks.value = ''
   modalVisible.value = true
 }
@@ -257,12 +306,18 @@ function selectProduct(pr) { selectedProduct.value = pr; productResults.value = 
 
 async function saveExclusion() {
   if (!selectedPharmacy.value || !selectedProduct.value) return
+  if (!excludeWholesale.value && !excludeDirect.value) {
+    showError('도매 또는 직거래 중 하나 이상을 선택해야 합니다.')
+    return
+  }
   try {
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('absorption_sales_exclusions').insert({
       pharmacy_id: selectedPharmacy.value.id,
       pharmacy_business_reg_no: selectedPharmacy.value.business_registration_number,
       insurance_code: selectedProduct.value.insurance_code,
+      exclude_wholesale: excludeWholesale.value,
+      exclude_direct: excludeDirect.value,
       remarks: remarks.value || null,
       created_by: user?.id || null,
     })
@@ -380,6 +435,39 @@ onMounted(async () => {
 
 .remark-section { display: flex; flex-direction: column; gap: 6px; }
 .remark-section label { font-weight: 700; color: #212529; font-size: 14px; }
+
+/* 제외 매출 구분 아이콘 */
+.search-header-icon.icon-type { background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%); box-shadow: 0 4px 12px rgba(111,66,193,0.3); }
+
+/* 도매/직거래 체크박스 */
+.type-checkbox-group { display: flex; gap: 12px; }
+.type-checkbox {
+  display: flex; align-items: center; gap: 10px; flex: 1;
+  padding: 14px 18px; border: 2px solid #e9ecef; border-radius: 10px;
+  background: #f8f9fa; cursor: pointer; transition: all 0.2s ease; user-select: none;
+}
+.type-checkbox:hover { border-color: #c5cbd3; }
+.type-checkbox.checked { border-color: #1976d2; background: #fff; box-shadow: 0 0 0 4px rgba(25,118,210,0.08); }
+.type-checkbox input { display: none; }
+.type-checkbox-box {
+  width: 22px; height: 22px; border: 2px solid #ced4da; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  background: #fff; color: #fff; font-size: 12px; transition: all 0.2s ease; flex-shrink: 0;
+}
+.type-checkbox.checked .type-checkbox-box { background: #1976d2; border-color: #1976d2; }
+.type-checkbox-box i { opacity: 0; transition: opacity 0.2s ease; }
+.type-checkbox.checked .type-checkbox-box i { opacity: 1; }
+.type-checkbox-label { font-size: 14px; font-weight: 600; color: #212529; }
+.type-warning { margin: 10px 0 0; color: #dc3545; font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+
+/* 목록 제외 구분 배지 */
+.type-badge {
+  display: inline-block; padding: 2px 8px; margin: 0 2px; border-radius: 6px;
+  font-size: 0.78rem; font-weight: 600;
+}
+.type-wholesale { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+.type-direct { background: #f3e5f5; color: #6f42c1; border: 1px solid #e1bee7; }
+.type-both { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
 
 .loading-spinner { width: 18px; height: 18px; border: 2px solid #e3f2fd; border-top-color: #007bff; border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
