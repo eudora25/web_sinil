@@ -258,7 +258,7 @@ import ExcelJS from 'exceljs';
 import { getNoticeModalHidePreference, setNoticeModalHidePreference } from '@/utils/userPreferences';
 import { useNotifications } from '@/utils/notifications';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
-import { isSmallClientZeroApplicable } from '@/utils/smallClient';
+import { isSmallClientZeroApplicable, fetchClientFirstMonths } from '@/utils/smallClient';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -602,6 +602,8 @@ async function fetchAllDataForMonth() {
     const amt = Math.round((row.prescription_qty || 0) * (row.products?.price || 0));
     clientPrescriptionTotalMap.set(row.client_id, (clientPrescriptionTotalMap.get(row.client_id) || 0) + amt);
   }
+  // 신규처 보호: 병의원별 첫 실적월 조회
+  const clientFirstMonthMap = await fetchClientFirstMonths(supabase, data.map(r => r.client_id));
 
   allDataForMonth.value = data.map(row => {
     const price = row.products?.price || 0;
@@ -674,7 +676,7 @@ async function fetchAllDataForMonth() {
     const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1;
     // 소액처 0원 판정: 병의원 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
     const ccTotal = clientPrescriptionTotalMap.get(row.client_id) || 0;
-    const isSmallZero = isSmallClientZeroApplicable(selectedMonth.value, ccTotal, row.clients?.created_at);
+    const isSmallZero = isSmallClientZeroApplicable(selectedMonth.value, ccTotal, clientFirstMonthMap.get(row.client_id));
     const finalPaymentAmount = isSmallZero ? 0 : Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
 
     return {

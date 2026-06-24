@@ -404,7 +404,7 @@ import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
 import { useNotifications } from '@/utils/notifications';
 import { convertCommissionRateToDecimal, formatNumber } from '@/utils/formatUtils';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
-import { isSmallClientZeroApplicable } from '@/utils/smallClient';
+import { isSmallClientZeroApplicable, fetchClientFirstMonths } from '@/utils/smallClient';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -1358,14 +1358,9 @@ async function loadAbsorptionAnalysisResults() {
       }
     }
 
-    // 소액처 0원: 병의원 등록일 + (업체,병의원)별 처방액 합계 선계산
+    // 소액처 0원: 병의원 첫 실적월(신규처 보호) + (업체,병의원)별 처방액 합계 선계산
     const scClientIds = [...new Set(allData.map(r => r.client_id).filter(Boolean))];
-    const clientCreatedAtMap = new Map();
-    if (scClientIds.length > 0) {
-      const { data: scClients } = await supabase
-        .from('clients').select('id, created_at').in('id', scClientIds);
-      (scClients || []).forEach(c => clientCreatedAtMap.set(c.id, c.created_at));
-    }
+    const clientFirstMonthMap = await fetchClientFirstMonths(supabase, scClientIds);
     const ccPrescriptionTotalMap = new Map(); // key: `${company_id}_${client_id}` (삭제 제외)
     for (const r of allData) {
       if (r.review_action === '삭제') continue;
@@ -1387,7 +1382,7 @@ async function loadAbsorptionAnalysisResults() {
 
             // 소액처 0원 판정: (업체,병의원) 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
             const _scTotal = ccPrescriptionTotalMap.get(`${row.company_id}_${row.client_id}`) || 0;
-            const isSmallZero = isSmallClientZeroApplicable(row.settlement_month, _scTotal, clientCreatedAtMap.get(row.client_id));
+            const isSmallZero = isSmallClientZeroApplicable(row.settlement_month, _scTotal, clientFirstMonthMap.get(row.client_id));
 
             // 프로모션 수수료율 적용 여부 확인 (계산 전에 수수료율 교체)
             let isPromotionRateApplied = false;

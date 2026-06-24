@@ -187,7 +187,7 @@ import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
 import { useNotifications } from '@/utils/notifications';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
-import { isSmallClientZeroApplicable } from '@/utils/smallClient';
+import { isSmallClientZeroApplicable, fetchClientFirstMonths } from '@/utils/smallClient';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -399,6 +399,8 @@ async function loadDetailData() {
         const amt = Math.round((row.prescription_qty ?? 0) * (row.products?.price ?? 0));
         clientPrescriptionTotalMap.set(row.client_id, (clientPrescriptionTotalMap.get(row.client_id) || 0) + amt);
       }
+      // 신규처 보호: 병의원별 첫 실적월 조회
+      const clientFirstMonthMap = await fetchClientFirstMonths(supabase, allData.map(r => r.client_id));
         mappedData = allData.map(row => {
       // 데이터 매핑 시
       const qty = row.prescription_qty ?? 0;
@@ -461,7 +463,7 @@ async function loadDetailData() {
       
       // 소액처 0원 판정: 병의원 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
       const ccTotal = clientPrescriptionTotalMap.get(row.client_id) || 0;
-      const isSmallZero = isSmallClientZeroApplicable(month.value, ccTotal, row.clients?.created_at);
+      const isSmallZero = isSmallClientZeroApplicable(month.value, ccTotal, clientFirstMonthMap.get(row.client_id));
 
       const paymentAmount = isSmallZero ? 0 : Math.round(prescriptionAmount * commissionRate);
 
