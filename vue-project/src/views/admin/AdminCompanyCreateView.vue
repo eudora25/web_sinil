@@ -527,35 +527,47 @@ const handleSubmit = async () => {
             
             if (error) {
               // Edge Function 오류 처리
-              let errorMessage = '사용자 계정 생성에 실패했습니다.';
-              
-              // Edge Function이 non-2xx 상태 코드를 반환한 경우
-              if (error.message && error.message.includes('non-2xx')) {
-                // Edge Function의 응답 본문에서 오류 메시지 추출 시도
-                if (error.context && error.context.body) {
-                  try {
-                    const errorBody = typeof error.context.body === 'string' 
-                      ? JSON.parse(error.context.body) 
-                      : error.context.body;
-                    if (errorBody.error) {
-                      errorMessage = translateSupabaseError({ message: errorBody.error }, '업체 등록');
-                    } else {
-                      errorMessage = '중복된 이메일 주소이거나 서버 처리 중 오류가 발생했습니다.';
-                    }
-                  } catch (e) {
-                    errorMessage = '서버 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.';
-                  }
-                } else {
-                  errorMessage = '중복된 이메일 주소이거나 서버 처리 중 오류가 발생했습니다.';
+              // supabase.functions.invoke 는 non-2xx 시 error.message 가
+              // "Edge Function returned a non-2xx status code"(영문 래퍼)로만 오므로,
+              // 실제 사유는 응답 본문(JSON { error })에서 꺼내야 한다.
+              // error.context 는 supabase-js v2 에서 Response 객체 → .json()/.text() 로 읽는다.
+              let serverError = '';
+              try {
+                const ctx = error.context;
+                if (ctx && typeof ctx.json === 'function') {
+                  const body = await ctx.json();
+                  serverError = body?.error || '';
+                } else if (ctx && typeof ctx.text === 'function') {
+                  const t = await ctx.text();
+                  try { serverError = JSON.parse(t)?.error || t; } catch { serverError = t; }
+                } else if (ctx && ctx.body) {
+                  const body = typeof ctx.body === 'string' ? JSON.parse(ctx.body) : ctx.body;
+                  serverError = body?.error || '';
                 }
-              } else if (error.message && error.message.includes('already been registered')) {
+              } catch (_) {
+                // 본문 파싱 실패 → 아래 일반 처리로 폴백
+              }
+
+              const raw = String(serverError || error.message || '').toLowerCase();
+              let errorMessage;
+              if (
+                raw.includes('already been registered') ||
+                raw.includes('already registered') ||
+                raw.includes('email_exists') ||
+                (raw.includes('email') && raw.includes('already'))
+              ) {
                 errorMessage = '이미 등록된 이메일 주소입니다.';
-              } else if (error.message && error.message.includes('invalid')) {
+              } else if (raw.includes('business registration number already exists')) {
+                errorMessage = '이미 등록된 사업자등록번호입니다.';
+              } else if (raw.includes('invalid') && raw.includes('email')) {
                 errorMessage = '이메일 주소 형식이 올바르지 않습니다.';
+              } else if (serverError) {
+                // 서버가 보낸 구체 사유가 있으면 한글화(미확인 영문은 공통 문구로 대체)
+                errorMessage = translateSupabaseError({ message: serverError }, '업체 등록');
               } else {
                 errorMessage = translateSupabaseError(error, '업체 등록');
               }
-              
+
               showError(errorMessage);
               return;
             }

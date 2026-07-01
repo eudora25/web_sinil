@@ -171,8 +171,23 @@ export function translateGeneralError(error, context = '작업') {
     if (message.includes('json') || message.includes('parse')) {
       return '데이터 처리 중 오류가 발생했습니다. 다시 시도해주세요.';
     }
+
+    // 보안/재시도 제한
+    if (message.includes('for security purposes') || message.includes('rate limit') ||
+        message.includes('you can only request this') || message.includes('too many requests')) {
+      return '보안을 위해 잠시 후 다시 시도해주세요. (약 1분 정도 기다려주세요)';
+    }
+
+    // Edge Function/서버 처리 오류
+    if (message.includes('edge function') || message.includes('non-2xx')) {
+      return '서버 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.';
+    }
   }
 
-  return `${context} 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`;
+  // 한글이 없는(=영어/숫자 위주) 메시지는 원문 노출 대신 공통 문구 반환
+  if (error.message && /[가-힣]/.test(error.message)) {
+    return `${context} 중 오류가 발생했습니다: ${error.message}`;
+  }
+  return `${context} 중 오류가 발생했습니다. 관리자에게 문의해주세요.`;
 }
 
