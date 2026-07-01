@@ -412,31 +412,45 @@ function setProductInputRef(rowIdx, el) {
   if (el) productInputRefs.value[rowIdx] = el;
 }
 
+// 동기 위치 계산(스크롤 재배치는 지연 없이 즉시 → 떨림 방지)
+function computeProductDropdownPosition(rowIdx) {
+  const el = productInputRefs.value[rowIdx];
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+
+  // 입력칸이 표 스크롤 영역(고정 헤더 아래) 밖으로 나가면 드롭다운을 닫아 '허공 부유' 방지
+  const scrollEl = el.closest('.table-body-scroll');
+  if (scrollEl) {
+    const cRect = scrollEl.getBoundingClientRect();
+    if (rect.bottom <= cRect.top || rect.top >= cRect.bottom) {
+      productSearchForRow.value.show = false;
+      return;
+    }
+  }
+
+  // 화면 높이와 드롭다운 높이 계산
+  const windowHeight = window.innerHeight;
+  const dropdownHeight = 220; // 드롭다운 예상 높이
+  const spaceBelow = windowHeight - rect.bottom;
+  const spaceAbove = rect.top;
+
+  // 아래쪽 공간이 부족하고 위쪽 공간이 충분하면 위로 표시
+  const showAbove = spaceBelow < dropdownHeight && spaceAbove > dropdownHeight;
+
+  productDropdownStyle.value[rowIdx] = {
+    position: 'fixed',
+    left: rect.left + 'px',
+    top: showAbove ? (rect.top - dropdownHeight) + 'px' : rect.bottom + 'px',
+    width: rect.width + 'px',
+    zIndex: 9999,
+    maxHeight: showAbove ? Math.min(dropdownHeight, spaceAbove - 10) + 'px' : Math.min(dropdownHeight, spaceBelow - 10) + 'px',
+    overflowY: 'auto',
+  };
+}
+
+// 열기/데이터 변경 시엔 레이아웃 반영 후(nextTick) 계산
 function updateProductDropdownPosition(rowIdx) {
-  nextTick(() => {
-    const el = productInputRefs.value[rowIdx];
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    
-    // 화면 높이와 드롭다운 높이 계산
-    const windowHeight = window.innerHeight;
-    const dropdownHeight = 220; // 드롭다운 예상 높이
-    const spaceBelow = windowHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    
-    // 아래쪽 공간이 부족하고 위쪽 공간이 충분하면 위로 표시
-    const showAbove = spaceBelow < dropdownHeight && spaceAbove > dropdownHeight;
-    
-    productDropdownStyle.value[rowIdx] = {
-      position: 'fixed',
-      left: rect.left + 'px',
-      top: showAbove ? (rect.top - dropdownHeight) + 'px' : rect.bottom + 'px',
-      width: rect.width + 'px',
-      zIndex: 9999,
-      maxHeight: showAbove ? Math.min(dropdownHeight, spaceAbove - 10) + 'px' : Math.min(dropdownHeight, spaceBelow - 10) + 'px',
-      overflowY: 'auto',
-    };
-  });
+  nextTick(() => computeProductDropdownPosition(rowIdx));
 }
 
 watch(() => productSearchForRow.value.activeRowIndex, (rowIdx) => {
@@ -455,11 +469,16 @@ watch(inputRows, () => {
   }
 }, { deep: true });
 // 스크롤 시 제품검색 드롭다운 위치 갱신 (onMounted에서 등록, onUnmounted에서 해제)
+// requestAnimationFrame 스로틀 + 동기 계산으로 스크롤과 같은 프레임에 재배치(떨림 방지)
+let dropdownScrollRaf = null;
 function handleWindowScroll() {
   const rowIdx = productSearchForRow.value.activeRowIndex;
-  if (productSearchForRow.value.show && rowIdx !== -1) {
-    updateProductDropdownPosition(rowIdx);
-  }
+  if (!productSearchForRow.value.show || rowIdx === -1) return;
+  if (dropdownScrollRaf != null) return;
+  dropdownScrollRaf = requestAnimationFrame(() => {
+    dropdownScrollRaf = null;
+    computeProductDropdownPosition(rowIdx);
+  });
 }
 function getPrescriptionMonth(settlementMonth, offset) {
   if (!settlementMonth) return '';

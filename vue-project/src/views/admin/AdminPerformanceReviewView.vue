@@ -554,7 +554,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { supabase } from '@/supabase';
 // 주석: updatePromotionProductHospitalPerformance는 트리거가 자동 처리하므로 불필요
@@ -3196,24 +3196,60 @@ function delayedHideProductSearchList(rowData) {
   }, 200);
 }
 
+// 가장 가까운 스크롤 가능한 조상 요소(테이블 스크롤 컨테이너) 탐색
+function getScrollParent(el) {
+  let p = el?.parentElement;
+  while (p) {
+    const s = window.getComputedStyle(p);
+    if (/(auto|scroll)/.test(s.overflowY) || /(auto|scroll)/.test(s.overflow)) return p;
+    p = p.parentElement;
+  }
+  return null;
+}
+
+// 동기 위치 계산 + 스크롤 영역 밖이면 닫기(부유 방지)
+function positionReviewDropdown(reactiveRow) {
+  const inputEl = productInputRefs.value[reactiveRow.id];
+  if (!inputEl) return;
+  const rect = inputEl.getBoundingClientRect();
+
+  const scrollEl = getScrollParent(inputEl);
+  if (scrollEl) {
+    const cRect = scrollEl.getBoundingClientRect();
+    if (rect.bottom <= cRect.top || rect.top >= cRect.bottom) {
+      reactiveRow.showProductSearchList = false;
+      return;
+    }
+  }
+
+  reactiveRow.productDropdownStyle = {
+    position: 'fixed',
+    top: `${rect.bottom}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    zIndex: 1000
+  };
+}
+
 function updateProductDropdownPosition(rowData) {
   const reactiveRow = rows.value.find(r => r.id === rowData.id);
   if (!reactiveRow) return;
+  nextTick(() => positionReviewDropdown(reactiveRow));
+}
 
-  nextTick(() => {
-    const inputEl = productInputRefs.value[reactiveRow.id];
-    if (inputEl) {
-      const rect = inputEl.getBoundingClientRect();
-      reactiveRow.productDropdownStyle = {
-        position: 'fixed',
-        top: `${rect.bottom}px`,
-        left: `${rect.left}px`,
-        width: `${rect.width}px`,
-        zIndex: 1000
-      };
-    }
+// 스크롤 시 열린 드롭다운 재배치(rAF 스로틀 + 동기 계산 → 떨림 방지, 벗어나면 닫힘)
+let reviewDropdownScrollRaf = null;
+function handleReviewScroll() {
+  const openRow = rows.value.find(r => r.showProductSearchList);
+  if (!openRow) return;
+  if (reviewDropdownScrollRaf != null) return;
+  reviewDropdownScrollRaf = requestAnimationFrame(() => {
+    reviewDropdownScrollRaf = null;
+    positionReviewDropdown(openRow);
   });
 }
+onMounted(() => window.addEventListener('scroll', handleReviewScroll, true));
+onUnmounted(() => window.removeEventListener('scroll', handleReviewScroll, true));
 
 // --- 제품 검색 헬퍼 ---
 function getFilteredProductList(prescriptionMonth) {
