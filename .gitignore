@@ -156,7 +156,6 @@ backups/
 /scripts/
 sql-scripts/
 docs/
-admin-scripts/
 test-data/
 test-scripts/
 database/

@@ -5,7 +5,7 @@ services:
     container_name: postgres-mcp-supabase
     environment:
       # 환경 변수로 설정하거나 기본값 사용
-      # 환경 변수 예시: export DATABASE_URI="postgresql://postgres:!tlsdlf-dnsdud~@db.vbmmfuraxvxlfpewqrsm.supabase.co:5432/postgres"
+      # 개발 DB (vbmmfuraxvxlfpewqrsm / sinil_sub_dev)
       - DATABASE_URI=${DATABASE_URI:-postgresql://postgres:!tlsdlf-dnsdud~@db.vbmmfuraxvxlfpewqrsm.supabase.co:5432/postgres}
     command: ["--access-mode=unrestricted"]
     networks:

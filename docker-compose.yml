@@ -20,8 +20,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./api:/app/api
-      - ./admin-scripts:/app/admin-scripts
+      - ./scripts:/app/scripts
       - ./public:/app/public
     environment:
       - NODE_ENV=development
