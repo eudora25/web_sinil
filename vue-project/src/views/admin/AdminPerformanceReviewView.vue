@@ -1889,6 +1889,12 @@ async function saveEdit(rowData) {
     showWarning('제품명과 수량은 필수 입력 항목입니다.');
     return;
   }
+  // 수량 검증: 비숫자면 NaN→0 저장 또는 null 위반이 나므로 저장 전에 차단
+  const qtyNum = Number(String(rowData.prescription_qty_modify).replace(/,/g, ''));
+  if (isNaN(qtyNum)) {
+    showWarning('수량은 숫자로 입력해주세요.');
+    return;
+  }
 
   loading.value = true;
   activeEditingRowId.value = null;
@@ -1942,7 +1948,7 @@ async function saveEdit(rowData) {
       client_id: rowData.client_id,
       product_id: rowData.product_id_modify,
       prescription_month: rowData.prescription_month_modify,
-      prescription_qty: Number(rowData.prescription_qty_modify) || 0,
+      prescription_qty: qtyNum,
       prescription_type: rowData.prescription_type_modify,
       commission_rate: finalCommissionRate,
       remarks: rowData.remarks_modify,
@@ -2025,10 +2031,10 @@ async function saveEdit(rowData) {
       } else if (err.message.includes('network') || err.message.includes('fetch')) {
         errorMessage = '네트워크 연결에 실패했습니다. 인터넷 연결을 확인해주세요.';
       } else {
-        errorMessage = `저장 실패: ${err.message}`;
+        errorMessage = translateSupabaseError(err, '실적 저장');
       }
     }
-    
+
     // Toast 알림으로 에러 표시
     showError(errorMessage);
     

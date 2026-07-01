@@ -1460,13 +1460,19 @@ async function savePerformanceData() {
       if (calculatedRate < 0 || calculatedRate > 1) {
         throw new Error(`수수료율은 0~100% 사이의 숫자여야 합니다. (${index + 1}번째 행)`);
       }
-      
+
+      // 수량 검증: 비숫자/빈값이면 NaN→null 로 not-null 위반이 나므로 저장 전에 차단
+      const updateQtyNum = parseFloat(String(row.prescription_qty ?? '').replace(/,/g, ''));
+      if (isNaN(updateQtyNum)) {
+        throw new Error(`수량은 숫자로 입력해주세요. (${index + 1}번째 행)`);
+      }
+
       return supabase
         .from('performance_records')
         .update({
           prescription_month: row.prescription_month,
           product_id: row.product_id,
-          prescription_qty: parseFloat(String(row.prescription_qty || '').replace(/,/g, '')),
+          prescription_qty: updateQtyNum,
           prescription_type: row.prescription_type,
           remarks: row.remarks,
           commission_rate: (() => {
@@ -1611,10 +1617,10 @@ async function onSave() {
       } else if (err.message.includes('network') || err.message.includes('fetch')) {
         errorMessage = '네트워크 연결에 실패했습니다. 인터넷 연결을 확인해주세요.';
       } else {
-        errorMessage = `저장 실패: ${err.message}`;
+        errorMessage = translateSupabaseError(err, '실적 저장');
       }
     }
-    
+
     showError(errorMessage);
   }
 
