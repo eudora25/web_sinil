@@ -568,6 +568,7 @@ import Button from 'primevue/button';
 import { v4 as uuidv4 } from 'uuid';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
 import { isTransferContinuityMonth, isAssignedForMonth } from '@/utils/promotion';
+import { isSmallClientZeroApplicable, fetchClientFirstMonths, getClientFirstMonth, companyClientRxMonthKey } from '@/utils/smallClient';
 import { useNotifications } from '@/utils/notifications';
 import { translateSupabaseError } from '@/utils/errorMessages';
 
@@ -1583,12 +1584,12 @@ async function loadPerformanceData() {
       (companyGroupRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group));
     }
 
-    // 소액처 0원: (업체×병의원)별 처방액 합계 선계산(삭제 제외)
+    // 소액처 0원: (업체×병의원×처방월)별 처방액 합계 선계산(삭제 제외)
     const ccPrescriptionTotalMap = new Map();
     for (const item of allData) {
       if (item.review_action === '삭제') continue;
       const amt = Math.round((item.prescription_qty || 0) * (item.products?.price || 0));
-      const k = `${item.company_id}_${item.client_id}`;
+      const k = companyClientRxMonthKey(item.company_id, item.client_id, item.prescription_month);
       ccPrescriptionTotalMap.set(k, (ccPrescriptionTotalMap.get(k) || 0) + amt);
     }
     // 신규처 보호: 병의원별 첫 실적월 조회
@@ -1748,9 +1749,9 @@ async function loadPerformanceData() {
           }
         }
         
-        // 소액처 0원 판정: (업체×병의원) 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
-        const ccTotal = ccPrescriptionTotalMap.get(`${companyId}_${hospitalId}`) || 0;
-        const isSmallZero = isSmallClientZeroApplicable(settlementMonth, ccTotal, clientFirstMonthMap.get(item.client_id));
+        // 소액처 0원 판정: (업체×병의원×처방월) 처방액 합계<10만 & cutoff 이상 & 신규처 보호 아님
+        const ccTotal = ccPrescriptionTotalMap.get(companyClientRxMonthKey(companyId, hospitalId, item.prescription_month)) || 0;
+        const isSmallZero = isSmallClientZeroApplicable(settlementMonth, item.prescription_month, ccTotal, getClientFirstMonth(clientFirstMonthMap, item.client_id));
         // 반영 흡수율 (미설정 시 100%) — 정산내역서와 동일하게 지급액에 반영
         const appliedAbsorptionRate = (appliedAbsorptionMap[item.id] !== null && appliedAbsorptionMap[item.id] !== undefined) ? appliedAbsorptionMap[item.id] : 1.0;
 

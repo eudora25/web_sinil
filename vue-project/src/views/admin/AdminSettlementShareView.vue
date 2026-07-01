@@ -256,6 +256,7 @@ import { supabase } from '@/supabase';
 import { formatBusinessNumber, convertCommissionRateToDecimal } from '@/utils/formatUtils';
 import { useNotifications } from '@/utils/notifications';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
+import { isSmallClientZeroApplicable, fetchClientFirstMonths, getClientFirstMonth, companyClientRxMonthKey } from '@/utils/smallClient';
 import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
@@ -441,6 +442,7 @@ async function loadSettlementData() {
         company_id,
         client_id,
         settlement_month,
+        prescription_month,
         prescription_qty,
         commission_rate,
         review_action,
@@ -605,11 +607,11 @@ async function loadSettlementData() {
 
     // 소액처 0원: 병의원 첫 실적월 조회(신규처 보호) + (업체,병의원)별 처방액 합계 선계산
     const clientFirstMonthMap = await fetchClientFirstMonths(supabase, hospitalIds);
-    const ccPrescriptionTotalMap = new Map(); // key: `${company_id}_${client_id}` → 처방액 합계(삭제 제외)
+    const ccPrescriptionTotalMap = new Map(); // key: companyClientRxMonthKey → 처방액 합계(삭제 제외)
     for (const record of allRecords) {
       if (record.review_action === '삭제') continue;
       const amt = Math.round((record.prescription_qty ?? 0) * (record.product?.price ?? 0));
-      const k = `${record.company_id}_${record.client_id}`;
+      const k = companyClientRxMonthKey(record.company_id, record.client_id, record.prescription_month);
       ccPrescriptionTotalMap.set(k, (ccPrescriptionTotalMap.get(k) || 0) + amt);
     }
 
@@ -659,8 +661,8 @@ async function loadSettlementData() {
       // 삭제되지 않은 건만 지급 처방액과 지급액 계산에 포함
       if (record.review_action !== '삭제') {
         // 소액처 0원 판정: (업체,병의원) 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
-        const ccTotal = ccPrescriptionTotalMap.get(`${record.company_id}_${record.client_id}`) || 0;
-        const isSmallZero = isSmallClientZeroApplicable(record.settlement_month, ccTotal, clientFirstMonthMap.get(record.client_id));
+        const ccTotal = ccPrescriptionTotalMap.get(companyClientRxMonthKey(record.company_id, record.client_id, record.prescription_month)) || 0;
+        const isSmallZero = isSmallClientZeroApplicable(record.settlement_month, record.prescription_month, ccTotal, getClientFirstMonth(clientFirstMonthMap, record.client_id));
 
         // 지급 처방액: 수수료율이 있는 정상 건의 처방액만 합계 (소액처는 제외)
         if (!isSmallZero && record.commission_rate !== null && record.commission_rate !== undefined && record.commission_rate > 0) {

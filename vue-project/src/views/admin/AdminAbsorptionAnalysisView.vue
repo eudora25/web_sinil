@@ -405,6 +405,7 @@ import { useNotifications } from '@/utils/notifications';
 import { translateSupabaseError } from '@/utils/errorMessages';
 import { convertCommissionRateToDecimal, formatNumber } from '@/utils/formatUtils';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
+import { isSmallClientZeroApplicable, fetchClientFirstMonths, getClientFirstMonth, companyClientRxMonthKey } from '@/utils/smallClient';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -1361,11 +1362,11 @@ async function loadAbsorptionAnalysisResults() {
     // 소액처 0원: 병의원 첫 실적월(신규처 보호) + (업체,병의원)별 처방액 합계 선계산
     const scClientIds = [...new Set(allData.map(r => r.client_id).filter(Boolean))];
     const clientFirstMonthMap = await fetchClientFirstMonths(supabase, scClientIds);
-    const ccPrescriptionTotalMap = new Map(); // key: `${company_id}_${client_id}` (삭제 제외)
+    const ccPrescriptionTotalMap = new Map(); // key: companyClientRxMonthKey (삭제 제외)
     for (const r of allData) {
       if (r.review_action === '삭제') continue;
       const amt = Math.round((Number(r.prescription_qty) || 0) * (Number(r.product?.price) || 0));
-      const k = `${r.company_id}_${r.client_id}`;
+      const k = companyClientRxMonthKey(r.company_id, r.client_id, r.prescription_month);
       ccPrescriptionTotalMap.set(k, (ccPrescriptionTotalMap.get(k) || 0) + amt);
     }
 
@@ -1381,8 +1382,8 @@ async function loadAbsorptionAnalysisResults() {
             const prescriptionAmount = Math.round(prescriptionQty * productPrice);
 
             // 소액처 0원 판정: (업체,병의원) 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
-            const _scTotal = ccPrescriptionTotalMap.get(`${row.company_id}_${row.client_id}`) || 0;
-            const isSmallZero = isSmallClientZeroApplicable(row.settlement_month, _scTotal, clientFirstMonthMap.get(row.client_id));
+            const _scTotal = ccPrescriptionTotalMap.get(companyClientRxMonthKey(row.company_id, row.client_id, row.prescription_month)) || 0;
+            const isSmallZero = isSmallClientZeroApplicable(row.settlement_month, row.prescription_month, _scTotal, getClientFirstMonth(clientFirstMonthMap, row.client_id));
 
             // 프로모션 수수료율 적용 여부 확인 (계산 전에 수수료율 교체)
             let isPromotionRateApplied = false;

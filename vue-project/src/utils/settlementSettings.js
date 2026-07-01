@@ -65,7 +65,7 @@ export function getSettlementCutoffs() { return cache; }
 /** 이관 연속성 cutoff(YYYY-MM). */
 export function getTransferCutoffMonth() { return cache.transfer_cutoff_month; }
 
-/** 소액처 0원 cutoff(YYYY-MM). */
+/** 소액처 0원 cutoff(YYYY-MM). 이 정산월부터 소액 0원 규칙 적용. */
 export function getSmallClientCutoffMonth() { return cache.small_client_cutoff_month; }
 
 /** 흡수율 제외 cutoff(YYYY-MM). */

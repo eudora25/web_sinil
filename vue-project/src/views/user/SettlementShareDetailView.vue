@@ -258,7 +258,7 @@ import ExcelJS from 'exceljs';
 import { getNoticeModalHidePreference, setNoticeModalHidePreference } from '@/utils/userPreferences';
 import { useNotifications } from '@/utils/notifications';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
-import { isSmallClientZeroApplicable, fetchClientFirstMonths } from '@/utils/smallClient';
+import { isSmallClientZeroApplicable, fetchClientFirstMonths, getClientFirstMonth, companyClientRxMonthKey } from '@/utils/smallClient';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -600,7 +600,8 @@ async function fetchAllDataForMonth() {
   for (const row of data) {
     if (row.review_action === '삭제') continue;
     const amt = Math.round((row.prescription_qty || 0) * (row.products?.price || 0));
-    clientPrescriptionTotalMap.set(row.client_id, (clientPrescriptionTotalMap.get(row.client_id) || 0) + amt);
+    const k = companyClientRxMonthKey(companyId.value, row.client_id, row.prescription_month);
+    clientPrescriptionTotalMap.set(k, (clientPrescriptionTotalMap.get(k) || 0) + amt);
   }
   // 신규처 보호: 병의원별 첫 실적월 조회
   const clientFirstMonthMap = await fetchClientFirstMonths(supabase, data.map(r => r.client_id));
@@ -675,8 +676,8 @@ async function fetchAllDataForMonth() {
     // 관리자 상세 뷰와 동일한 계산 방식: 처방액 × 반영 흡수율 × 수수료율. 미설정 시 100% (기본값 1)
     const appliedAbsorptionRate = absorptionRates[row.id] !== null && absorptionRates[row.id] !== undefined ? absorptionRates[row.id] : 1;
     // 소액처 0원 판정: 병의원 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
-    const ccTotal = clientPrescriptionTotalMap.get(row.client_id) || 0;
-    const isSmallZero = isSmallClientZeroApplicable(selectedMonth.value, ccTotal, clientFirstMonthMap.get(row.client_id));
+    const ccTotal = clientPrescriptionTotalMap.get(companyClientRxMonthKey(companyId.value, row.client_id, row.prescription_month)) || 0;
+    const isSmallZero = isSmallClientZeroApplicable(selectedMonth.value, row.prescription_month, ccTotal, getClientFirstMonth(clientFirstMonthMap, row.client_id));
     const finalPaymentAmount = isSmallZero ? 0 : Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
 
     return {
