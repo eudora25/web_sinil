@@ -256,7 +256,7 @@ import { supabase } from '@/supabase';
 import { formatBusinessNumber, convertCommissionRateToDecimal } from '@/utils/formatUtils';
 import { useNotifications } from '@/utils/notifications';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
-import { isSmallClientZeroApplicable, fetchClientFirstMonths } from '@/utils/smallClient';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -901,7 +901,7 @@ async function saveShareStatus() {
 
   } catch (err) {
     console.error('공유 상태 저장 오류:', err);
-    showError(`공유 상태 저장 중 오류가 발생했습니다: ${err.message}`);
+    showError(translateSupabaseError(err, '공유 상태 저장'));
   } finally {
     loading.value = false;
   }
@@ -949,7 +949,7 @@ async function saveNotice() {
     closeNoticeModal();
   } catch (err) {
     console.error('전달사항 저장 오류:', err);
-    showError(`전달사항 저장 중 오류가 발생했습니다: ${err.message}`);
+    showError(translateSupabaseError(err, '전달사항 저장'));
   }
 }
 
@@ -1031,7 +1031,7 @@ async function saveCommission() {
     closeCommissionModal();
   } catch (err) {
     console.error('구간 수수료율 저장 오류:', err);
-    showError(`구간 수수료율 저장 중 오류가 발생했습니다: ${err.message}`);
+    showError(translateSupabaseError(err, '구간 수수료율 저장'));
   }
 }
 

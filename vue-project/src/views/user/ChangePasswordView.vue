@@ -77,6 +77,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import { useNotifications } from '@/utils/notifications'
+import { translateSupabaseError } from '@/utils/errorMessages'
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -142,7 +143,7 @@ const handleSubmit = async () => {
     })
 
     if (updateError) {
-      showError('비밀번호 변경 실패: ' + updateError.message)
+      showError(translateSupabaseError(updateError, '비밀번호 변경'))
       return
     }
 
@@ -158,7 +159,7 @@ const handleSubmit = async () => {
 
   } catch (err) {
     console.error('비밀번호 변경 오류:', err)
-    showError('비밀번호 변경 중 오류가 발생했습니다: ' + (err.message || err))
+    showError(translateSupabaseError(err, '비밀번호 변경'))
   } finally {
     loading.value = false
   }

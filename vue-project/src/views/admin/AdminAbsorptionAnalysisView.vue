@@ -402,9 +402,9 @@ import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 import { convertCommissionRateToDecimal, formatNumber } from '@/utils/formatUtils';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
-import { isSmallClientZeroApplicable, fetchClientFirstMonths } from '@/utils/smallClient';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -1555,7 +1555,7 @@ async function loadAbsorptionAnalysisResults() {
 
   } catch (err) {
     console.error('분석 결과 데이터 로딩 오류:', err);
-    showError(`분석 결과 데이터 로딩 중 오류가 발생했습니다: ${err.message}`);
+    showError(translateSupabaseError(err, '분석 결과 데이터 로딩'));
   } finally {
     clearTimeout(timeoutId); // 타임아웃 제거
     // 로딩 상태는 이미 위에서 해제했으므로 여기서는 제거
@@ -1991,7 +1991,7 @@ const calculateAbsorptionRates = async () => {
 
   } catch (err) {
     console.error('흡수율 분석 실행 오류:', JSON.stringify(err, null, 2));
-    showError(`흡수율 분석 중 오류가 발생했습니다: ${err.message}`);
+    showError(translateSupabaseError(err, '흡수율 분석'));
   } finally {
     loading.value = false;
     isCalculating.value = false; // 플래그 리셋
@@ -2528,7 +2528,7 @@ async function deleteFilteredAnalysisData() {
 
   } catch (err) {
     console.error('흡수율 분석 데이터 삭제 오류:', err);
-    showError(`흡수율 분석 데이터 삭제 중 오류가 발생했습니다: ${err.message}`);
+    showError(translateSupabaseError(err, '흡수율 분석 데이터 삭제'));
   } finally {
     loading.value = false;
   }
@@ -2727,7 +2727,7 @@ async function saveAbsorptionRate() {
     
   } catch (err) {
     console.error('반영 흡수율 저장 오류:', err);
-    showError(`반영 흡수율 저장 중 오류가 발생했습니다: ${err.message}`);
+    showError(translateSupabaseError(err, '반영 흡수율 저장'));
   }
 }
 

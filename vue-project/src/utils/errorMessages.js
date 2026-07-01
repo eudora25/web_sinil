@@ -107,8 +107,12 @@ export function translateSupabaseError(error, context = '작업') {
       return '로그인이 필요합니다. 다시 로그인해주세요.';
     }
     
-    // 보안 관련 (회원가입)
-    if (message.includes('for security purposes') || message.includes('rate limit')) {
+    // 보안 관련 (회원가입) - 짧은 시간 내 재시도 제한
+    if (message.includes('for security purposes') ||
+        message.includes('rate limit') ||
+        message.includes('you can only request this') ||
+        message.includes('too many requests') ||
+        (message.includes('request this after') && message.includes('second'))) {
       return '보안을 위해 잠시 후 다시 시도해주세요. (약 1분 정도 기다려주세요)';
     }
     
@@ -130,11 +134,10 @@ export function translateSupabaseError(error, context = '작업') {
 
   // 기본 오류 메시지
   if (error.message) {
-    // 영어 메시지인 경우 기본 메시지 반환
-    if (/^[a-zA-Z\s.,!?;:'"()\[\]{}\-_=+*&^%$#@~`<>\/\\|]+$/.test(error.message) && 
-        !error.message.includes('한글') && 
-        !error.message.includes('필수') &&
-        !error.message.includes('중복')) {
+    // 한글이 포함되지 않은(=영어/숫자 위주) 메시지는 원문 노출 대신 공통 문구 반환
+    // 숫자(0-9)를 포함해 "... after 52 seconds" 같은 메시지도 영어 그대로 새어나가지 않도록 함
+    const hasKorean = /[가-힣]/.test(error.message);
+    if (!hasKorean) {
       return `${context} 중 오류가 발생했습니다. 관리자에게 문의해주세요.`;
     }
     return `${context} 실패: ${error.message}`;

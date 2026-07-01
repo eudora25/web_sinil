@@ -323,7 +323,7 @@ const handleSignup = async () => {
           console.error('사업자등록번호 중복 검사 실패:', checkError);
           console.error('오류 코드:', checkError.code);
           console.error('오류 메시지:', checkError.message);
-          showError(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
+          showError(translateSupabaseError(checkError, '사업자등록번호 중복 검사'));
           return;
         }
       } else if (existingCompany) {
@@ -368,7 +368,7 @@ const handleSignup = async () => {
           console.error('이메일 중복 검사 실패:', emailCheckError);
           console.error('오류 코드:', emailCheckError.code);
           console.error('오류 메시지:', emailCheckError.message);
-          showError(`이메일 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${emailCheckError.code}\n오류 메시지: ${emailCheckError.message}\n\n관리자에게 문의해주세요.`);
+          showError(translateSupabaseError(emailCheckError, '이메일 중복 검사'));
           return;
         }
       } else if (existingUser) {

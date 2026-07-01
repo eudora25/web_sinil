@@ -187,7 +187,7 @@ import { supabase } from '@/supabase';
 import ExcelJS from 'exceljs';
 import { useNotifications } from '@/utils/notifications';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
-import { isSmallClientZeroApplicable, fetchClientFirstMonths } from '@/utils/smallClient';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -562,7 +562,7 @@ async function loadDetailData() {
       details: err.details,
       hint: err.hint 
     });
-    showError('상세 데이터를 불러오는 중 오류가 발생했습니다: ' + err.message);
+    showError(translateSupabaseError(err, '상세 데이터 조회'));
     detailRows.value = [];
   } finally {
     loading.value = false;

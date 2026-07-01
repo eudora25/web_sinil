@@ -568,8 +568,8 @@ import Button from 'primevue/button';
 import { v4 as uuidv4 } from 'uuid';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
 import { isTransferContinuityMonth, isAssignedForMonth } from '@/utils/promotion';
-import { isSmallClientZeroApplicable, fetchClientFirstMonths } from '@/utils/smallClient';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showConfirm } = useNotifications();
 
@@ -2142,7 +2142,7 @@ const confirmDeleteRow = async (row) => {
 
     } catch (error) {
       console.error('삭제 처리 중 오류:', error);
-      showError(`오류가 발생했습니다: ${error.message}`);
+      showError(translateSupabaseError(error, '작업'));
     }
   }
 };
@@ -2176,7 +2176,7 @@ const restoreRow = async (row) => {
     await loadPerformanceData();
   } catch(error) {
     console.error('복원 중 오류:', error);
-    showError(`복원 중 오류가 발생했습니다: ${error.message}`);
+    showError(translateSupabaseError(error, '복원'));
   }
 };
 
@@ -2277,7 +2277,7 @@ async function confirmStatusChange() {
       selectedNewStatus.value = '';
     } catch (error) {
       console.error('상태 변경 오류:', error);
-      showError(error.message);
+      showError(translateSupabaseError(error, '작업'));
       // 오류 발생 시에도 편집 모드 해제
       activeEditingRowId.value = null;
     } finally {
@@ -2546,7 +2546,7 @@ async function checkPromotionStatistics() {
     console.error('프로모션 데이터 업데이트 오류:', error);
     statisticsStatus.value = `오류 발생: ${error.message || error}`;
     statisticsCompleted.value = true;
-    showError('데이터 업데이트 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '데이터 업데이트'));
   } finally {
     checkingStatistics.value = false;
   }
@@ -3348,13 +3348,13 @@ async function handleBulkChange() {
       .in('id', ids);
 
     if (error) {
-      showError(`${getBulkChangeTypeLabel()} 변경 실패: ${error.message}`);
+      showError(`${getBulkChangeTypeLabel()} 변경에 실패했습니다. ` + translateSupabaseError(error, '일괄 변경'));
     } else {
       showSuccess(`${getBulkChangeTypeLabel()}이 성공적으로 변경되었습니다.`);
       await loadPerformanceData();
     }
   } catch (e) {
-    showError(`${getBulkChangeTypeLabel()} 변경 중 오류 발생: ${e.message}`);
+    showError(`${getBulkChangeTypeLabel()} 변경 중 오류가 발생했습니다. ` + translateSupabaseError(e, '일괄 변경'));
   } finally {
     closeBulkChangeValueModal();
     closeBulkChangeModal();

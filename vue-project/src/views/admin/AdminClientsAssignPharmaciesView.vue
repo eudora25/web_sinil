@@ -318,6 +318,7 @@ import ExcelJS from 'exceljs'
 import { read, utils } from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 import { useNotifications } from '@/utils/notifications'
+import { translateSupabaseError } from '@/utils/errorMessages'
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -373,7 +374,7 @@ const fetchClients = async () => {
         details: error.details,
         hint: error.hint
       });
-      showError('병의원 목록을 불러오는 중 오류가 발생했습니다: ' + error.message);
+      showError(translateSupabaseError(error, '병의원 목록 조회'));
       clients.value = [];
       filteredClients.value = [];
       return;
@@ -404,7 +405,7 @@ const fetchClients = async () => {
     }
   } catch (err) {
     console.error('병의원 목록 조회 예외:', err);
-    showError('병의원 목록을 불러오는 중 예외가 발생했습니다: ' + err.message);
+    showError(translateSupabaseError(err, '병의원 목록 조회'));
     clients.value = [];
     filteredClients.value = [];
   } finally {
@@ -606,7 +607,7 @@ async function assignPharmacies() {
 
   } catch (error) {
     console.error('문전약국 지정 실패:', error);
-    showError('문전약국 지정 중 오류가 발생했습니다: ' + error.message);
+    showError(translateSupabaseError(error, '문전약국 지정'));
     return;
   }
 }
@@ -661,7 +662,7 @@ async function deleteAssignment(client, pharmacy = null) {
   const { error } = await query
   if (error) {
     console.error('문전약국 삭제 실패:', error)
-    showError('문전약국 삭제 중 오류가 발생했습니다: ' + error.message)
+    showError(translateSupabaseError(error, '문전약국 삭제'))
     return
   }
 
@@ -841,7 +842,7 @@ const handleFileUpload = async (event) => {
           console.error('오류 상세:', error.details);
           console.error('오류 힌트:', error.hint);
           console.error('전체 오류:', JSON.stringify(error, null, 2));
-          showError('업로드 실패: ' + error.message)
+          showError(translateSupabaseError(error, '업로드'))
         } else {
           // console.log('엑셀 업로드 성공 응답:', data);
           showSuccess(`${assignmentsToUpload.length}건의 문전약국 지정 정보가 업로드/갱신되었습니다.`)
@@ -849,12 +850,13 @@ const handleFileUpload = async (event) => {
         }
       } catch (error) {
         console.error('엑셀 업로드 예외:', error);
-        showError('업로드 중 예외가 발생했습니다: ' + error.message);
+        showError(translateSupabaseError(error, '업로드'));
       }
     }
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    showError('파일 처리 중 오류가 발생했습니다.')
+    // 정의되지 않은 예외는 원본(영문) 메시지를 노출하지 않고 공통 오류 메시지로 안내
+    showError('일괄 등록에 실패했습니다. 파일 형식을 확인 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요.')
   } finally {
     // 엑셀 등록 로딩 종료
     excelLoading.value = false

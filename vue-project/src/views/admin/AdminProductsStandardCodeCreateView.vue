@@ -43,6 +43,7 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -133,7 +134,7 @@ const handleSubmit = async () => {
   
   const { error } = await supabase.from('products_standard_code').insert([dataToInsert]);
   if (error) {
-    showError('등록 실패: ' + error.message);
+    showError(translateSupabaseError(error, '등록'));
   } else {
     showSuccess('등록되었습니다.');
     router.push('/admin/products-standard-code');

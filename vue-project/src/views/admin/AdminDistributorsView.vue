@@ -156,6 +156,7 @@ import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
 import { supabase } from '@/supabase'
 import { useNotifications } from '@/utils/notifications'
+import { translateSupabaseError } from '@/utils/errorMessages'
 
 const { showSuccess, showError, showWarning } = useNotifications()
 
@@ -249,7 +250,7 @@ const createDistributor = async () => {
   })
 
   if (error) {
-    showError('등록 실패: ' + error.message)
+    showError(translateSupabaseError(error, '등록'))
     return
   }
 
@@ -309,7 +310,7 @@ const saveEdit = async (row) => {
   }).eq('id', row.id)
 
   if (error) {
-    showError('수정 실패: ' + error.message)
+    showError(translateSupabaseError(error, '수정'))
     return
   }
 
@@ -325,7 +326,7 @@ const deleteDistributor = async (row) => {
 
   const { error } = await supabase.from('distributors').delete().eq('id', row.id)
   if (error) {
-    showError('삭제 실패: ' + error.message)
+    showError(translateSupabaseError(error, '삭제'))
     return
   }
   showSuccess('삭제되었습니다.')
@@ -495,7 +496,7 @@ const handleFileUpload = async (event) => {
       .from('distributors')
       .select('business_registration_number')
     if (existingError) {
-      showError('기존 데이터 조회 실패: ' + existingError.message)
+      showError(translateSupabaseError(existingError, '기존 데이터 조회'))
       return
     }
     const existingBrns = new Set((existingRows || []).map((r) => r.business_registration_number))
@@ -545,7 +546,7 @@ const handleFileUpload = async (event) => {
     if (toInsert.length > 0) {
       const { error: insertError } = await supabase.from('distributors').insert(toInsert)
       if (insertError) {
-        showError('등록 실패: ' + insertError.message)
+        showError(translateSupabaseError(insertError, '등록'))
         return
       }
       successCount = toInsert.length
@@ -571,7 +572,8 @@ const handleFileUpload = async (event) => {
     await fetchDistributors()
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    showError('파일 처리 중 오류가 발생했습니다.')
+    // 정의되지 않은 예외는 원본(영문) 메시지를 노출하지 않고 공통 오류 메시지로 안내
+    showError('일괄 등록에 실패했습니다. 파일 형식을 확인 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요.')
   } finally {
     loading.value = false
     event.target.value = ''

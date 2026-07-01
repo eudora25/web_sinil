@@ -76,6 +76,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import { useNotifications } from '@/utils/notifications'
+import { translateSupabaseError } from '@/utils/errorMessages'
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -382,7 +383,7 @@ const handleSubmit = async () => {
       .eq('id', companyId.value)
       
     if (error) {
-      showError('수정 실패: ' + error.message)
+      showError(translateSupabaseError(error, '수정'))
       loading.value = false;
       return
     }
@@ -392,7 +393,7 @@ const handleSubmit = async () => {
     
   } catch (err) {
     console.error('수정 오류:', err)
-    showError('수정 중 오류가 발생했습니다: ' + (err.message || err))
+    showError(translateSupabaseError(err, '수정'))
   } finally {
     loading.value = false
   }

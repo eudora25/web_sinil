@@ -28,6 +28,7 @@ import AdminSettlementMonthsDetailView from '../views/admin/AdminSettlementMonth
 import AdminSettlementMonthsEditView from '../views/admin/AdminSettlementMonthsEditView.vue'
 
 import { supabase } from '@/supabase'; // <<< Supabase 클라이언트 임포트
+import { translateSupabaseError } from '@/utils/errorMessages';
 import { ref, onMounted } from 'vue'
 
 function sanitizeFileName(name) {
@@ -637,7 +638,7 @@ async function uploadFiles() {
       .from('notices')
       .upload(filePath, f);
     if (error) {
-      alert('파일 업로드 실패: ' + error.message);
+      alert(translateSupabaseError(error, '파일 업로드'));
       return;
     }
     const url = data?.path

@@ -202,6 +202,7 @@ import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import { supabase } from '@/supabase'
 import { useNotifications } from '@/utils/notifications'
+import { translateSupabaseError } from '@/utils/errorMessages'
 import { loadSettlementSettings, getAbsorptionExclusionCutoffMonth } from '@/utils/settlementSettings'
 
 const { showSuccess, showError } = useNotifications()
@@ -256,7 +257,7 @@ async function fetchExclusions() {
       pharmacy_name: pharmacyNameMap.get(r.pharmacy_id) || pharmacyNameByBrn.get(r.pharmacy_business_reg_no) || '-',
     }))
   } catch (e) {
-    showError('제외 설정 조회 중 오류: ' + (e.message || e))
+    showError(translateSupabaseError(e, '제외 설정 조회'))
   } finally {
     loading.value = false
   }
@@ -329,14 +330,14 @@ async function saveExclusion() {
     modalVisible.value = false
     await fetchExclusions()
   } catch (e) {
-    showError('제외 설정 저장 중 오류: ' + (e.message || e))
+    showError(translateSupabaseError(e, '제외 설정 저장'))
   }
 }
 
 async function removeExclusion(row) {
   if (!confirm(`${row.pharmacy_name || row.pharmacy_business_reg_no} / ${row.insurance_code} 제외 설정을 삭제하시겠습니까?`)) return
   const { error } = await supabase.from('absorption_sales_exclusions').delete().eq('id', row.id)
-  if (error) { showError('삭제 중 오류: ' + error.message); return }
+  if (error) { showError(translateSupabaseError(error, '삭제')); return }
   showSuccess('삭제되었습니다.')
   await fetchExclusions()
 }

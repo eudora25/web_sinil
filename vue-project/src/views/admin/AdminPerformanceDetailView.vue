@@ -1017,6 +1017,7 @@ import ExcelJS from 'exceljs';
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils';
 import { formatNumber, formatAbsorptionRate, formatBusinessNumber } from '@/utils/formatUtils';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
 
 // Props
@@ -2331,7 +2332,7 @@ async function fetchStatistics() {
       return;
     }
     console.error('통계 데이터 조회 예외:', err);
-    showError('데이터 조회 중 오류가 발생했습니다: ' + (err.message || err));
+    showError(translateSupabaseError(err, '데이터 조회'));
   } finally {
     if (isMounted.value) {
       loading.value = false;
@@ -3813,7 +3814,7 @@ async function executeCalculateStatistics() {
   } catch (err) {
     console.error('통계 계산 오류:', err);
     console.error('에러 스택:', err.stack);
-    showError('통계 계산 중 오류가 발생했습니다: ' + (err.message || err));
+    showError(translateSupabaseError(err, '통계 계산'));
   } finally {
     calculatingStatistics.value = false;
     calculatingProgress.value = '';

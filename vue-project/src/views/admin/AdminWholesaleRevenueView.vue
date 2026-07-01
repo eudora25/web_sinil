@@ -284,6 +284,7 @@ import ExcelJS from 'exceljs'
 import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 import { useNotifications } from '@/utils/notifications'
+import { translateSupabaseError } from '@/utils/errorMessages'
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -690,7 +691,7 @@ const saveEdit = async (row) => {
     const { error } = await supabase.from('wholesale_sales').update(updateData).eq('id', row.id)
 
     if (error) {
-      showError('수정 실패: ' + error.message)
+      showError(translateSupabaseError(error, '수정'))
       return
     }
 
@@ -718,7 +719,7 @@ const deleteRevenue = async (row) => {
     const { error } = await supabase.from('wholesale_sales').delete().eq('id', row.id)
 
     if (error) {
-      showError('삭제 실패: ' + error.message)
+      showError(translateSupabaseError(error, '삭제'))
       return
     }
 
@@ -980,7 +981,7 @@ const handleFileUpload = async (event) => {
     const { error } = await supabase.from('wholesale_sales').insert(uploadData)
 
     if (error) {
-      showError('업로드 실패: ' + error.message)
+      showError(translateSupabaseError(error, '업로드'))
     } else {
       showSuccess(`${uploadData.length}건의 도매매출 데이터가 업로드되었습니다.`)
       // 데이터 새로고침
@@ -989,7 +990,8 @@ const handleFileUpload = async (event) => {
     }
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    showError('파일 처리 중 오류가 발생했습니다.')
+    // 정의되지 않은 예외는 원본(영문) 메시지를 노출하지 않고 공통 오류 메시지로 안내
+    showError('일괄 등록에 실패했습니다. 파일 형식을 확인 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요.')
   } finally {
     // 엑셀 등록 로딩 종료
     excelLoading.value = false
@@ -1063,7 +1065,7 @@ const downloadExcel = async () => {
       const { data, error } = await query
 
       if (error) {
-        showError('데이터 조회 실패: ' + error.message)
+        showError(translateSupabaseError(error, '데이터 조회'))
         return
       }
 

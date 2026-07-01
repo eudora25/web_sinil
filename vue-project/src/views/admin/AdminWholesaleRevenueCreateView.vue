@@ -81,6 +81,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning } = useNotifications();
 
@@ -105,7 +106,7 @@ const fetchDistributorList = async () => {
     .select('id, name, business_registration_number')
     .order('name')
   if (error) {
-    showError('도매 업체 목록을 불러오지 못했습니다: ' + error.message)
+    showError(translateSupabaseError(error, '도매 업체 목록 조회'))
     distributorList.value = []
     return
   }
@@ -296,7 +297,7 @@ const handleSubmit = async () => {
   };
   const { error } = await supabase.from('wholesale_sales').insert([dataToInsert]);
   if (error) {
-    showError('등록 실패: ' + error.message);
+    showError(translateSupabaseError(error, '등록'));
   } else {
     showSuccess('등록되었습니다.');
     router.push('/admin/wholesale-revenue');

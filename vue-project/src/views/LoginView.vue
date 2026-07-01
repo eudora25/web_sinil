@@ -86,6 +86,7 @@ import { supabase } from '@/supabase';
 import { useRouter } from 'vue-router';
 import config from '@/config/app.js';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -153,7 +154,7 @@ const handleLogin = async () => {
         // console.log('이메일 미확인 상태이지만 로그인 허용');
         // 오류를 무시하고 계속 진행
       } else {
-        showError(`로그인 오류: ${authError.message || '알 수 없는 오류가 발생했습니다.'}`);
+        showError(translateSupabaseError(authError, '로그인'));
         loading.value = false;
         return;
       }
@@ -255,7 +256,7 @@ const handlePasswordReset = async () => {
       if (error.message.includes('not found')) {
         showWarning('가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해주세요.');
       } else {
-        showError(`오류가 발생했습니다: ${error.message}`);
+        showError(translateSupabaseError(error, '로그인'));
       }
     } else {
       closePasswordResetModal();

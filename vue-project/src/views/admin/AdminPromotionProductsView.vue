@@ -596,6 +596,7 @@ import Button from 'primevue/button';
 import ProgressBar from 'primevue/progressbar';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
@@ -736,7 +737,7 @@ async function fetchProductCommissionRateB() {
     console.log('업데이트된 프로모션 제품:', promotionProducts.value);
   } catch (error) {
     console.error('수수료율 B 조회 오류:', error);
-    showError('수수료율 B 조회 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '수수료율 B 조회'));
   }
 }
 
@@ -1016,7 +1017,7 @@ async function fetchPromotionProducts() {
     await fetchLastUpdateTime();
   } catch (error) {
     console.error('프로모션 제품 조회 오류:', error);
-    showError('프로모션 제품 조회 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '프로모션 제품 조회'));
   } finally {
     loading.value = false;
   }
@@ -1122,7 +1123,7 @@ async function saveProduct() {
     await fetchPromotionProducts();
   } catch (error) {
     console.error('프로모션 제품 저장 오류:', error);
-    showError('프로모션 제품 저장 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '프로모션 제품 저장'));
   } finally {
     saving.value = false;
   }
@@ -1203,7 +1204,7 @@ async function saveFinalCommissionRate(rowData) {
     await fetchPromotionProducts();
   } catch (error) {
     console.error('최종 수수료율 저장 오류:', error);
-    showError('최종 수수료율 저장 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '최종 수수료율 저장'));
     // 에러 발생 시 편집 모드 유지
   }
 }
@@ -1324,7 +1325,7 @@ async function resetStatistics() {
     await fetchExcludedHospitalCounts();
   } catch (error) {
     console.error('데이터 초기화 오류:', error);
-    showError('데이터 초기화 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '데이터 초기화'));
   } finally {
     resettingStatistics.value = false;
   }
@@ -2508,7 +2509,7 @@ async function checkStatistics() {
     console.error('통계 확인 오류:', error);
     statisticsStatus.value = `오류 발생: ${error.message || error}`;
     statisticsCompleted.value = true;
-    showError('데이터 업데이트 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '데이터 업데이트'));
   } finally {
     checkingStatistics.value = false;
   }
@@ -2551,7 +2552,7 @@ async function searchHospitals() {
     searchResults.value = data || [];
   } catch (error) {
     console.error('병원 검색 오류:', error);
-    showError('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '병원 검색'));
     searchResults.value = [];
   } finally {
     searchingHospitals.value = false;
@@ -2638,7 +2639,7 @@ async function addExcludedHospital(hospitalId) {
     if (error.code === '23505') {
       showWarning('이미 제외된 병원입니다.');
     } else {
-      showError('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
+      showError(translateSupabaseError(error, '제외 병원 추가'));
     }
   } finally {
     addingExcluded.value = false;
@@ -2744,7 +2745,7 @@ async function searchHospitalsForProduct() {
     }
   } catch (error) {
     console.error('병원 검색 오류:', error);
-    showError('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '병원 검색'));
     searchResults.value = [];
   } finally {
     searchingHospitals.value = false;
@@ -2788,7 +2789,7 @@ async function addExcludedHospitalToProduct(hospitalId) {
     closeAddExcludedHospitalModalForProduct();
   } catch (error) {
     console.error('제외 병원 추가 오류:', error);
-    showError('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '제외 병원 추가'));
   } finally {
     addingExcluded.value = false;
   }
@@ -2820,7 +2821,7 @@ async function removeExcludedHospitalFromProduct(hospitalId) {
     await fetchExcludedHospitalCounts();
   } catch (error) {
     console.error('제외 병원 삭제 오류:', error);
-    showError('제외 병원 삭제 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '제외 병원 삭제'));
   } finally {
     removingExcluded.value = false;
   }

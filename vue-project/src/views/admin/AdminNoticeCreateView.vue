@@ -46,6 +46,7 @@ import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -146,7 +147,7 @@ function removeFile(idx) {
         .from('notices')
         .upload(filePath, f);
       if (error) {
-        showError('파일 업로드 실패: ' + error.message);
+        showError(translateSupabaseError(error, '파일 업로드'));
         return;
       }
       const url = data?.path
@@ -176,7 +177,7 @@ function removeFile(idx) {
 
     if (insertError) {
       console.error('Insert error:', insertError);
-      showError('등록 실패: ' + insertError.message);
+      showError(translateSupabaseError(insertError, '등록'));
     } else {
       showSuccess('등록되었습니다.');
       router.push('/admin/notices');

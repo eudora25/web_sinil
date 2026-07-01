@@ -46,6 +46,7 @@ import { ref, onMounted, nextTick, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -162,7 +163,7 @@ const handleSubmit = async () => {
     .eq('id', route.params.id);
 
   if (error) {
-    showError('수정 실패: ' + error.message);
+    showError(translateSupabaseError(error, '수정'));
   } else {
     showSuccess('수정되었습니다.');
     router.push('/admin/settlement-months');

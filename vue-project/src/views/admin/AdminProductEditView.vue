@@ -64,6 +64,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning } = useNotifications();
 
@@ -365,7 +366,7 @@ const handleSubmit = async () => {
     .update(dataToUpdate)
     .eq('id', route.params.id);
   if (error) {
-    showError('수정 실패: ' + error.message);
+    showError(translateSupabaseError(error, '수정'));
   } else {
     showSuccess('수정되었습니다.');
     router.push('/admin/products');

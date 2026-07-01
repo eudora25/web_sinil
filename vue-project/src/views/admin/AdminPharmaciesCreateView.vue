@@ -50,6 +50,7 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -168,7 +169,7 @@ const handleSubmit = async () => {
 
   if (checkError) {
     console.error('사업자등록번호 중복 검사 실패:', checkError);
-    showError(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
+    showError(translateSupabaseError(checkError, '사업자등록번호 중복 검사'));
     return;
   }
 
@@ -202,7 +203,7 @@ const handleSubmit = async () => {
   };
   const { error } = await supabase.from('pharmacies').insert([dataToInsert]);
   if (error) {
-    showError('등록 실패: ' + error.message);
+    showError(translateSupabaseError(error, '등록'));
   } else {
     showSuccess('등록되었습니다.');
     router.push('/admin/pharmacies');

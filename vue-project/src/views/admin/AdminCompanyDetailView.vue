@@ -99,6 +99,7 @@ import TopNavigationBar from '@/components/TopNavigationBar.vue'
 import config from '@/config/app.js'
 import { formatBusinessNumber } from '@/utils/formatUtils'
 import { useNotifications } from '@/utils/notifications'
+import { translateSupabaseError } from '@/utils/errorMessages'
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications()
 
@@ -237,7 +238,7 @@ async function handleResetPassword() {
     showSuccess(`${company.value.email}로 비밀번호 재설정 이메일이 발송되었습니다.\n해당 업체에서 이메일을 확인하여 비밀번호를 재설정하도록 안내해주세요.`);
   } catch (error) {
     console.error('비밀번호 재설정 이메일 발송 실패:', error);
-    showError('이메일 발송 실패: ' + error.message);
+    showError(translateSupabaseError(error, '이메일 발송'));
   }
 }
 </script>

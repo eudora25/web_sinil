@@ -317,6 +317,7 @@ import ExcelJS from 'exceljs'
 import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 import { useNotifications } from '@/utils/notifications'
+import { translateSupabaseError } from '@/utils/errorMessages'
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
@@ -438,7 +439,7 @@ async function handleCreateSubmit() {
       .single()
 
     if (codeCheckError && codeCheckError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
-      showError('병의원 코드 중복 확인 중 오류가 발생했습니다: ' + codeCheckError.message)
+      showError(translateSupabaseError(codeCheckError, '병의원 코드 중복 확인'))
       return
     }
 
@@ -456,7 +457,7 @@ async function handleCreateSubmit() {
     .single()
 
   if (checkError && checkError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때의 에러
-    showError('사업자등록번호 중복 확인 중 오류가 발생했습니다: ' + checkError.message)
+    showError(translateSupabaseError(checkError, '사업자등록번호 중복 확인'))
     return
   }
 
@@ -486,7 +487,7 @@ async function handleCreateSubmit() {
 
   const { error } = await supabase.from('clients').insert([dataToInsert])
   if (error) {
-    showError('등록 실패: ' + error.message)
+    showError(translateSupabaseError(error, '등록'))
   } else {
     showSuccess('등록되었습니다.')
     closeCreateModal()
@@ -669,7 +670,7 @@ const saveEdit = async (row) => {
           } else {
             // 다른 모든 오류 (HTTP 406, 500 등) - 중단
             console.error('병의원 코드 중복 검사 실패:', codeCheckError);
-            showError(`병의원 코드 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${codeCheckError.code}\n오류 메시지: ${codeCheckError.message}\n\n관리자에게 문의해주세요.`);
+            showError(translateSupabaseError(codeCheckError, '병의원 코드 중복 검사'));
             return;
           }
         } else if (existingClientByCode) {
@@ -706,7 +707,7 @@ const saveEdit = async (row) => {
           } else {
             // 다른 모든 오류 (HTTP 406, 500 등) - 중단
             console.error('사업자등록번호 중복 검사 실패:', businessCheckError);
-            showError(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${businessCheckError.code}\n오류 메시지: ${businessCheckError.message}\n\n관리자에게 문의해주세요.`);
+            showError(translateSupabaseError(businessCheckError, '사업자등록번호 중복 검사'));
             return;
           }
         } else if (existingClientByBusiness) {
@@ -747,7 +748,7 @@ const saveEdit = async (row) => {
     const { error } = await supabase.from('clients').update(updateData).eq('id', row.id)
 
     if (error) {
-      showError('수정 실패: ' + error.message)
+      showError(translateSupabaseError(error, '수정'))
       return
     }
 
@@ -1042,7 +1043,7 @@ const handleFileUpload = async (event) => {
       .select('client_code, business_registration_number, name')
 
     if (fetchError) {
-      showError('기존 데이터 조회 중 오류가 발생했습니다: ' + fetchError.message)
+      showError(translateSupabaseError(fetchError, '기존 데이터 조회'))
       excelLoading.value = false
       event.target.value = ''
       return
@@ -1125,7 +1126,7 @@ const handleFileUpload = async (event) => {
               .eq('client_code', duplicateClient.client_code.trim())
 
             if (deleteError) {
-              showError('기존 병의원 삭제 실패 (코드): ' + deleteError.message)
+              showError(translateSupabaseError(deleteError, '기존 병의원 삭제'))
               excelLoading.value = false
               event.target.value = ''
               return
@@ -1140,7 +1141,7 @@ const handleFileUpload = async (event) => {
               .eq('business_registration_number', duplicateClient.business_registration_number)
 
             if (deleteError) {
-              showError('기존 병의원 삭제 실패 (사업자번호): ' + deleteError.message)
+              showError(translateSupabaseError(deleteError, '기존 병의원 삭제'))
               excelLoading.value = false
               event.target.value = ''
               return
@@ -1276,7 +1277,8 @@ const handleFileUpload = async (event) => {
     await fetchClients() // 목록 새로고침
   } catch (error) {
     console.error('파일 처리 오류:', error)
-    showError('파일 처리 중 오류가 발생했습니다: ' + (error.message || error))
+    // 정의되지 않은 예외는 원본(영문) 메시지를 노출하지 않고 공통 오류 메시지로 안내
+    showError('일괄 등록에 실패했습니다. 파일 형식을 확인 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요.')
     // 에러 발생 시에도 로딩 해제
     excelLoading.value = false
     if (event && event.target) {

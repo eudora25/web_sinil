@@ -340,6 +340,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { generateExcelFileName, formatMonthToKorean } from '@/utils/excelUtils'
 import { useNotifications } from '@/utils/notifications'
+import { translateSupabaseError } from '@/utils/errorMessages'
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -1121,7 +1122,7 @@ const previewFile = async (file) => {
       .from('performance-evidence')
       .createSignedUrl(file.file_path, 60) // 60초 유효
     if (error || !data?.signedUrl) {
-      showError('미리보기 URL 생성에 실패했습니다.' + (error?.message ? '\n' + error.message : ''))
+      showError(translateSupabaseError(error, '미리보기 URL 생성'))
       return
     }
     window.open(data.signedUrl, '_blank')

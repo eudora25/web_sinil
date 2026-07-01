@@ -202,6 +202,7 @@ import Dialog from 'primevue/dialog'
 import { generateExcelFileName } from '@/utils/excelUtils'
 import { formatBusinessNumber } from '@/utils/formatUtils'
 import { useNotifications } from '@/utils/notifications'
+import { translateSupabaseError } from '@/utils/errorMessages'
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
@@ -410,7 +411,7 @@ const confirmApprovalChange = async (company, newStatus) => {
     await fetchCompanies()
     router.push('/admin/companies/pending')
   } catch (err) {
-    showError(err.message || '상태 변경 실패')
+    showError(translateSupabaseError(err, '상태 변경'))
   } finally {
     loading.value = false
   }

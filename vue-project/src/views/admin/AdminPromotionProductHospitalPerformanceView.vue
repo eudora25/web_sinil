@@ -330,6 +330,7 @@ import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
@@ -556,7 +557,7 @@ async function fetchHospitalPerformance() {
     hospitalPerformanceList.value = displayRows;
   } catch (error) {
     console.error('병원 실적 조회 오류:', error);
-    showError('병원 실적 조회 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '병원 실적 조회'));
   } finally {
     loading.value = false;
   }
@@ -690,7 +691,7 @@ async function searchHospitals() {
     searchResults.value = (data || []).filter(h => !excludedHospitalIds.has(h.id));
   } catch (error) {
     console.error('병원 검색 오류:', error);
-    showError('병원 검색 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '병원 검색'));
   } finally {
     searchingHospitals.value = false;
   }
@@ -771,7 +772,7 @@ async function addExcludedHospital(hospitalId) {
     if (error.code === '23505') {
       showWarning('이미 제외된 병원입니다.');
     } else {
-      showError('제외 병원 추가 중 오류가 발생했습니다: ' + (error.message || error));
+      showError(translateSupabaseError(error, '제외 병원 추가'));
     }
   }
 }
@@ -805,7 +806,7 @@ async function removeExcludedHospital(hospitalId) {
     await fetchHospitalPerformance();
   } catch (error) {
     console.error('제외 병원 삭제 오류:', error);
-    showError('제외 병원 삭제 중 오류가 발생했습니다: ' + (error.message || error));
+    showError(translateSupabaseError(error, '제외 병원 삭제'));
   } finally {
     removingExcluded.value = false;
   }

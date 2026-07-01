@@ -58,6 +58,7 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -186,7 +187,7 @@ const handleSubmit = async () => {
         } else {
           // 다른 모든 오류 (HTTP 406, 500 등) - 중단
           console.error('병의원 코드 중복 검사 실패:', codeCheckError);
-          showError(`병의원 코드 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${codeCheckError.code}\n오류 메시지: ${codeCheckError.message}\n\n관리자에게 문의해주세요.`);
+          showError(translateSupabaseError(codeCheckError, '병의원 코드 중복 검사'));
           return;
         }
       } else if (existingClientByCode) {
@@ -219,7 +220,7 @@ const handleSubmit = async () => {
     
     if (checkError) {
       console.error('사업자등록번호 중복 검사 실패:', checkError);
-      showError(`사업자등록번호 중복 검사 중 오류가 발생했습니다.\n\n오류 코드: ${checkError.code}\n오류 메시지: ${checkError.message}\n\n관리자에게 문의해주세요.`);
+      showError(translateSupabaseError(checkError, '사업자등록번호 중복 검사'));
       return;
     } else if (existingClient) {
       showWarning(`동일한 사업자등록번호로 이미 등록된 병의원이 있습니다.\n\n병의원명: ${existingClient.name}`);
@@ -255,7 +256,7 @@ const handleSubmit = async () => {
     created_by: currentUserId
   }]);
   if (error) {
-    showError('등록 실패: ' + error.message);
+    showError(translateSupabaseError(error, '등록'));
   } else {
     showSuccess('등록되었습니다.');
     router.push('/admin/clients');

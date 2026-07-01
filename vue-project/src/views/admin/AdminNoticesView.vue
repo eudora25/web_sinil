@@ -104,6 +104,7 @@ import Column from 'primevue/column';
 import { useRouter } from 'vue-router';
 import InputText from 'primevue/inputtext';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
@@ -182,7 +183,7 @@ async function handleDelete(id) {
   if (!confirmed) return;
   const { error } = await supabase.from('notices').delete().eq('id', id);
   if (error) {
-    showError('삭제 실패: ' + error.message);
+    showError(translateSupabaseError(error, '삭제'));
   } else {
     showSuccess('삭제되었습니다.');
     router.push('/admin/notices'); // 삭제 후 목록으로 이동

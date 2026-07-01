@@ -55,6 +55,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
@@ -228,7 +229,7 @@ async function handleDelete() {
     showSuccess('삭제되었습니다.');
     router.push('/admin/notices');
   } else {
-    showError('삭제 실패: ' + error.message);
+    showError(translateSupabaseError(error, '삭제'));
   }
 }
 </script> 

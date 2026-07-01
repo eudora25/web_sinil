@@ -46,6 +46,7 @@ import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
+import { translateSupabaseError } from '@/utils/errorMessages';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -95,7 +96,7 @@ onMounted(async () => {
     .eq('id', route.params.id)
     .single();
   if (error) {
-    showError('데이터 로드 실패: ' + error.message);
+    showError(translateSupabaseError(error, '데이터 로드'));
     router.push('/admin/notices');
     return;
   }
@@ -228,7 +229,7 @@ const handleSubmit = async () => {
         .from('notices')
         .upload(filePath, f);
       if (error) {
-        showError('파일 업로드 실패: ' + error.message);
+        showError(translateSupabaseError(error, '파일 업로드'));
         return;
       }
       const url = data?.path
@@ -256,7 +257,7 @@ const handleSubmit = async () => {
 
   if (updateError) {
     console.error('Update error:', updateError);
-    showError('수정 실패: ' + updateError.message);
+    showError(translateSupabaseError(updateError, '수정'));
   } else {
     showSuccess('수정되었습니다.');
     router.push('/admin/notices');
