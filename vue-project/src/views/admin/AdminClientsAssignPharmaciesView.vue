@@ -40,7 +40,7 @@
     <div class="data-card">
       <div class="data-card-header">
         <div class="total-count-display">
-          전체 {{ filteredClients.length }} 건
+          전체 {{ totalCount }} 건
         </div>
         <div class="action-buttons-group">
           <button class="btn-excell-template" @click="downloadTemplate" style="margin-right: 1rem;">엑셀 템플릿</button>
@@ -57,15 +57,16 @@
         </div>
       </div>
       <DataTable
-        :value="filteredClients"
-        :loading="false"
+        :value="clients"
+        :loading="loading"
+        lazy
         paginator
-        :rows="50"
+        :rows="pageSize"
         :rowsPerPageOptions="[20, 50, 100]"
+        :totalRecords="totalCount"
+        @page="onPageChange"
         scrollable
         scrollHeight="calc(100vh - 250px)"
-        v-model:filters="filters"
-        :globalFilterFields="['client_code', 'name', 'business_registration_number']"
         class="admin-assign-pharmacies-table"
         v-model:first="currentPageFirstIndex"
       >
@@ -80,16 +81,12 @@
         <Column
           field="client_code"
           header="병의원코드"
-          :headerStyle="{ width: columnWidths.client_code }"
-          :sortable="true"
-        />
+          :headerStyle="{ width: columnWidths.client_code }"        />
         <Column
           field="name"
           header="병의원명"
           :headerStyle="{ width: columnWidths.name }"
-          :style="{ fontWeight: '500 !important' }"
-          :sortable="true"
-        >
+          :style="{ fontWeight: '500 !important' }"        >
           <template #body="slotProps">
             <span
               class="ellipsis-cell text-link"
@@ -105,16 +102,12 @@
         <Column
           field="business_registration_number"
           header="사업자등록번호"
-          :headerStyle="{ width: columnWidths.business_registration_number }"
-          :sortable="true"
-        />
+          :headerStyle="{ width: columnWidths.business_registration_number }"        />
         <Column
           field="owner_name"
           header="원장명"
-          :headerStyle="{ width: columnWidths.owner_name }"
-          :sortable="true"
-        />
-        <Column field="address" header="주소" :headerStyle="{ width: columnWidths.address }" :sortable="true">
+          :headerStyle="{ width: columnWidths.owner_name }"        />
+        <Column field="address" header="주소" :headerStyle="{ width: columnWidths.address }">
           <template #body="slotProps">
             <span class="ellipsis-cell" :title="slotProps.data.address" @mouseenter="checkOverflow" @mouseleave="removeOverflowClass">{{ slotProps.data.address }}</span>
           </template>
@@ -327,7 +320,6 @@ const clients = ref([])
 const loading = ref(false)
 const excelLoading = ref(false)
 const pharmacies = ref([])
-const filters = ref({ global: { value: null, matchMode: 'contains' } })
 const assignModalVisible = ref(false)
 const selectedClient = ref(null)
 const selectedPharmacies = ref([])
@@ -356,58 +348,50 @@ const columnWidths = {
   actions: '8%'
 };
 
+// 서버 사이드 페이징/검색: DB 검색함수(search_clients_with_assignments) RPC 호출
+// - 검색은 병의원 직접필드 + 배정 약국명·업체명(조인)까지 서버에서 처리
+// - 현재 페이지(currentPage) 50건 + 전체 매칭 건수(total_count)만 받아옴
 const fetchClients = async () => {
   loading.value = true;
   try {
-    const { data: clientsData, error } = await supabase
-      .from('clients')
-      .select(
-        `*, pharmacies:client_pharmacy_assignments(created_at, pharmacy:pharmacies(id, name, business_registration_number)),companies:client_company_assignments(created_at,company:companies(id,company_name,business_registration_number,company_group))`,
-      )
-      .eq('status', 'active')
-    
+    const kw = searchKeyword.value && searchKeyword.value.trim().length >= 2
+      ? searchKeyword.value.trim()
+      : null;
+    const offset = (currentPage.value - 1) * pageSize.value;
+    const { data, error } = await supabase.rpc('search_clients_with_assignments', {
+      p_keyword: kw,
+      p_filter: hospitalFilter.value,
+      p_limit: pageSize.value,
+      p_offset: offset,
+    });
+
     if (error) {
       console.error('병의원 목록 조회 오류:', error);
-      console.error('오류 상세:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      });
       showError(translateSupabaseError(error, '병의원 목록 조회'));
       clients.value = [];
-      filteredClients.value = [];
+      totalCount.value = 0;
       return;
     }
-    
-    if (clientsData) {
-      clients.value = clientsData.map((client) => {
-        const pharmaciesArr = (client.pharmacies || []).map((p) => ({
-          ...p.pharmacy,
-          assignment_created_at: p.created_at
-        }))
-        const companiesArr = (client.companies || []).map((c) => ({
-          ...c.company,
-          assignment_created_at: c.created_at
-        }))
-        return {
-          ...client,
-          pharmacies: pharmaciesArr,
-          companies: companiesArr,
-        }
-      })
-      filteredClients.value = clients.value;
-      console.log('병의원 목록 로드 완료:', clients.value.length, '건');
-    } else {
-      console.warn('병의원 데이터가 없습니다.');
-      clients.value = [];
-      filteredClients.value = [];
-    }
+
+    const rows = data || [];
+    // RPC가 배정 약국/업체를 json 배열로 바로 반환 (pharmacies/companies)
+    clients.value = rows.map((r) => ({
+      id: r.id,
+      client_code: r.client_code,
+      name: r.name,
+      business_registration_number: r.business_registration_number,
+      owner_name: r.owner_name,
+      address: r.address,
+      pharmacies: r.pharmacies || [],
+      companies: r.companies || [],
+    }));
+    totalCount.value = rows.length > 0 ? Number(rows[0].total_count) : 0;
+    currentPageFirstIndex.value = offset;
   } catch (err) {
     console.error('병의원 목록 조회 예외:', err);
     showError(translateSupabaseError(err, '병의원 목록 조회'));
     clients.value = [];
-    filteredClients.value = [];
+    totalCount.value = 0;
   } finally {
     loading.value = false;
   }
@@ -451,7 +435,11 @@ const fetchPharmacies = async (page = 1, searchKeyword = '') => {
 }
 const searchInput = ref('');
 const searchKeyword = ref('');
-const filteredClients = ref([]);
+
+// 서버 페이징 상태
+const pageSize = ref(50);
+const totalCount = ref(0);
+const currentPage = ref(1); // 1-base
 
 // 병원 필터 관련 변수들
 const hospitalFilter = ref('assigned'); // 기본값: 담당업체 지정
@@ -461,59 +449,29 @@ const hospitalFilterOptions = ref([
 ]);
 
 function doSearch() {
-  if (searchInput.value.length >= 2) {
-    searchKeyword.value = searchInput.value;
-  } else {
-    searchKeyword.value = '';
-  }
-  applyFilters();
+  searchKeyword.value = searchInput.value.length >= 2 ? searchInput.value : '';
+  currentPage.value = 1;
+  fetchClients();
 }
 function clearSearch() {
   searchInput.value = '';
   searchKeyword.value = '';
-  applyFilters();
+  currentPage.value = 1;
+  fetchClients();
 }
 
-// 병원 필터 적용 함수
+// 병원 필터 변경 시 첫 페이지부터 서버 재조회
 function applyHospitalFilter() {
-  applyFilters();
+  currentPage.value = 1;
+  fetchClients();
 }
 
-// 통합 필터 적용 함수
-function applyFilters() {
-  let filtered = clients.value;
-
-  // 병원 필터 적용
-  if (hospitalFilter.value === 'assigned') {
-    filtered = filtered.filter(client =>
-      client.companies && client.companies.length > 0
-    );
-  }
-
-  // 검색 필터 적용
-  if (searchKeyword.value && searchKeyword.value.length >= 2) {
-    const keyword = searchKeyword.value.toLowerCase();
-    filtered = filtered.filter(c =>
-      (c.name && c.name.toLowerCase().includes(keyword)) ||
-      (c.business_registration_number && c.business_registration_number.toLowerCase().includes(keyword)) ||
-      (c.client_code && c.client_code.toLowerCase().includes(keyword)) ||
-      (c.owner_name && c.owner_name.toLowerCase().includes(keyword)) ||
-      (c.address && c.address.toLowerCase().includes(keyword)) ||
-      (c.pharmacies && c.pharmacies.some(pharmacy =>
-        (pharmacy.name && pharmacy.name.toLowerCase().includes(keyword)) ||
-        (pharmacy.business_registration_number && pharmacy.business_registration_number.toLowerCase().includes(keyword))
-      )) ||
-      (c.companies && c.companies.some(company =>
-        (company.company_group && company.company_group.toLowerCase().includes(keyword)) ||
-        (company.company_name && company.company_name.toLowerCase().includes(keyword))
-      ))
-    );
-  }
-
-  filteredClients.value = filtered;
+// 페이지(또는 페이지당 건수) 변경 시 서버 재조회
+function onPageChange(event) {
+  currentPage.value = event.page + 1;
+  pageSize.value = event.rows;
+  fetchClients();
 }
-
-// (filteredClients를 ref로만 관리, 검색 버튼/X버튼/검색 버튼 클릭 시에만 갱신)
 
 // 검색 결과를 ref로 관리하여 computed 속성 제거
 const filteredPharmacies = ref([])
@@ -639,13 +597,8 @@ async function updateClientPharmacies(clientId) {
       // clients 배열에서 해당 병원 찾아서 업데이트
       const clientIndex = clients.value.findIndex(c => c.id === clientId)
       if (clientIndex !== -1) {
+        // 현재 페이지의 해당 병원만 in-place 갱신 (검색/스크롤 위치 보존)
         clients.value[clientIndex].pharmacies = pharmaciesArr
-
-        // filteredClients도 업데이트
-        const filteredIndex = filteredClients.value.findIndex(c => c.id === clientId)
-        if (filteredIndex !== -1) {
-          filteredClients.value[filteredIndex].pharmacies = pharmaciesArr
-        }
       }
     }
   } catch (err) {
@@ -771,16 +724,32 @@ const handleFileUpload = async (event) => {
     const assignmentsToUpload = []
     const errors = []
 
-    const { data: allClientsData, error: clientError } = await supabase
-      .from('clients')
-      .select('id, business_registration_number')
-    const { data: allPharmaciesData, error: pharmacyError } = await supabase
-      .from('pharmacies')
-      .select('id, business_registration_number')
+    // 2000행 제한을 넘어도 전량 매칭되도록 배치 조회
+    const fetchAllIdBrn = async (table) => {
+      const batchSize = 1000
+      let all = []
+      let from = 0
+      while (true) {
+        const { data, error } = await supabase
+          .from(table)
+          .select('id, business_registration_number')
+          .order('id', { ascending: true })
+          .range(from, from + batchSize - 1)
+        if (error) throw error
+        if (data && data.length > 0) all = all.concat(data)
+        if (!data || data.length < batchSize) break
+        from += batchSize
+      }
+      return all
+    }
 
-    if (clientError || pharmacyError) {
+    let allClientsData, allPharmaciesData
+    try {
+      allClientsData = await fetchAllIdBrn('clients')
+      allPharmaciesData = await fetchAllIdBrn('pharmacies')
+    } catch (fetchErr) {
       showError('병의원 또는 약국 정보 조회 중 오류가 발생했습니다.')
-      console.error(clientError || pharmacyError)
+      console.error(fetchErr)
       return
     }
 
@@ -867,12 +836,42 @@ const handleFileUpload = async (event) => {
 }
 
 const downloadExcel = async () => {
-  if (filteredClients.value.length === 0) {
+  // 엑셀은 현재 화면 페이지가 아니라 "현재 검색/필터에 맞는 전체"를 대상으로 함
+  // → 서버에서 배치(1000건씩)로 전량 조회 후 생성
+  const kw = searchKeyword.value && searchKeyword.value.trim().length >= 2
+    ? searchKeyword.value.trim()
+    : null;
+  const excelBatchSize = 1000;
+  let allClients = [];
+  let excelOffset = 0;
+  try {
+    while (true) {
+      const { data, error } = await supabase.rpc('search_clients_with_assignments', {
+        p_keyword: kw,
+        p_filter: hospitalFilter.value,
+        p_limit: excelBatchSize,
+        p_offset: excelOffset,
+      });
+      if (error) {
+        showError(translateSupabaseError(error, '엑셀 데이터 조회'))
+        return
+      }
+      const rows = data || [];
+      if (rows.length > 0) allClients = allClients.concat(rows);
+      if (rows.length < excelBatchSize) break;
+      excelOffset += excelBatchSize;
+    }
+  } catch (err) {
+    showError(translateSupabaseError(err, '엑셀 데이터 조회'))
+    return
+  }
+
+  if (allClients.length === 0) {
     showWarning('다운로드할 데이터가 없습니다.')
     return
   }
   const excelData = []
-  filteredClients.value.forEach((client) => {
+  allClients.forEach((client) => {
     const companies = client.companies && client.companies.length > 0
       ? client.companies
       : [{ company_name: '', company_group: '' }]

@@ -888,14 +888,23 @@ const handleFileUpload = async (event) => {
     const duplicateErrors = []
     const duplicatePharmacies = []
 
-    // 데이터베이스에서 모든 약국 정보 조회
-    const { data: existingPharmacies, error: fetchError } = await supabase
-      .from('pharmacies')
-      .select('pharmacy_code, business_registration_number, name')
-
-    if (fetchError) {
-      showError(translateSupabaseError(fetchError, '기존 데이터 조회'))
-      return
+    // 데이터베이스에서 모든 약국 정보 조회 (2000행 제한 회피 위해 배치 조회)
+    const dedupeBatchSize = 1000
+    let existingPharmacies = []
+    let dedupeFrom = 0
+    while (true) {
+      const { data: batch, error: fetchError } = await supabase
+        .from('pharmacies')
+        .select('pharmacy_code, business_registration_number, name')
+        .order('id', { ascending: true })
+        .range(dedupeFrom, dedupeFrom + dedupeBatchSize - 1)
+      if (fetchError) {
+        showError(translateSupabaseError(fetchError, '기존 데이터 조회'))
+        return
+      }
+      if (batch && batch.length > 0) existingPharmacies = existingPharmacies.concat(batch)
+      if (!batch || batch.length < dedupeBatchSize) break
+      dedupeFrom += dedupeBatchSize
     }
 
 
@@ -1132,23 +1141,33 @@ const handleFileUpload = async (event) => {
 // 엑셀 다운로드 (전체 목록)
 const downloadExcel = async () => {
   try {
-    // 전체 데이터 조회 (페이징 없이)
-    let query = supabase
-      .from('pharmacies')
-      .select('*')
-      .order('pharmacy_code', { ascending: true })
+    // 전체 데이터 조회 (2000행 제한 회피 위해 배치 조회, pharmacy_code+id 정렬로 안정 페이징)
+    const batchSize = 1000
+    let allPharmacies = []
+    let from = 0
+    while (true) {
+      let query = supabase
+        .from('pharmacies')
+        .select('*')
+        .order('pharmacy_code', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + batchSize - 1)
 
-    // 검색 조건이 있으면 적용
-    if (searchKeyword.value.length >= 2) {
-      const keyword = searchKeyword.value.toLowerCase();
-      query = query.or(`name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%,pharmacy_code.ilike.%${keyword}%`)
-    }
+      // 검색 조건이 있으면 적용
+      if (searchKeyword.value.length >= 2) {
+        const keyword = searchKeyword.value.toLowerCase();
+        query = query.or(`name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%,pharmacy_code.ilike.%${keyword}%`)
+      }
 
-    const { data: allPharmacies, error } = await query
+      const { data: batch, error } = await query
 
-    if (error) {
-      showError(translateSupabaseError(error, '데이터 조회'))
-      return
+      if (error) {
+        showError(translateSupabaseError(error, '데이터 조회'))
+        return
+      }
+      if (batch && batch.length > 0) allPharmacies = allPharmacies.concat(batch)
+      if (!batch || batch.length < batchSize) break
+      from += batchSize
     }
 
     if (!allPharmacies || allPharmacies.length === 0) {
