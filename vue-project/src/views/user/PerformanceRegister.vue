@@ -38,6 +38,28 @@
         <div class="total-count-display">전체 {{ clientList.length }} 건</div>
         <div class="data-card-buttons">
           <button
+            class="btn-excell-template"
+            @click="downloadPerformanceTemplate"
+            style="margin-right: 0.5rem;"
+          >
+            엑셀 템플릿
+          </button>
+          <button
+            class="btn-excell-upload"
+            @click="triggerBulkUpload"
+            :disabled="!isInputPeriod"
+            style="margin-right: 0.5rem;"
+          >
+            엑셀 일괄등록
+          </button>
+          <input
+            ref="bulkFileInput"
+            type="file"
+            accept=".xlsx,.xls"
+            @change="handleBulkUpload"
+            style="display: none"
+          />
+          <button
             class="btn-excell-download"
             @click="downloadExcel"
             :disabled="clientList.length === 0"
@@ -307,6 +329,25 @@
             <button @click="closeUploadModal" class="btn-close-nobg">X</button>
           </div>
           <div class="modal-body">
+            <!-- 안내: 이 모달은 실적 수치가 아니라 증빙 서류를 첨부하는 곳 -->
+            <div
+              style="
+                background: #f4f7ee;
+                border: 1px solid #cdd9b5;
+                border-radius: 6px;
+                padding: 0.75rem 0.9rem;
+                margin-bottom: 1rem;
+                font-size: 0.9rem;
+                color: #4b5563;
+                line-height: 1.5;
+              "
+            >
+              <div style="font-weight: 600; color: #5a7031; margin-bottom: 0.25rem">
+                증빙 서류 첨부
+              </div>
+              <span v-if="selectedSettlementMonth"> </span>실적을 뒷받침하는 <strong>증빙 파일</strong>(처방 명세·매출 자료 등)을 이 병의원에 첨부합니다.<br>
+              실적 수치 입력은 <strong>[등록]</strong> 버튼에서 진행하세요. 여기서는 파일만 업로드됩니다.
+            </div>
             <div style="margin-bottom: 1rem">
               <label style="display: block; margin-bottom: 0.5rem">파일 선택 (최대 10개)</label>
               <input
@@ -476,6 +517,9 @@ import * as XLSX from 'xlsx'
 import ExcelJS from 'exceljs'
 import { getNoticeModalHidePreference, setNoticeModalHidePreference } from '@/utils/userPreferences'
 import { formatBusinessNumber } from '@/utils/formatUtils'
+import { translateSupabaseError } from '@/utils/errorMessages'
+import { getCommissionGradeForClientCompany, pickRateByGrade } from '@/utils/commissionUtils'
+import { generateExcelFileName } from '@/utils/excelUtils'
 import { useNotifications } from '@/utils/notifications'
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
@@ -502,6 +546,7 @@ const clientList = ref([])
 const isInputPeriod = ref(false)
 const currentCompanyId = ref(null)
 const loading = ref(true)
+const bulkFileInput = ref(null) // 엑셀 일괄등록 파일 input
 const router = useRouter()
 const detailModalVisible = ref(false)
 const selectedClient = ref(null)
@@ -1183,6 +1228,371 @@ async function downloadExcel() {
   } catch (err) {
     console.error('엑셀 다운로드 오류:', err)
     showError('엑셀 다운로드 중 오류가 발생했습니다.')
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 엑셀 일괄 등록 (CSO 실적)
+// ─────────────────────────────────────────────────────────────
+const BULK_PRESCRIPTION_TYPES = ['EDI', 'ERP직거래자료', '매출자료', '약국조제', '원내매출', '원외매출', '차감']
+
+// 선택 정산월 기준 인접 처방월(월-offset) 계산
+function getPrescriptionMonthForOffset(settlementMonth, offset) {
+  if (!settlementMonth) return ''
+  const [y, m] = settlementMonth.split('-')
+  let mm = parseInt(m, 10) - offset
+  let yy = parseInt(y, 10)
+  while (mm <= 0) {
+    mm += 12
+    yy -= 1
+  }
+  return `${yy}-${String(mm).padStart(2, '0')}`
+}
+
+// 입력용 엑셀 템플릿 다운로드
+// - 병의원명/제품명은 사용자 식별용 참고 컬럼(업로드 시 무시, 매칭은 사업자번호·보험코드로 함)
+// - 배정 병의원을 미리 채우고, 별도 시트에 제품(보험코드↔제품명) 목록을 제공
+async function downloadPerformanceTemplate() {
+  const headers = ['병의원명', '병의원사업자번호', '처방월', '제품명', '보험코드', '처방수량', '처방구분', '비고']
+
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('실적 일괄등록')
+  worksheet.addRow(headers)
+
+  // 배정 병의원 미리 채우기(병의원명 + 사업자번호). 나머지는 사용자가 입력.
+  let filledClients = []
+  const assignedClientIds = await fetchMyClientIds()
+  if (assignedClientIds.length > 0) {
+    const { data: clients } = await supabase
+      .from('clients')
+      .select('name, business_registration_number')
+      .in('id', assignedClientIds)
+      .eq('status', 'active')
+    filledClients = (clients || [])
+      .filter((c) => c.business_registration_number)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'))
+  }
+
+  if (filledClients.length > 0) {
+    for (const c of filledClients) {
+      // [병의원명, 사업자번호, 처방월, 제품명, 보험코드, 처방수량, 처방구분, 비고]
+      worksheet.addRow([c.name || '', c.business_registration_number || '', '', '', '', '', 'EDI', ''])
+    }
+  } else {
+    // 배정 병의원이 없으면 안내용 예시행(괄호 값은 업로드 시 무시)
+    worksheet.addRow(['(병의원명)', '(사업자번호)', selectedSettlementMonth.value || '(YYYY-MM)', '(제품명)', '(보험코드)', '(숫자)', 'EDI', '(선택)'])
+  }
+
+  const headerRow = worksheet.getRow(1)
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '76933C' } }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
+  // 병의원사업자번호(2)/보험코드(5) 컬럼은 텍스트 서식(앞자리 0 보존)
+  worksheet.getColumn(2).numFmt = '@'
+  worksheet.getColumn(5).numFmt = '@'
+
+  worksheet.eachRow((row, rowNumber) => {
+    row.eachCell((cell) => {
+      if (rowNumber > 1) cell.font = { size: 11 }
+      cell.border = {
+        top: { style: 'thin', color: { argb: '000000' } },
+        bottom: { style: 'thin', color: { argb: '000000' } },
+        left: { style: 'thin', color: { argb: '000000' } },
+        right: { style: 'thin', color: { argb: '000000' } },
+      }
+    })
+  })
+
+  worksheet.columns = [
+    { width: 28 }, // 병의원명
+    { width: 16 }, // 병의원사업자번호
+    { width: 10 }, // 처방월
+    { width: 28 }, // 제품명
+    { width: 14 }, // 보험코드
+    { width: 10 }, // 처방수량
+    { width: 14 }, // 처방구분
+    { width: 20 }, // 비고
+  ]
+  worksheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 1, showGridLines: false }]
+
+  // 참고 시트: 제품목록(보험코드 ↔ 제품명), 인접 처방월(정산월-1, 정산월-2) 기준
+  const refSheet = workbook.addWorksheet('제품목록(참고)')
+  refSheet.addRow(['처방월', '보험코드', '제품명'])
+  const nearMonths = [
+    getPrescriptionMonthForOffset(selectedSettlementMonth.value, 1),
+    getPrescriptionMonthForOffset(selectedSettlementMonth.value, 2),
+  ].filter(Boolean)
+  if (nearMonths.length > 0 && currentCompanyId.value) {
+    const { data: naRows } = await supabase
+      .from('product_company_not_assignments')
+      .select('product_id')
+      .eq('company_id', currentCompanyId.value)
+    const excluded = new Set((naRows || []).map((r) => r.product_id))
+    for (const month of nearMonths) {
+      const { data: prods } = await supabase
+        .from('products')
+        .select('id, insurance_code, product_name')
+        .eq('status', 'active')
+        .eq('base_month', month)
+        .order('product_name', { ascending: true })
+        .range(0, 2999)
+      for (const p of prods || []) {
+        if (excluded.has(p.id)) continue
+        refSheet.addRow([month, p.insurance_code, p.product_name])
+      }
+    }
+  }
+  refSheet.getRow(1).eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '76933C' } }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
+  refSheet.getColumn(2).numFmt = '@' // 보험코드 텍스트
+  refSheet.columns = [{ width: 10 }, { width: 14 }, { width: 32 }]
+  refSheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 1, showGridLines: false }]
+
+  const fileName = generateExcelFileName('실적일괄등록_템플릿', selectedSettlementMonth.value)
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  window.URL.revokeObjectURL(url)
+}
+
+// 파일 선택 트리거
+function triggerBulkUpload() {
+  if (!selectedSettlementMonth.value) {
+    showWarning('정산월을 먼저 선택해주세요.')
+    return
+  }
+  if (!isInputPeriod.value) {
+    showWarning('실적 등록기간(진행중)에만 일괄 등록할 수 있습니다.')
+    return
+  }
+  bulkFileInput.value?.click()
+}
+
+// 엑셀 업로드 → 실적 일괄 등록
+async function handleBulkUpload(event) {
+  const file = event.target.files[0]
+  if (!file) return
+
+  if (!currentCompanyId.value || !selectedSettlementMonth.value) {
+    showWarning('업체 정보 또는 정산월을 확인할 수 없습니다.')
+    event.target.value = ''
+    return
+  }
+
+  loading.value = true
+  try {
+    const buf = await file.arrayBuffer()
+    const workbook = XLSX.read(buf)
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
+
+    if (jsonData.length === 0) {
+      showWarning('엑셀 파일에 데이터가 없습니다.')
+      return
+    }
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    const currentUserUid = session?.user?.id
+    const companyId = currentCompanyId.value
+    const settlementMonth = selectedSettlementMonth.value
+
+    // 1) 배정 병의원 맵: 사업자등록번호(숫자만) -> id
+    //    (병의원코드(client_code)는 데이터상 대부분 비어 있어 사업자번호를 식별 키로 사용)
+    const onlyDigits = (v) => String(v ?? '').replace(/[^0-9]/g, '')
+    const assignedClientIds = await fetchMyClientIds()
+    const clientBrnMap = new Map()
+    if (assignedClientIds.length > 0) {
+      const { data: clients, error: clientErr } = await supabase
+        .from('clients')
+        .select('id, business_registration_number')
+        .in('id', assignedClientIds)
+        .eq('status', 'active')
+      if (clientErr) {
+        showError(translateSupabaseError(clientErr, '병의원 조회'))
+        return
+      }
+      for (const c of clients || []) {
+        const brn = onlyDigits(c.business_registration_number)
+        if (brn) clientBrnMap.set(brn, c.id)
+      }
+    }
+
+    // 2) 해당 업체 미할당 제품 ID
+    const { data: naRows, error: naErr } = await supabase
+      .from('product_company_not_assignments')
+      .select('product_id')
+      .eq('company_id', companyId)
+    if (naErr) {
+      showError(translateSupabaseError(naErr, '미할당 제품 조회'))
+      return
+    }
+    const excludedProductIds = new Set((naRows || []).map((r) => r.product_id))
+
+    // 3) 파일 내 고유 처방월별 제품 맵: month -> Map(insurance_code -> product)
+    const monthsInFile = [
+      ...new Set(jsonData.map((r) => String(r['처방월'] ?? '').trim()).filter((m) => /^\d{4}-\d{2}$/.test(m))),
+    ]
+    const productMapByMonth = {}
+    for (const month of monthsInFile) {
+      const { data: prods, error: prodErr } = await supabase
+        .from('products')
+        .select('id, insurance_code, commission_rate_a, commission_rate_b, commission_rate_c, commission_rate_d, commission_rate_e')
+        .eq('status', 'active')
+        .eq('base_month', month)
+        .range(0, 2999)
+      if (prodErr) {
+        showError(translateSupabaseError(prodErr, '제품 조회'))
+        return
+      }
+      const m = new Map()
+      for (const p of prods || []) {
+        if (excludedProductIds.has(p.id)) continue
+        if (p.insurance_code != null) m.set(String(p.insurance_code).trim(), p)
+      }
+      productMapByMonth[month] = m
+    }
+
+    // 4) 기존 실적(중복) 키 Set: client_id|prescription_month|product_id
+    const { data: existRows, error: existErr } = await supabase
+      .from('performance_records')
+      .select('client_id, prescription_month, product_id')
+      .eq('company_id', companyId)
+      .eq('settlement_month', settlementMonth)
+    if (existErr) {
+      showError(translateSupabaseError(existErr, '기존 실적 조회'))
+      return
+    }
+    const dupKeys = new Set((existRows || []).map((r) => `${r.client_id}|${r.prescription_month}|${r.product_id}`))
+
+    // 병의원별 등급 캐시
+    const gradeCache = new Map()
+    const gradeFor = async (clientId) => {
+      if (gradeCache.has(clientId)) return gradeCache.get(clientId)
+      const g = await getCommissionGradeForClientCompany(companyId, clientId)
+      gradeCache.set(clientId, g)
+      return g
+    }
+
+    const errors = []
+    const seenInFile = new Set()
+    let skipCount = 0
+    const resolvedRows = []
+
+    jsonData.forEach((row, idx) => {
+      const rowNo = idx + 2 // 헤더 1행 보정
+      const brnRaw = String(row['병의원사업자번호'] ?? '').trim()
+      const month = String(row['처방월'] ?? '').trim()
+      const insRaw = String(row['보험코드'] ?? '').trim()
+      const qtyRaw = String(row['처방수량'] ?? '').trim()
+      const type = String(row['처방구분'] ?? '').trim() || 'EDI'
+      const remarks = String(row['비고'] ?? '').trim()
+
+      // 실제 데이터 행이 아니면 무시: 보험코드·처방수량이 모두 없으면
+      // 미리 채워진 병의원 참고행/빈행/안내 예시행으로 간주하고 건너뜀
+      if (!insRaw && !qtyRaw) return
+      if (brnRaw.startsWith('(')) return // 안내 예시행 안전장치
+
+      const brnDigits = onlyDigits(brnRaw)
+      const clientId = clientBrnMap.get(brnDigits)
+      if (!clientId) {
+        errors.push(`${rowNo}행: 배정되지 않았거나 존재하지 않는 병의원 사업자번호입니다. (${brnRaw})`)
+        return
+      }
+      if (!/^\d{4}-\d{2}$/.test(month)) {
+        errors.push(`${rowNo}행: 처방월 형식이 올바르지 않습니다(YYYY-MM). (${month})`)
+        return
+      }
+      if (!insRaw) {
+        errors.push(`${rowNo}행: 보험코드가 비어 있습니다.`)
+        return
+      }
+      const product = productMapByMonth[month]?.get(insRaw)
+      if (!product) {
+        errors.push(`${rowNo}행: ${month}에 등록된 제품이 아니거나 미할당 제품입니다. (보험코드 ${insRaw})`)
+        return
+      }
+      const qtyNum = parseFloat(qtyRaw.replace(/,/g, ''))
+      if (isNaN(qtyNum)) {
+        errors.push(`${rowNo}행: 처방수량을 숫자로 입력해주세요. (${qtyRaw})`)
+        return
+      }
+      if (!BULK_PRESCRIPTION_TYPES.includes(type)) {
+        errors.push(`${rowNo}행: 처방구분 값이 올바르지 않습니다. (${type})`)
+        return
+      }
+
+      // 중복 스킵 (기존 DB + 파일 내)
+      const key = `${clientId}|${month}|${product.id}`
+      if (dupKeys.has(key) || seenInFile.has(key)) {
+        skipCount++
+        return
+      }
+      seenInFile.add(key)
+      resolvedRows.push({ clientId, month, product, qtyNum, type, remarks })
+    })
+
+    // 검증 오류가 하나라도 있으면 전체 중단(아무것도 등록 안 함)
+    if (errors.length > 0) {
+      const head = errors.slice(0, 20)
+      const more = errors.length > 20 ? `\n...외 ${errors.length - 20}건` : ''
+      showError(`일괄 등록 실패: 데이터 오류 ${errors.length}건 (등록 취소)\n\n` + head.join('\n') + more)
+      return
+    }
+    if (resolvedRows.length === 0) {
+      showWarning(
+        skipCount > 0 ? `등록할 신규 실적이 없습니다. (중복 스킵 ${skipCount}건)` : '등록할 데이터가 없습니다.',
+      )
+      return
+    }
+
+    // 등급 기반 수수료율 산출 후 insert 배열 구성
+    const insertData = []
+    for (const r of resolvedRows) {
+      const grade = await gradeFor(r.clientId)
+      const rate = Math.round(pickRateByGrade(r.product, grade) * 1000) / 1000
+      insertData.push({
+        company_id: companyId,
+        settlement_month: settlementMonth,
+        prescription_month: r.month,
+        client_id: Number(r.clientId),
+        product_id: r.product.id,
+        prescription_qty: r.qtyNum,
+        prescription_type: r.type,
+        remarks: r.remarks,
+        registered_by: currentUserUid,
+        review_status: '대기',
+        commission_rate: rate,
+      })
+    }
+
+    const { error: insertError } = await supabase.from('performance_records').insert(insertData)
+    if (insertError) {
+      showError(translateSupabaseError(insertError, '실적 일괄등록'))
+      return
+    }
+
+    let msg = `일괄 등록 완료! 등록 ${insertData.length}건`
+    if (skipCount > 0) msg += ` / 중복 스킵 ${skipCount}건`
+    showSuccess(msg)
+
+    await fetchClientList()
+  } catch (err) {
+    console.error('실적 일괄등록 오류:', err)
+    showError('일괄 등록에 실패했습니다. 파일 형식을 확인 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요.')
+  } finally {
+    loading.value = false
+    event.target.value = ''
   }
 }
 

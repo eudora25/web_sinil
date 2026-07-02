@@ -296,6 +296,7 @@ import { supabase } from '@/supabase';
 import Button from 'primevue/button';
 import { translateSupabaseError, translateGeneralError } from '@/utils/errorMessages';
 import { convertCommissionRateToDecimal } from '@/utils/formatUtils';
+import { getCommissionGradeForClientCompany } from '@/utils/commissionUtils';
 import { useNotifications } from '@/utils/notifications';
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
@@ -417,16 +418,8 @@ function computeProductDropdownPosition(rowIdx) {
   const el = productInputRefs.value[rowIdx];
   if (!el) return;
   const rect = el.getBoundingClientRect();
-
-  // 입력칸이 표 스크롤 영역(고정 헤더 아래) 밖으로 나가면 드롭다운을 닫아 '허공 부유' 방지
-  const scrollEl = el.closest('.table-body-scroll');
-  if (scrollEl) {
-    const cRect = scrollEl.getBoundingClientRect();
-    if (rect.bottom <= cRect.top || rect.top >= cRect.bottom) {
-      productSearchForRow.value.show = false;
-      return;
-    }
-  }
+  // 아직 레이아웃되지 않은/분리된 요소면 위치 계산만 스킵(드롭다운은 닫지 않음 → 선택 유지)
+  if (!rect.width && !rect.height) return;
 
   // 화면 높이와 드롭다운 높이 계산
   const windowHeight = window.innerHeight;
@@ -796,7 +789,7 @@ function clearProductRelatedFields(rowIndex) {
   row.commission_rate_e = null;
 }
 
-function toggleProductDropdown(rowIndex) {
+async function toggleProductDropdown(rowIndex) {
   if (!isInputEnabled.value) return;
   if (isProductSearchOpen.value && productSearchForRow.value.activeRowIndex !== rowIndex) {
     return;
@@ -809,6 +802,11 @@ function toggleProductDropdown(rowIndex) {
   // 처방월에 맞는 제품만 필터링
   const month = inputRows.value[rowIndex].prescription_month;
   productSearchForRow.value.activeRowIndex = rowIndex;
+  // 아직 로드 전이면 로딩 완료까지 대기(첫 클릭에도 제품 목록 표시)
+  if (!productsByMonth.value[month]) {
+    await fetchProductsForMonth(month);
+    if (productSearchForRow.value.activeRowIndex !== rowIndex) return;
+  }
   productSearchForRow.value.results = productsByMonth.value[month] || [];
   productSearchForRow.value.selectedIndex = -1;
   productSearchForRow.value.show = productSearchForRow.value.results.length > 0;
@@ -823,27 +821,29 @@ const isProductSearchOpen = computed(() => {
   return productSearchForRow.value.show && productSearchForRow.value.activeRowIndex !== -1;
 });
 // 제품명 필드 포커스 핸들러
-function handleProductNameFocus(rowIdx) {
+async function handleProductNameFocus(rowIdx) {
   if (!isInputEnabled.value) { // Added .value
     event.target.blur();
     return;
   }
-  
+
   // 다른 행의 제품 검색이 열려있으면 차단
   if (isProductSearchOpen.value && productSearchForRow.value.activeRowIndex !== rowIdx) {
     event.target.blur();
     return;
   }
-  
+
   currentCell.value = { row: rowIdx, col: 'product_name' };
   productSearchForRow.value.activeRowIndex = rowIdx;
-  
-  // 포커스 시 해당 월의 제품 목록이 로드되어 있지 않으면 로드
+
+  // 포커스 시 해당 월의 제품 목록이 로드되어 있지 않으면 로드(로딩 완료까지 대기 → 첫 포커스에도 제품명 표시)
   const month = inputRows.value[rowIdx].prescription_month;
   if (!productsByMonth.value[month]) {
-    fetchProductsForMonth(month);
+    await fetchProductsForMonth(month);
+    // 대기 중 사용자가 다른 행/필드로 이동했으면 이 행 드롭다운은 열지 않음
+    if (productSearchForRow.value.activeRowIndex !== rowIdx) return;
   }
-  
+
   // 포커스 시 드롭다운 표시 (제품이 있는 경우)
   if (productsByMonth.value[month] && productsByMonth.value[month].length > 0) {
     productSearchForRow.value.results = productsByMonth.value[month];
@@ -1286,27 +1286,7 @@ function cellClass(rowIdx, col) {
 }
 
 // 회사-거래처 매핑에서 수수료율 등급 조회 함수
-async function getCommissionGradeForClientCompany(companyId, clientId) {
-  const { data, error } = await supabase
-    .from('client_company_assignments')
-    .select('modified_commission_grade, company:companies(default_commission_grade)')
-    .eq('company_id', companyId)
-    .eq('client_id', clientId)
-    .single();
-  
-  if (error || !data) {
-    // 매핑 정보가 없으면 회사의 기본 등급 사용
-    const { data: company } = await supabase
-      .from('companies')
-      .select('default_commission_grade')
-      .eq('id', companyId)
-      .single();
-    return company?.default_commission_grade || 'A';
-  }
-  
-  // modified_commission_grade가 있으면 우선 사용, 없으면 companies 테이블의 default_commission_grade 사용
-  return data.modified_commission_grade || data.company?.default_commission_grade || 'A';
-}
+// getCommissionGradeForClientCompany는 @/utils/commissionUtils로 추출됨(여러 화면 공용)
 
 // 실적 저장로직 - 원본(originalRows)과 비교해 변경/추가/삭제 행만 골라 increment 저장(INSERT/UPDATE/DELETE)
 async function savePerformanceData() {
@@ -2462,7 +2442,9 @@ async function handlePrescriptionMonthChange(rowIdx) {
 
 /* 제품 검색 드롭다운 스타일 */
 .product-search-dropdown {
-  position: absolute !important;
+  /* teleport(body) + 인라인 위치가 getBoundingClientRect(뷰포트 좌표)라 fixed 여야
+     스크롤돼도 입력칸에 정확히 붙는다(absolute면 스크롤 시 어긋나 화면 밖으로 사라짐) */
+  position: fixed !important;
   background: white !important;
   border: 1px solid #ddd !important;
   border-radius: 4px !important;
