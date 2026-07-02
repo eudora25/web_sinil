@@ -3212,6 +3212,8 @@ function positionReviewDropdown(reactiveRow) {
   const inputEl = productInputRefs.value[reactiveRow.id];
   if (!inputEl) return;
   const rect = inputEl.getBoundingClientRect();
+  // 아직 레이아웃되지 않은/분리된 요소면 스킵(닫지 않음 → 선택 유지)
+  if (!rect.width && !rect.height) return;
 
   const scrollEl = getScrollParent(inputEl);
   if (scrollEl) {

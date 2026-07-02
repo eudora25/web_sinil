@@ -1061,9 +1061,10 @@ const handleFileUpload = async (event) => {
         commissionRateE = Math.round(commissionRateE * 1000) / 1000
       }
 
-      const monthRegex = /^\d{4}-\d{2}$/
-      if (!monthRegex.test(row['기준월'])) {
-        errors.push(`${rowNum}행: 기준월은 YYYY-MM 형식이어야 합니다.`)
+      const baseMonth = String(row['기준월']).trim();
+      const baseMonthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
+      if (!baseMonthRegex.test(baseMonth)) {
+        errors.push(`${rowNum}행: 기준월은 YYYY-MM 형식의 유효한 연월(01~12)이어야 합니다.`)
         return
       }
 
@@ -1082,7 +1083,7 @@ const handleFileUpload = async (event) => {
       }
 
       uploadData.push({
-        base_month: row['기준월'],
+        base_month: baseMonth,
         product_name: row['제품명'],
         insurance_code: row['보험코드'],
         price: Number(row['약가']) || 0,
