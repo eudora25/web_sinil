@@ -33,7 +33,7 @@
     </div>
     <div class="data-card">
       <div class="data-card-header">
-        <div class="total-count-display">전체 {{ filteredClients.length }} 건</div>
+        <div class="total-count-display">전체 {{ totalCount }} 건</div>
         <div class="action-buttons-group">
           <button class="btn-excell-template" @click="downloadTemplate" style="margin-right: 1rem;">엑셀 템플릿</button>
           <button class="btn-excell-upload" @click="triggerFileUpload" style="margin-right: 1rem;">엑셀 등록</button>
@@ -50,11 +50,14 @@
       </div>
 
       <DataTable
-        :value="filteredClients"
-        :loading="false"
+        :value="assignments"
+        :loading="loading"
+        lazy
         paginator
-        :rows="50"
+        :rows="pageSize"
         :rowsPerPageOptions="[20, 50, 100]"
+        :totalRecords="totalCount"
+        @page="onPageChange"
         scrollable
         scrollHeight="calc(100vh - 250px)"
         class="admin-commission-grades-table"
@@ -72,9 +75,7 @@
         <Column
           field="client_code"
           header="병의원코드"
-          :headerStyle="{ width: columnWidths.client_code }"
-          :sortable="true"
-        >
+          :headerStyle="{ width: columnWidths.client_code }"        >
           <template #body="slotProps">
             {{ slotProps.data.client_code || '' }}
           </template>
@@ -83,9 +84,7 @@
           field="client_name"
           header="병의원명"
           :headerStyle="{ width: columnWidths.client_name }"
-          :style="{ fontWeight: '500 !important' }"
-          :sortable="true"
-        >
+          :style="{ fontWeight: '500 !important' }"        >
           <template #body="slotProps">
             <span
               class="ellipsis-cell text-link"
@@ -101,21 +100,15 @@
         <Column
           field="client_business_registration_number"
           header="사업자등록번호"
-          :headerStyle="{ width: columnWidths.client_business_registration_number }"
-          :sortable="true"
-        />
+          :headerStyle="{ width: columnWidths.client_business_registration_number }"        />
         <Column
           field="owner_name"
           header="원장명"
-          :headerStyle="{ width: columnWidths.owner_name }"
-          :sortable="true"
-        />
+          :headerStyle="{ width: columnWidths.owner_name }"        />
         <Column
           field="address"
           header="주소"
-          :headerStyle="{ width: columnWidths.address }"
-          :sortable="true"
-        >
+          :headerStyle="{ width: columnWidths.address }"        >
           <template #body="slotProps">
             <span class="ellipsis-cell" :title="slotProps.data.address" @mouseenter="checkOverflow" @mouseleave="removeOverflowClass">{{ slotProps.data.address }}</span>
           </template>
@@ -123,16 +116,12 @@
         <Column
           field="company_group"
           header="구분"
-          :headerStyle="{ width: columnWidths.company_group }"
-          :sortable="true"
-        />
+          :headerStyle="{ width: columnWidths.company_group }"        />
         <Column
           field="company_name"
           header="업체명"
           :headerStyle="{ width: columnWidths.company_name }"
-          :style="{ fontWeight: '500 !important' }"
-          :sortable="true"
-        >
+          :style="{ fontWeight: '500 !important' }"        >
           <template #body="slotProps">
             <span
               class="text-link"
@@ -146,16 +135,12 @@
         <Column
           field="company_business_registration_number"
           header="사업자등록번호"
-          :headerStyle="{ width: columnWidths.company_business_registration_number }"
-          :sortable="true"
-        />
+          :headerStyle="{ width: columnWidths.company_business_registration_number }"        />
         <Column
           field="company_default_commission_grade"
           header="기본 수수료 등급"
           :headerStyle="{ width: columnWidths.default_grade, textAlign: 'center' }"
-          :bodyStyle="{ textAlign: 'center' }"
-          :sortable="true"
-        />
+          :bodyStyle="{ textAlign: 'center' }"        />
         <Column header="변경 수수료 등급" :headerStyle="{ width: columnWidths.modified_grade, textAlign: 'center' }" :bodyStyle="{ textAlign: 'center' }">
           <template #body="slotProps">
             <select
@@ -203,6 +188,7 @@ import { supabase } from '@/supabase'
 import ExcelJS from 'exceljs'
 import { read, utils } from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
+import { translateSupabaseError } from '@/utils/errorMessages'
 import { useNotifications } from '@/utils/notifications'
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
@@ -211,38 +197,33 @@ const router = useRouter()
 const assignments = ref([])
 const loading = ref(false)
 const excelLoading = ref(false)
-const filters = ref({ global: { value: null, matchMode: 'contains' } })
 const currentPageFirstIndex = ref(0)
 const fileInput = ref(null)
 
 const searchInput = ref('');
 const searchKeyword = ref('');
-const filteredClients = ref([]);
+
+// 서버 페이징 상태
+const pageSize = ref(50);
+const totalCount = ref(0);
+const currentPage = ref(1);
 
 function doSearch() {
-  if (searchInput.value.length >= 2) {
-    searchKeyword.value = searchInput.value;
-    const keyword = searchKeyword.value.toLowerCase();
-    filteredClients.value = assignments.value.filter(c =>
-      (c.client_name && c.client_name.toLowerCase().includes(keyword)) ||
-      (c.client_business_registration_number && c.client_business_registration_number.toLowerCase().includes(keyword)) ||
-      (c.client_code && c.client_code.toLowerCase().includes(keyword)) ||
-      (c.owner_name && c.owner_name.toLowerCase().includes(keyword)) ||
-      (c.company_name && c.company_name.toLowerCase().includes(keyword)) ||
-      (c.company_group && c.company_group.toLowerCase().includes(keyword)) ||
-      (c.address && c.address.toLowerCase().includes(keyword))
-    );
-  }
+  searchKeyword.value = searchInput.value.length >= 2 ? searchInput.value : '';
+  currentPage.value = 1;
+  fetchAssignments();
 }
 function clearSearch() {
   searchInput.value = '';
   searchKeyword.value = '';
-  filteredClients.value = assignments.value;
+  currentPage.value = 1;
+  fetchAssignments();
 }
-
-watch(assignments, (newVal) => {
-  filteredClients.value = newVal;
-}, { immediate: true });
+function onPageChange(event) {
+  currentPage.value = event.page + 1;
+  pageSize.value = event.rows;
+  fetchAssignments();
+}
 
 // 컬럼 너비 한 곳에서 관리
 const columnWidths = {
@@ -259,38 +240,49 @@ const columnWidths = {
   modified_grade: '8%',
 }
 
+// 서버 사이드 페이징/검색: 배정(병의원×업체) 단위 DB 함수(RPC) 조회
 const fetchAssignments = async () => {
   loading.value = true;
   try {
-    const { data: assignmentsData, error } = await supabase
-      .from('client_company_assignments')
-      .select(`
-        id,
-        company_default_commission_grade,
-        modified_commission_grade,
-        client:clients(id, client_code, name, business_registration_number, owner_name, address),
-        company:companies(id, company_name, business_registration_number, default_commission_grade, company_group)
-      `)
-
-    if (!error && assignmentsData) {
-      assignments.value = assignmentsData.map((assignment) => ({
-        id: assignment.id,
-        client_code: assignment.client?.client_code || '',
-        client_name: assignment.client?.name || '',
-        client_business_registration_number: assignment.client?.business_registration_number || '',
-        client_id: assignment.client?.id || null, // 상세화면으로 이동할 때 사용할 클라이언트 ID
-        owner_name: assignment.client?.owner_name || '',
-        address: assignment.client?.address || '',
-        company_group: assignment.company?.company_group || '',
-        company_name: assignment.company?.company_name || '',
-        company_business_registration_number: assignment.company?.business_registration_number || '',
-        company_default_commission_grade: assignment.company?.default_commission_grade || assignment.company_default_commission_grade,
-        modified_commission_grade: assignment.modified_commission_grade,
-        company_id: assignment.company?.id || null, // 업체 상세화면으로 이동할 때 사용할 업체 ID
-      }))
+    const kw = searchKeyword.value && searchKeyword.value.trim().length >= 2
+      ? searchKeyword.value.trim()
+      : null;
+    const offset = (currentPage.value - 1) * pageSize.value;
+    const { data, error } = await supabase.rpc('search_client_company_grades', {
+      p_keyword: kw,
+      p_limit: pageSize.value,
+      p_offset: offset,
+    });
+    if (error) {
+      console.error('데이터 조회 오류:', error);
+      showError(translateSupabaseError(error, '수수료 등급 조회'));
+      assignments.value = [];
+      totalCount.value = 0;
+      return;
     }
+    const rows = data || [];
+    // RPC 반환 키가 프론트 매핑 키와 1:1
+    assignments.value = rows.map((r) => ({
+      id: r.id,
+      client_code: r.client_code || '',
+      client_name: r.client_name || '',
+      client_business_registration_number: r.client_business_registration_number || '',
+      client_id: r.client_id || null,
+      owner_name: r.owner_name || '',
+      address: r.address || '',
+      company_group: r.company_group || '',
+      company_name: r.company_name || '',
+      company_business_registration_number: r.company_business_registration_number || '',
+      company_default_commission_grade: r.company_default_commission_grade,
+      modified_commission_grade: r.modified_commission_grade,
+      company_id: r.company_id || null,
+    }));
+    totalCount.value = rows.length > 0 ? Number(rows[0].total_count) : 0;
+    currentPageFirstIndex.value = offset;
   } catch (err) {
-    console.error('데이터 조회 오류:', err)
+    console.error('데이터 조회 오류:', err);
+    assignments.value = [];
+    totalCount.value = 0;
   } finally {
     loading.value = false;
   }
@@ -432,19 +424,30 @@ const handleFileUpload = async (event) => {
     const gradesToUpdate = []
     const errors = []
 
-    // 모든 매핑 정보를 미리 로드
-    const { data: allAssignmentsData, error: assignmentError } = await supabase
-      .from('client_company_assignments')
-      .select(`
-        id,
-        client:clients(business_registration_number),
-        company:companies(business_registration_number)
-      `)
-
-    if (assignmentError) {
-      showError('매핑 정보 조회 중 오류가 발생했습니다.')
-      console.error(assignmentError)
-      return
+    // 모든 매핑 정보를 미리 로드 (2000행 제한 회피 위해 배치 조회)
+    let allAssignmentsData = []
+    {
+      const batchSize = 1000
+      let from = 0
+      while (true) {
+        const { data: batch, error: assignmentError } = await supabase
+          .from('client_company_assignments')
+          .select(`
+            id,
+            client:clients(business_registration_number),
+            company:companies(business_registration_number)
+          `)
+          .order('id', { ascending: true })
+          .range(from, from + batchSize - 1)
+        if (assignmentError) {
+          showError('매핑 정보 조회 중 오류가 발생했습니다.')
+          console.error(assignmentError)
+          return
+        }
+        if (batch && batch.length > 0) allAssignmentsData = allAssignmentsData.concat(batch)
+        if (!batch || batch.length < batchSize) break
+        from += batchSize
+      }
     }
 
     // 매핑 정보를 키-값 형태로 변환 (성능 최적화)
@@ -534,12 +537,39 @@ const handleFileUpload = async (event) => {
 }
 
 const downloadExcel = async () => {
-  if (filteredClients.value.length === 0) {
+  // 엑셀은 현재 화면 페이지가 아니라 "현재 검색에 맞는 전체 배정"을 대상으로 → 서버 배치(1000건) 전량 조회
+  const kw = searchKeyword.value && searchKeyword.value.trim().length >= 2
+    ? searchKeyword.value.trim()
+    : null;
+  const excelBatchSize = 1000;
+  let allRows = [];
+  let excelOffset = 0;
+  try {
+    while (true) {
+      const { data, error } = await supabase.rpc('search_client_company_grades', {
+        p_keyword: kw,
+        p_limit: excelBatchSize,
+        p_offset: excelOffset,
+      });
+      if (error) {
+        showError(translateSupabaseError(error, '엑셀 데이터 조회'))
+        return
+      }
+      const rows = data || [];
+      if (rows.length > 0) allRows = allRows.concat(rows);
+      if (rows.length < excelBatchSize) break;
+      excelOffset += excelBatchSize;
+    }
+  } catch (err) {
+    showError(translateSupabaseError(err, '엑셀 데이터 조회'))
+    return
+  }
+  if (allRows.length === 0) {
     showWarning('다운로드할 데이터가 없습니다.')
     return
   }
 
-  const excelData = filteredClients.value.map((assignment) => ({
+  const excelData = allRows.map((assignment) => ({
     병의원코드: assignment.client_code,
     병의원명: assignment.client_name,
     '사업자등록번호': assignment.client_business_registration_number,

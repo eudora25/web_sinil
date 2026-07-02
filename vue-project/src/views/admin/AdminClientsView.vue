@@ -34,7 +34,7 @@
     <div class="data-card">
       <div class="data-card-header">
         <div class="total-count-display">
-          전체 {{ filteredClients.length }} 건
+          전체 {{ totalCount }} 건
         </div>
         <div class="action-buttons-group">
           <button class="btn-excell-template" @click="downloadTemplate" style="margin-right: 1rem;">엑셀 템플릿</button>
@@ -52,11 +52,14 @@
         </div>
       </div>
       <DataTable
-        :value="filteredClients"
-        :loading="false"
+        :value="clients"
+        :loading="loading"
+        lazy
         paginator
-        :rows="50"
+        :rows="pageSize"
         :rowsPerPageOptions="[20, 50, 100]"
+        :totalRecords="totalCount"
+        @page="onPageChange"
         scrollable
         scrollHeight="calc(100vh - 250px)"
         class="admin-clients-table"
@@ -73,9 +76,7 @@
         <Column
           field="client_code"
           header="병의원코드"
-          :headerStyle="{ width: columnWidths.client_code }"
-          :sortable="true"
-        >
+          :headerStyle="{ width: columnWidths.client_code }"        >
           <template #body="slotProps">
             <input
               v-if="slotProps.data.isEditing"
@@ -85,7 +86,7 @@
             <span v-else>{{ slotProps.data.client_code }}</span>
           </template>
         </Column>
-        <Column field="name" header="병의원명" :headerStyle="{ width: columnWidths.name }" :sortable="true">
+        <Column field="name" header="병의원명" :headerStyle="{ width: columnWidths.name }">
           <template #body="slotProps">
             <input
               v-if="slotProps.data.isEditing"
@@ -101,9 +102,7 @@
         <Column
           field="business_registration_number"
           header="사업자등록번호"
-          :headerStyle="{ width: columnWidths.business_registration_number }"
-          :sortable="true"
-          >
+          :headerStyle="{ width: columnWidths.business_registration_number }"          >
           <template #body="slotProps">
             <input
               v-if="slotProps.data.isEditing"
@@ -117,7 +116,7 @@
             <span v-else>{{ slotProps.data.business_registration_number }}</span>
           </template>
         </Column>
-        <Column field="owner_name" header="원장명" :headerStyle="{ width: columnWidths.owner_name }" :sortable="true">
+        <Column field="owner_name" header="원장명" :headerStyle="{ width: columnWidths.owner_name }">
           <template #body="slotProps">
             <input
               v-if="slotProps.data.isEditing"
@@ -127,7 +126,7 @@
             <span v-else>{{ slotProps.data.owner_name }}</span>
           </template>
         </Column>
-        <Column field="address" header="주소" :headerStyle="{ width: columnWidths.address }" :sortable="true">
+        <Column field="address" header="주소" :headerStyle="{ width: columnWidths.address }">
           <template #body="slotProps">
             <input
               v-if="slotProps.data.isEditing"
@@ -137,7 +136,7 @@
             <span v-else class="ellipsis-cell" :title="slotProps.data.address" @mouseenter="checkOverflow" @mouseleave="removeOverflowClass">{{ slotProps.data.address }}</span>
           </template>
         </Column>
-        <Column field="remarks" header="비고" :headerStyle="{ width: columnWidths.remarks }" :sortable="true">
+        <Column field="remarks" header="비고" :headerStyle="{ width: columnWidths.remarks }">
           <template #body="slotProps">
             <input
               v-if="slotProps.data.isEditing"
@@ -147,7 +146,7 @@
             <span v-else>{{ slotProps.data.remarks }}</span>
           </template>
         </Column>
-        <Column field="remarks_settlement" header="정산용 비고" :headerStyle="{ width: columnWidths.remarks_settlement }" :sortable="true">
+        <Column field="remarks_settlement" header="정산용 비고" :headerStyle="{ width: columnWidths.remarks_settlement }">
           <template #body="slotProps">
             <input
               v-if="slotProps.data.isEditing"
@@ -157,7 +156,7 @@
             <span v-else>{{ slotProps.data.remarks_settlement }}</span>
           </template>
         </Column>
-        <Column field="created_at" header="등록일자" :headerStyle="{ width: columnWidths.created_at }" :sortable="true">
+        <Column field="created_at" header="등록일자" :headerStyle="{ width: columnWidths.created_at }">
           <template #body="slotProps">
             <span>{{
               slotProps.data.created_at
@@ -166,12 +165,12 @@
             }}</span>
           </template>
         </Column>
-        <Column field="created_by" header="등록자" :headerStyle="{ width: columnWidths.created_by }" :sortable="true">
+        <Column field="created_by" header="등록자" :headerStyle="{ width: columnWidths.created_by }">
           <template #body="slotProps">
             <span>{{ slotProps.data.created_by_name || '-' }}</span>
           </template>
         </Column>
-        <Column field="updated_at" header="수정일자" :headerStyle="{ width: columnWidths.updated_at }" :sortable="true">
+        <Column field="updated_at" header="수정일자" :headerStyle="{ width: columnWidths.updated_at }">
           <template #body="slotProps">
             <span>{{
               slotProps.data.updated_at
@@ -180,12 +179,12 @@
             }}</span>
           </template>
         </Column>
-        <Column field="updated_by" header="수정자" :headerStyle="{ width: columnWidths.updated_by }" :sortable="true">
+        <Column field="updated_by" header="수정자" :headerStyle="{ width: columnWidths.updated_by }">
           <template #body="slotProps">
             <span>{{ slotProps.data.updated_by_name || '-' }}</span>
           </template>
         </Column>
-        <Column field="status" header="상태" :headerStyle="{ width: columnWidths.status }" :sortable="true">
+        <Column field="status" header="상태" :headerStyle="{ width: columnWidths.status }">
           <template #body="slotProps">
             <select
               v-if="slotProps.data.isEditing"
@@ -326,9 +325,12 @@ const loading = ref(false)
 const excelLoading = ref(false)
 const searchInput = ref('');
 const searchKeyword = ref('');
-const filteredClients = ref([]);
 const currentPageFirstIndex = ref(0)
 const filterBackup = ref(null)
+// 서버 사이드 페이징 상태
+const pageSize = ref(50)
+const totalCount = ref(0)
+const currentPage = ref(1) // 1-base
 
 // 컬럼 너비 한 곳에서 관리
 const columnWidths = {
@@ -495,55 +497,80 @@ async function handleCreateSubmit() {
   }
 }
 
+// 병의원 검색 대상(모두 clients 직접 필드 → 조인 없이 PostgREST로 처리)
+const CLIENT_SEARCH_FIELDS = ['name', 'business_registration_number', 'client_code', 'owner_name', 'address'];
+
+// created_by/updated_by user id → 회사명 맵 (등록자/수정자 표시용). 페이지 rows에만 적용.
+const buildCompanyNameMap = async (rows) => {
+  const userIds = [...new Set([
+    ...rows.filter(item => item.created_by).map(item => item.created_by),
+    ...rows.filter(item => item.updated_by).map(item => item.updated_by)
+  ])];
+  let companyMap = {};
+  if (userIds.length > 0) {
+    const { data: companies, error } = await supabase
+      .from('companies')
+      .select('user_id, company_name')
+      .in('user_id', userIds);
+    if (!error && companies) {
+      companyMap = companies.reduce((acc, c) => { acc[c.user_id] = c.company_name; return acc; }, {});
+    }
+  }
+  return companyMap;
+};
+
+const mapClientRow = (item, companyMap) => ({
+  ...item,
+  created_by_name: item.created_by ? (companyMap[item.created_by] || '관리자') : '-',
+  updated_by_name: item.updated_by ? (companyMap[item.updated_by] || '관리자') : '-',
+  isEditing: false,
+  originalData: { ...item },
+});
+
+// 서버 사이드 페이징/검색 (clients 단일 테이블)
 const fetchClients = async () => {
   loading.value = true;
   try {
-    // 먼저 기본 데이터 가져오기
-    const { data, error } = await supabase
+    const offset = (currentPage.value - 1) * pageSize.value;
+    let query = supabase
       .from('clients')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('client_code', { ascending: true })
+      .order('id', { ascending: true })
+      .range(offset, offset + pageSize.value - 1);
 
-
-    if (!error && data) {
-      // created_by와 updated_by에 해당하는 회사명을 별도로 조회
-      const userIds = [...new Set([
-        ...data.filter(item => item.created_by).map(item => item.created_by),
-        ...data.filter(item => item.updated_by).map(item => item.updated_by)
-      ])];
-
-      let companyMap = {};
-      if (userIds.length > 0) {
-        const { data: companies, error: companyError } = await supabase
-          .from('companies')
-          .select('user_id, company_name')
-          .in('user_id', userIds);
-
-        if (!companyError && companies) {
-          companyMap = companies.reduce((acc, company) => {
-            acc[company.user_id] = company.company_name;
-            return acc;
-          }, {});
-        }
-      }
-
-      // 각 행에 편집 상태와 원본 데이터 백업 추가
-      clients.value = data.map((item) => ({
-        ...item,
-        created_by_name: item.created_by ? (companyMap[item.created_by] || '관리자') : '-',
-        updated_by_name: item.updated_by ? (companyMap[item.updated_by] || '관리자') : '-',
-        isEditing: false,
-        originalData: { ...item },
-      }))
-      filteredClients.value = clients.value;
-    } else if (error) {
-      console.error('fetchClients error:', error);
+    const kw = searchKeyword.value && searchKeyword.value.trim().length >= 2 ? searchKeyword.value.trim() : '';
+    if (kw) {
+      const safe = kw.replace(/[,()]/g, ' '); // PostgREST or() 구문 보호
+      query = query.or(CLIENT_SEARCH_FIELDS.map(f => `${f}.ilike.%${safe}%`).join(','));
     }
+
+    const { data, error, count } = await query;
+    if (error) {
+      console.error('fetchClients error:', error);
+      clients.value = [];
+      totalCount.value = 0;
+      return;
+    }
+    const rows = data || [];
+    const companyMap = await buildCompanyNameMap(rows);
+    clients.value = rows.map((item) => mapClientRow(item, companyMap));
+    totalCount.value = count || 0;
+    currentPageFirstIndex.value = offset;
   } catch (err) {
     console.error('fetchClients exception:', err);
+    clients.value = [];
+    totalCount.value = 0;
   } finally {
     loading.value = false;
   }
+}
+
+// 페이지(또는 페이지당 건수) 변경 시 서버 재조회
+function onPageChange(event) {
+  currentPage.value = event.page + 1;
+  pageSize.value = event.rows;
+  fetchClients();
 }
 
 // 수정 시작
@@ -798,11 +825,8 @@ const deleteClient = async (row) => {
       return
     }
 
-    // 목록에서 제거
-    const index = clients.value.findIndex((item) => item.id === row.id)
-    if (index > -1) {
-      clients.value.splice(index, 1)
-    }
+    // 서버 페이징: 현재 페이지 재조회로 목록/건수 동기화
+    await fetchClients()
 
     showSuccess('삭제되었습니다.')
   } catch (error) {
@@ -1037,16 +1061,27 @@ const handleFileUpload = async (event) => {
     const duplicateErrors = []
     const duplicateClients = []
 
-    // 데이터베이스에서 모든 기존 데이터 조회
-    const { data: existingClients, error: fetchError } = await supabase
-      .from('clients')
-      .select('client_code, business_registration_number, name')
-
-    if (fetchError) {
-      showError(translateSupabaseError(fetchError, '기존 데이터 조회'))
-      excelLoading.value = false
-      event.target.value = ''
-      return
+    // 데이터베이스에서 모든 기존 데이터 조회 (2000행 제한 회피 위해 배치 조회)
+    let existingClients = []
+    {
+      const dedupeBatchSize = 1000
+      let dedupeFrom = 0
+      while (true) {
+        const { data: batch, error: fetchError } = await supabase
+          .from('clients')
+          .select('client_code, business_registration_number, name')
+          .order('id', { ascending: true })
+          .range(dedupeFrom, dedupeFrom + dedupeBatchSize - 1)
+        if (fetchError) {
+          showError(translateSupabaseError(fetchError, '기존 데이터 조회'))
+          excelLoading.value = false
+          event.target.value = ''
+          return
+        }
+        if (batch && batch.length > 0) existingClients = existingClients.concat(batch)
+        if (!batch || batch.length < dedupeBatchSize) break
+        dedupeFrom += dedupeBatchSize
+      }
     }
 
     // 기존 데이터를 Set과 Map으로 변환하여 빠른 검색
@@ -1296,13 +1331,41 @@ const handleFileUpload = async (event) => {
 
 // 엑셀 다운로드 (현재 목록)
 const downloadExcel = async () => {
-  if (clients.value.length === 0) {
+  // 서버 페이징: 화면엔 현재 페이지만 있으므로 전체 병의원을 배치(1000건)로 조회해 생성
+  const batchSize = 1000;
+  let allRows = [];
+  let offset = 0;
+  try {
+    while (true) {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .order('client_code', { ascending: true })
+        .order('id', { ascending: true })
+        .range(offset, offset + batchSize - 1);
+      if (error) { showError(translateSupabaseError(error, '데이터 조회')); return; }
+      const rows = data || [];
+      if (rows.length > 0) allRows = allRows.concat(rows);
+      if (rows.length < batchSize) break;
+      offset += batchSize;
+    }
+  } catch (err) {
+    showError(translateSupabaseError(err, '데이터 조회')); return;
+  }
+  if (allRows.length === 0) {
     showWarning('다운로드할 데이터가 없습니다.')
     return
   }
+  const companyMap = await buildCompanyNameMap(allRows);
 
   // 데이터 변환
-  const excelData = clients.value.map((client, index) => ({
+  const excelData = allRows.map((item, index) => {
+    const client = {
+      ...item,
+      created_by_name: item.created_by ? (companyMap[item.created_by] || '관리자') : '-',
+      updated_by_name: item.updated_by ? (companyMap[item.updated_by] || '관리자') : '-',
+    };
+    return {
     No: index + 1,
     병의원코드: client.client_code || '',
     병의원명: client.name || '',
@@ -1316,7 +1379,8 @@ const downloadExcel = async () => {
     등록자: client.created_by_name || '-',
     수정일시: client.updated_at ? new Date(client.updated_at).toISOString().slice(0, 16).replace('T', ' ') : '',
     수정자: client.updated_by_name || '',
-  }))
+    }
+  })
 
   // ExcelJS 워크북 생성
   const workbook = new ExcelJS.Workbook()
@@ -1459,22 +1523,15 @@ const removeOverflowClass = (event) => {
 }
 
 function doSearch() {
-  if (searchInput.value.length >= 2) {
-    searchKeyword.value = searchInput.value;
-    const keyword = searchKeyword.value.toLowerCase();
-    filteredClients.value = clients.value.filter(c =>
-      (c.name && c.name.toLowerCase().includes(keyword)) ||
-      (c.business_registration_number && c.business_registration_number.toLowerCase().includes(keyword)) ||
-      (c.client_code && c.client_code.toLowerCase().includes(keyword)) ||
-      (c.owner_name && c.owner_name.toLowerCase().includes(keyword)) ||
-      (c.address && c.address.toLowerCase().includes(keyword))
-    );
-  }
+  searchKeyword.value = searchInput.value.length >= 2 ? searchInput.value : '';
+  currentPage.value = 1;
+  fetchClients();
 }
 function clearSearch() {
   searchInput.value = '';
   searchKeyword.value = '';
-  filteredClients.value = clients.value;
+  currentPage.value = 1;
+  fetchClients();
 }
 
 // 숫자만 입력 허용
