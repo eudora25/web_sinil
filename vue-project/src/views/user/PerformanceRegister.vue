@@ -1289,8 +1289,10 @@ async function downloadPerformanceTemplate() {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '76933C' } }
     cell.alignment = { horizontal: 'center', vertical: 'middle' }
   })
-  // 병의원사업자번호(2)/보험코드(5) 컬럼은 텍스트 서식(앞자리 0 보존)
+  // 텍스트 서식 고정: 병의원사업자번호(2)·보험코드(5)는 앞자리 0 보존,
+  // 처방월(3)은 엑셀이 2026-06을 날짜(Jun-26)로 자동변환하는 것 방지
   worksheet.getColumn(2).numFmt = '@'
+  worksheet.getColumn(3).numFmt = '@'
   worksheet.getColumn(5).numFmt = '@'
 
   worksheet.eachRow((row, rowNumber) => {
