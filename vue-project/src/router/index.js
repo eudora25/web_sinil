@@ -506,6 +506,16 @@ const router = createRouter({
   ]
 })
 
+// 매 네비게이션마다 getSession()/DB 쿼리를 무기한 await 하면, 네트워크나
+// Supabase auth-js 내부 lock 이 멈출 때 next() 가 호출되지 않아 화면 전환이
+// 영구히 얼어붙습니다(= "메뉴 진입 불가"). 타임아웃을 걸어 fallback 으로 진행합니다.
+function withTimeout(promise, ms, fallback) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 // (선택 사항) 네비게이션 가드 추가: requiresAuth 메타 필드가 있는 라우트에 대해 인증 여부 확인
 router.beforeEach(async (to, from, next) => {
 
@@ -518,8 +528,12 @@ router.beforeEach(async (to, from, next) => {
   if (to.name === 'login' || to.name === 'signup') {
     return next();
   }
-  
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  const { data: { session }, error: sessionError } = await withTimeout(
+    supabase.auth.getSession(),
+    8000,
+    { data: { session: null }, error: { message: 'getSession timeout' } }
+  );
 
   if (sessionError) {
     console.error('[Router Guard] Error getting session:', sessionError.message);
@@ -541,11 +555,15 @@ router.beforeEach(async (to, from, next) => {
 
     // 세션이 있는 경우, 미등록 회원 확인
     try {
-      const { data: companyRow, error: companyError } = await supabase
-        .from('companies')
-        .select('id, approval_status, user_type')
-        .eq('email', session.user.email)
-        .maybeSingle();
+      const { data: companyRow, error: companyError } = await withTimeout(
+        supabase
+          .from('companies')
+          .select('id, approval_status, user_type')
+          .eq('email', session.user.email)
+          .maybeSingle(),
+        8000,
+        { data: null, error: { message: 'Failed to fetch (companies timeout)' } }
+      );
       
       if (companyError) {
         // 네트워크 오류나 CORS 오류는 조용히 처리
@@ -620,6 +638,57 @@ router.beforeEach(async (to, from, next) => {
     return next();
   }
 });
+
+// ---------------------------------------------------------------------------
+// 지연 로딩 청크(chunk) 로드 실패 처리
+// 새 버전이 배포되면 청크 파일명 해시가 바뀌므로, 배포 전부터 열려 있던 탭은
+// 메뉴 클릭 시 더 이상 존재하지 않는 옛 청크(404)를 요청해 dynamic import 가 실패합니다.
+// 이때 핸들러가 없으면 화면 전환이 조용히 멈추고(= "메뉴 진입 불가"),
+// 사용자가 수동 새로고침해야만 최신 번들을 받게 됩니다.
+// → 청크 로드 오류를 감지해 자동으로 1회 새로고침합니다. (무한 새로고침 방지 가드 포함)
+const CHUNK_RELOAD_KEY = 'chunk-reload-ts';
+
+function isChunkLoadError(error) {
+  const msg = (error && (error.message || String(error))) || '';
+  return (
+    /Failed to fetch dynamically imported module/i.test(msg) ||
+    /error loading dynamically imported module/i.test(msg) ||
+    /Importing a module script failed/i.test(msg) ||
+    (error && error.name === 'ChunkLoadError')
+  );
+}
+
+function reloadForFreshChunks(targetPath) {
+  // 10초 내 재발이면(=새로고침해도 여전히 실패) 무한 루프를 막기 위해 중단
+  const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0);
+  const now = Date.now();
+  if (now - last < 10000) {
+    console.error('[Router] 청크 재로딩 실패가 반복됩니다. 자동 새로고침 중단.');
+    return;
+  }
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, String(now));
+  if (targetPath) {
+    window.location.assign(targetPath);
+  } else {
+    window.location.reload();
+  }
+}
+
+router.onError((error, to) => {
+  if (isChunkLoadError(error)) {
+    reloadForFreshChunks(to && to.fullPath);
+  } else {
+    console.error('[Router] navigation error:', error);
+  }
+});
+
+// Vite 가 라우트 진입 전에 청크를 미리 프리로드하다 실패하는 경우도 동일하게 처리
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', (event) => {
+    event.preventDefault();
+    reloadForFreshChunks(null);
+  });
+}
 
 const files = ref([]); // 여러 파일 저장
 const fileNames = ref([]);
