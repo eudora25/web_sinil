@@ -1549,9 +1549,8 @@ function selectCompany(company) {
   companySearchText.value = company.id === '' ? '' : company.company_name;
   showCompanyDropdown.value = false;
   companyHighlightedIndex.value = -1;
-  
-  // 병의원 데이터 다시 로드
-  fetchClients();
+  // 병의원 목록은 watch(selectedCompanyId)에서 fetchClientList()로 로드됨
+  // (기존 fetchClients() 호출은 미정의 함수라 에러만 유발 → 제거)
 }
 
 function handleCompanyFocus() {
