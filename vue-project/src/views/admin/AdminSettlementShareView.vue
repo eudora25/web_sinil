@@ -664,8 +664,8 @@ async function loadSettlementData() {
         const ccTotal = ccPrescriptionTotalMap.get(companyClientRxMonthKey(record.company_id, record.client_id, record.prescription_month)) || 0;
         const isSmallZero = isSmallClientZeroApplicable(record.settlement_month, record.prescription_month, ccTotal, getClientFirstMonth(clientFirstMonthMap, record.client_id));
 
-        // 지급 처방액: 수수료율이 있는 정상 건의 처방액만 합계 (소액처는 제외)
-        if (!isSmallZero && record.commission_rate !== null && record.commission_rate !== undefined && record.commission_rate > 0) {
+        // 지급 처방액: 수수료율이 있는 정상 건의 처방액만 합계 (소액처도 지급처방액·구간수수료는 유지, 지급액만 0)
+        if (record.commission_rate !== null && record.commission_rate !== undefined && record.commission_rate > 0) {
           summary.payment_prescription_amount += prescriptionAmount;
         }
         

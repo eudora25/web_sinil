@@ -1755,12 +1755,13 @@ async function loadPerformanceData() {
         // 반영 흡수율 (미설정 시 100%) — 정산내역서와 동일하게 지급액에 반영
         const appliedAbsorptionRate = (appliedAbsorptionMap[item.id] !== null && appliedAbsorptionMap[item.id] !== undefined) ? appliedAbsorptionMap[item.id] : 1.0;
 
-        // 수수료율이 있고 0보다 크며 소액처가 아닐 때만 지급 처방액·지급액 계산
-        if (!isSmallZero && commissionRate !== null && commissionRate !== undefined && commissionRate > 0) {
+        // 수수료율이 있고 0보다 클 때 지급 처방액 계산 (소액처도 지급처방액·구간수수료는 유지)
+        if (commissionRate !== null && commissionRate !== undefined && commissionRate > 0) {
           paymentPrescriptionAmount = prescriptionAmount; // 지급 처방액: 수수료가 지급되는 제품의 처방액
-          paymentAmount = Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate); // 흡수율 반영
+          // 지급액만 소액처 0원 (흡수율 반영)
+          paymentAmount = isSmallZero ? 0 : Math.round(prescriptionAmount * appliedAbsorptionRate * commissionRate);
         } else {
-          // 수수료율 없음/0 또는 소액처면 지급 처방액·지급액 0
+          // 수수료율 없음/0 이면 지급 처방액·지급액 0
           paymentPrescriptionAmount = 0;
           paymentAmount = 0;
         }
