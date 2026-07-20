@@ -1312,12 +1312,6 @@ async function loadAbsorptionAnalysisResults() {
           assignmentHistoryMap.get(k).push({ effective_from_month: h.effective_from_month, effective_to_month: h.effective_to_month });
         });
       }
-      if (companyIds.length > 0) {
-        const { data: companyRows } = await supabase
-          .from('companies').select('id, company_group').in('id', companyIds);
-        (companyRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group));
-      }
-
       if (insuranceCodes.length > 0 && hospitalIds.length > 0 && companyIds.length > 0) {
         const { data: hospitalPerf, error: hospitalPerfError } = await supabase
           .from('promotion_product_hospital_performance')
@@ -1359,6 +1353,15 @@ async function loadAbsorptionAnalysisResults() {
       }
     }
 
+    // 업체 그룹: 프로모션(NEWCSO 한정) + 소액처 0원(대상 그룹 한정) 판정에 사용.
+    // 제품 정보 유무(productIds)와 무관하게 항상 조회해야 소액처 판정에서 그룹이 누락되지 않는다.
+    const groupCompanyIds = [...new Set(allData.map(r => r.company_id).filter(Boolean))];
+    if (groupCompanyIds.length > 0) {
+      const { data: companyRows } = await supabase
+        .from('companies').select('id, company_group').in('id', groupCompanyIds);
+      (companyRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group ?? null));
+    }
+
     // 소액처 0원: 병의원 첫 실적월(신규처 보호) + (업체,병의원)별 처방액 합계 선계산
     const scClientIds = [...new Set(allData.map(r => r.client_id).filter(Boolean))];
     const clientFirstMonthMap = await fetchClientFirstMonths(supabase, scClientIds);
@@ -1381,9 +1384,9 @@ async function loadAbsorptionAnalysisResults() {
 
             const prescriptionAmount = Math.round(prescriptionQty * productPrice);
 
-            // 소액처 0원 판정: (업체,병의원) 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
+            // 소액처 0원 판정: 적용 대상 업체그룹 & (업체,병의원) 처방액 합계<10만 & cutoff 이상 & 신규처 보호 아님
             const _scTotal = ccPrescriptionTotalMap.get(companyClientRxMonthKey(row.company_id, row.client_id, row.prescription_month)) || 0;
-            const isSmallZero = isSmallClientZeroApplicable(row.settlement_month, row.prescription_month, _scTotal, getClientFirstMonth(clientFirstMonthMap, row.client_id));
+            const isSmallZero = isSmallClientZeroApplicable(row.settlement_month, row.prescription_month, _scTotal, getClientFirstMonth(clientFirstMonthMap, row.client_id), companyGroupMap.get(row.company_id) ?? null);
 
             // 프로모션 수수료율 적용 여부 확인 (계산 전에 수수료율 교체)
             let isPromotionRateApplied = false;

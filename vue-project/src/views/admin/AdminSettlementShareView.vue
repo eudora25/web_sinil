@@ -660,9 +660,9 @@ async function loadSettlementData() {
       
       // 삭제되지 않은 건만 지급 처방액과 지급액 계산에 포함
       if (record.review_action !== '삭제') {
-        // 소액처 0원 판정: (업체,병의원) 처방액 합계<10만 & cutoff(2026-06)이상 & 신규처 보호 아님
+        // 소액처 0원 판정: 적용 대상 업체그룹 & (업체,병의원) 처방액 합계<10만 & cutoff 이상 & 신규처 보호 아님
         const ccTotal = ccPrescriptionTotalMap.get(companyClientRxMonthKey(record.company_id, record.client_id, record.prescription_month)) || 0;
-        const isSmallZero = isSmallClientZeroApplicable(record.settlement_month, record.prescription_month, ccTotal, getClientFirstMonth(clientFirstMonthMap, record.client_id));
+        const isSmallZero = isSmallClientZeroApplicable(record.settlement_month, record.prescription_month, ccTotal, getClientFirstMonth(clientFirstMonthMap, record.client_id), record.company?.company_group ?? null);
 
         // 지급 처방액: 수수료율이 있는 정상 건의 처방액만 합계 (소액처도 지급처방액·구간수수료는 유지, 지급액만 0)
         if (record.commission_rate !== null && record.commission_rate !== undefined && record.commission_rate > 0) {

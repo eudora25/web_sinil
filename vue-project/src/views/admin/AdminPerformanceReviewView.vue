@@ -1575,13 +1575,13 @@ async function loadPerformanceData() {
     let registrarMap = new Map();
     let updaterMap = new Map();
 
-    // NEWCSO 그룹 여부 맵: cutoff 이후 분기에서 담당 업체가 NEWCSO일 때만 프로모션 적용
+    // 업체 그룹 맵: 프로모션(담당 업체가 NEWCSO일 때만 적용) + 소액처 0원(대상 그룹만 적용) 판정에 사용
     const companyGroupMap = new Map();
     const promoCompanyIds = [...new Set(allData.map(item => item.company_id).filter(id => id))];
     if (promoCompanyIds.length > 0) {
       const { data: companyGroupRows } = await supabase
         .from('companies').select('id, company_group').in('id', promoCompanyIds);
-      (companyGroupRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group));
+      (companyGroupRows || []).forEach(c => companyGroupMap.set(c.id, c.company_group ?? null));
     }
 
     // 소액처 0원: (업체×병의원×처방월)별 처방액 합계 선계산(삭제 제외)
@@ -1749,9 +1749,9 @@ async function loadPerformanceData() {
           }
         }
         
-        // 소액처 0원 판정: (업체×병의원×처방월) 처방액 합계<10만 & cutoff 이상 & 신규처 보호 아님
+        // 소액처 0원 판정: 적용 대상 업체그룹 & (업체×병의원×처방월) 처방액 합계<10만 & cutoff 이상 & 신규처 보호 아님
         const ccTotal = ccPrescriptionTotalMap.get(companyClientRxMonthKey(companyId, hospitalId, item.prescription_month)) || 0;
-        const isSmallZero = isSmallClientZeroApplicable(settlementMonth, item.prescription_month, ccTotal, getClientFirstMonth(clientFirstMonthMap, item.client_id));
+        const isSmallZero = isSmallClientZeroApplicable(settlementMonth, item.prescription_month, ccTotal, getClientFirstMonth(clientFirstMonthMap, item.client_id), companyGroupMap.get(companyId) ?? null);
         // 반영 흡수율 (미설정 시 100%) — 정산내역서와 동일하게 지급액에 반영
         const appliedAbsorptionRate = (appliedAbsorptionMap[item.id] !== null && appliedAbsorptionMap[item.id] !== undefined) ? appliedAbsorptionMap[item.id] : 1.0;
 

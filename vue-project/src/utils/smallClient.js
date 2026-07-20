@@ -3,6 +3,9 @@
 // ----------------------------------------------------------------------------
 // 규칙:
 // - 소액처: (업체 × 병의원 × 처방월) 정산월 내 처방액 합계 < 100,000원 → 그 처방월분 지급 0원
+// - 적용 업체 그룹: companies.company_group 이 settlement_settings.small_client_company_groups
+//     (초기값 ['NEWCSO','인천CSO']) 에 포함된 업체만 0원 적용. 그 외 그룹(기존CSO/전주CSO/
+//     병의원부/영업부 등)과 company_group 미지정(NULL) 업체는 미적용(지급액 정상 지급).
 // - 신규처 보호: 첫 처방월(MIN prescription_month) + 3개월 이내 **처방월**은 0원 제외.
 //     예) 첫 처방 2026-01, 5월 정산에 1·2·3·4월 EDI 일괄 → 1·2·3월 처방 보호(지급), 4월 처방만 소액 0원.
 //     예) 첫 처방 2026-03, 6월 정산에 3·4·5월 EDI 일괄 → 3·4·5월 보호, 6월 처방분부터 0원.
@@ -10,9 +13,15 @@
 // - 판정 단위: 소액 합계 (업체, 병의원, 처방월), 신규처 보호 (병의원 첫 처방월 기준)
 // ============================================================================
 
-import { getSmallClientCutoffMonth, DEFAULT_CUTOFFS } from '@/utils/settlementSettings';
+import {
+  getSmallClientCutoffMonth,
+  getSmallClientCompanyGroups,
+  DEFAULT_CUTOFFS,
+  DEFAULT_SMALL_CLIENT_COMPANY_GROUPS,
+} from '@/utils/settlementSettings';
 
 export const SMALL_CLIENT_CUTOFF_MONTH = DEFAULT_CUTOFFS.small_client_cutoff_month;
+export const SMALL_CLIENT_APPLY_GROUPS = DEFAULT_SMALL_CLIENT_COMPANY_GROUPS;
 export const SMALL_CLIENT_THRESHOLD = 100000;
 export const NEW_CLIENT_PROTECTION_MONTHS = 3;
 
@@ -47,18 +56,37 @@ export function isProtectedNewClient(firstMonth, prescriptionMonth) {
 }
 
 /**
+ * 그 업체(company_group)가 소액처 0원 적용 대상 그룹인지.
+ * 대상 그룹 목록은 settlement_settings.small_client_company_groups(DB 단일 소스).
+ * 미지정(NULL/빈값)·비대상 그룹은 false → 소액처여도 지급액 정상 지급.
+ * @param {string|null|undefined} companyGroup companies.company_group
+ */
+export function isSmallClientApplicableGroup(companyGroup) {
+  if (!companyGroup) return false;
+  return getSmallClientCompanyGroups().includes(companyGroup);
+}
+
+/**
  * (업체,병의원,처방월) 단위 0원 판정.
  * @param {string} settlementMonth 정산월 (cutoff 판정용)
  * @param {string} prescriptionMonth 처방월 (보호·소액 합계 단위)
  * @param {number} rxMonthPrescriptionTotal 해당 정산월 내 (업체,병의원,처방월) 처방액 합계
  * @param {string|null|undefined} clientFirstMonth 병의원 첫 처방월
+ * @param {string|null} companyGroup 업체 그룹(companies.company_group). 대상 그룹만 0원 적용.
+ *        조회 안 된 undefined 는 호출부 누락 가능성이 커서 경고 후 미적용 처리.
  */
 export function isSmallClientZeroApplicable(
   settlementMonth,
   prescriptionMonth,
   rxMonthPrescriptionTotal,
   clientFirstMonth,
+  companyGroup,
 ) {
+  if (companyGroup === undefined) {
+    console.warn('[smallClient] company_group 미전달 → 소액처 0원 미적용으로 처리. 호출부 확인 필요.');
+    return false;
+  }
+  if (!isSmallClientApplicableGroup(companyGroup)) return false;
   if (!isSmallClientCutoffMonth(settlementMonth)) return false;
   if (Number(rxMonthPrescriptionTotal || 0) >= SMALL_CLIENT_THRESHOLD) return false;
   if (isProtectedNewClient(clientFirstMonth, prescriptionMonth)) return false;
