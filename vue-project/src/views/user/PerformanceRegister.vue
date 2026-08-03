@@ -1465,17 +1465,23 @@ async function handleBulkUpload(event) {
       productMapByMonth[month] = m
     }
 
-    // 4) 기존 실적(중복) 키 Set: client_id|prescription_month|product_id
+    // 4) 이미 등록된 실적 키 Set: client_id|prescription_month|product_id
+    //    (재업로드로 같은 실적이 두 번 쌓이는 것만 막는 용도.
+    //     실적검수에서 소프트 삭제(review_action='삭제')된 건은 제외해야 재등록이 가능함)
     const { data: existRows, error: existErr } = await supabase
       .from('performance_records')
-      .select('client_id, prescription_month, product_id')
+      .select('client_id, prescription_month, product_id, review_action')
       .eq('company_id', companyId)
       .eq('settlement_month', settlementMonth)
     if (existErr) {
       showError(translateSupabaseError(existErr, '기존 실적 조회'))
       return
     }
-    const dupKeys = new Set((existRows || []).map((r) => `${r.client_id}|${r.prescription_month}|${r.product_id}`))
+    const dupKeys = new Set(
+      (existRows || [])
+        .filter((r) => r.review_action !== '삭제')
+        .map((r) => `${r.client_id}|${r.prescription_month}|${r.product_id}`),
+    )
 
     // 병의원별 등급 캐시
     const gradeCache = new Map()
@@ -1487,8 +1493,9 @@ async function handleBulkUpload(event) {
     }
 
     const errors = []
-    const seenInFile = new Set()
     let skipCount = 0
+    let sameComboCount = 0
+    const comboCountInFile = new Map()
     const resolvedRows = []
 
     jsonData.forEach((row, idx) => {
@@ -1534,13 +1541,17 @@ async function handleBulkUpload(event) {
         return
       }
 
-      // 중복 스킵 (기존 DB + 파일 내)
+      // 이미 등록된 실적(=재업로드)만 스킵.
+      // 파일 안에서 같은 병의원·처방월·보험코드를 여러 줄 적은 경우는
+      // 화면 직접 입력과 동일하게 각각 별도 실적으로 등록한다.
       const key = `${clientId}|${month}|${product.id}`
-      if (dupKeys.has(key) || seenInFile.has(key)) {
+      if (dupKeys.has(key)) {
         skipCount++
         return
       }
-      seenInFile.add(key)
+      const seen = (comboCountInFile.get(key) || 0) + 1
+      comboCountInFile.set(key, seen)
+      if (seen > 1) sameComboCount++
       resolvedRows.push({ clientId, month, product, qtyNum, type, remarks })
     })
 
@@ -1553,7 +1564,9 @@ async function handleBulkUpload(event) {
     }
     if (resolvedRows.length === 0) {
       showWarning(
-        skipCount > 0 ? `등록할 신규 실적이 없습니다. (중복 스킵 ${skipCount}건)` : '등록할 데이터가 없습니다.',
+        skipCount > 0
+          ? `등록할 신규 실적이 없습니다. (이미 등록된 실적 ${skipCount}건 스킵)`
+          : '등록할 데이터가 없습니다.',
       )
       return
     }
@@ -1585,7 +1598,8 @@ async function handleBulkUpload(event) {
     }
 
     let msg = `일괄 등록 완료! 등록 ${insertData.length}건`
-    if (skipCount > 0) msg += ` / 중복 스킵 ${skipCount}건`
+    if (sameComboCount > 0) msg += ` (동일 병의원·처방월·보험코드 추가 ${sameComboCount}건 포함)`
+    if (skipCount > 0) msg += ` / 이미 등록된 실적 스킵 ${skipCount}건`
     showSuccess(msg)
 
     await fetchClientList()

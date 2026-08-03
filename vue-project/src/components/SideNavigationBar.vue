@@ -10,7 +10,14 @@
           <span>{{ menu.label }}</span>
         </div>
         <ul v-if="openMenu === idx" class="side-nav-sub-list">
-          <li v-for="item in menu.children" :key="item.label" :class="['side-nav-sub-item', { active: isActive(item) }]">
+          <!--
+            클릭 핸들러는 반드시 <li>(호버 하이라이트 영역)에 둡니다.
+            안쪽 <span> 에만 걸면 텍스트 글자 위(행 면적의 20~30%)에서만 반응하고,
+            나머지 여백은 호버 하이라이트만 되고 클릭이 먹지 않아
+            "간헐적으로 메뉴가 안 들어가진다"는 증상이 됩니다.
+            (중첩 부모 항목은 path 가 없으므로 go() 가 무시합니다)
+          -->
+          <li v-for="item in menu.children" :key="item.label" :class="['side-nav-sub-item', { active: isActive(item) }]" @click="go(item)">
             <!-- 중첩 메뉴가 있는 경우 -->
             <template v-if="item.children && item.children.length > 0">
               <div class="side-nav-sub-label-nested" @click.stop="toggleNestedMenu(item.label)">
@@ -18,14 +25,14 @@
                 <i :class="['pi', nestedOpenMenus[item.label] ? 'pi-chevron-down' : 'pi-chevron-right']" style="font-size: 0.8rem; margin-left: auto;"></i>
               </div>
               <ul v-if="nestedOpenMenus[item.label]" class="side-nav-nested-list">
-                <li v-for="nestedItem in item.children" :key="nestedItem.label" :class="['side-nav-nested-item', { active: isActive(nestedItem) }]" @click="go(nestedItem)">
+                <li v-for="nestedItem in item.children" :key="nestedItem.label" :class="['side-nav-nested-item', { active: isActive(nestedItem) }]" @click.stop="go(nestedItem)">
                   <span class="side-nav-nested-label" :class="{ 'active-bg': isActive(nestedItem) }">{{ nestedItem.label }}</span>
                 </li>
               </ul>
             </template>
             <!-- 일반 메뉴 항목 -->
             <template v-else>
-              <span class="side-nav-sub-label" :class="{ 'active-bg': isActive(item) }" @click="go(item)">{{ item.label }}</span>
+              <span class="side-nav-sub-label" :class="{ 'active-bg': isActive(item) }">{{ item.label }}</span>
             </template>
           </li>
         </ul>
@@ -156,7 +163,12 @@ const userMenuTree = [
 const menuTree = computed(() => props.userRole === 'admin' ? adminMenuTree : userMenuTree);
 
 function go(item) {
-  if (item.path) router.push(item.path);
+  if (!item.path) return; // 중첩 메뉴의 부모 등 경로가 없는 항목
+  if (route.path === item.path) return; // 같은 메뉴 재클릭(중복 내비게이션) 무시
+  // 내비게이션이 취소/중단되는 경우 unhandled rejection 이 나지 않도록 처리
+  router.push(item.path).catch((err) => {
+    console.error('[SideNav] 메뉴 이동 실패:', item.path, err);
+  });
 }
 function isActive(item) {
   // path가 없으면 (중첩 메뉴의 부모 등) false
