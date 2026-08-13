@@ -134,6 +134,7 @@ const adminMenuTree = [
     { label: '정산내역서 공유', path: '/admin/settlement-share' }
   ]},
   { label: '실적 통계', icon: 'pi pi-chart-line', children: [
+    { label: '월별 통계', path: '/admin/statistics/monthly' },
     { label: '업체별 통계', path: '/admin/statistics/company' },
     { label: '병원별 통계', path: '/admin/statistics/hospital' },
     { label: '제품별 통계', path: '/admin/statistics/product' }
@@ -258,6 +259,9 @@ function isActive(item) {
   }
   
   // 통계 메뉴들
+  if (itemPath === '/admin/statistics/monthly' && currentPath === '/admin/statistics/monthly') {
+    return true;
+  }
   if (itemPath === '/admin/statistics/company' && currentPath === '/admin/statistics/company') {
     return true;
   }

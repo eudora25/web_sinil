@@ -114,6 +114,7 @@ const adminMenuTree = [
     { label: '정산내역서 공유', path: '/admin/settlement-statements' }
   ] },
   { label: '실적 통계', children: [
+    { label: '월별 통계', path: '/admin/statistics/monthly' },
     { label: '업체별 통계', path: '/admin/statistics/company' },
     { label: '병원별 통계', path: '/admin/statistics/hospital' },
     { label: '제품별 통계', path: '/admin/statistics/product' }
