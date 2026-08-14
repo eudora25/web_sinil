@@ -1,10 +1,10 @@
 <template>
-  <div class="monthly-statistics-view page-container" style="display: flex; flex-direction: column; height: 100vh;">
-    <div class="page-header-title-area" style="flex-shrink: 0;">
+  <div class="monthly-statistics-view page-container">
+    <div class="page-header-title-area">
       <div class="header-title">월별 통계</div>
     </div>
 
-    <div class="filter-card" style="flex-shrink: 0;">
+    <div class="filter-card">
       <div class="filter-row" style="justify-content: flex-start; align-items: flex-end; gap: 16px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <label>정산월</label>
@@ -15,6 +15,7 @@
           <select v-model="endMonth" class="select_month" @change="onMonthChange">
             <option v-for="m in availableMonths" :key="`e-${m}`" :value="m">{{ m }}</option>
           </select>
+          <span class="range-hint">최대 12개월</span>
         </div>
 
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -38,8 +39,8 @@
       </div>
     </div>
 
-    <div class="data-card" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
-      <div class="data-card-header" style="flex-shrink: 0; flex-wrap: wrap; gap: 10px;">
+    <div class="data-card monthly-data-card">
+      <div class="data-card-header monthly-data-header">
         <div class="tab-group">
           <button
             v-for="tab in tabs"
@@ -105,85 +106,88 @@
         </div>
       </div>
 
-      <DataTable
-        :value="displayRows"
-        :loading="loading"
-        scrollable
-        scrollHeight="flex"
-        class="monthly-stats-table"
-        :rowClass="rowClass"
-        sortMode="single"
-      >
-        <template #empty>
-          <div v-if="!loading">표시할 통계가 없습니다. 정산월 범위를 확인하거나 통계를 재계산해 주세요.</div>
-        </template>
-
-        <Column
-          field="label"
-          :header="dimensionHeader"
-          frozen
-          :sortable="true"
-          :headerStyle="{ width: '220px', minWidth: '220px' }"
+      <div class="monthly-table-wrap">
+        <DataTable
+          :value="displayRows"
+          :loading="loading"
+          scrollable
+          scrollHeight="calc(100vh - 280px)"
+          scrollDirection="both"
+          class="monthly-stats-table"
+          :rowClass="rowClass"
+          sortMode="single"
         >
-          <template #body="{ data }">
-            <span :style="{ fontWeight: data._isTotal ? 600 : 400 }">{{ data.label }}</span>
+          <template #empty>
+            <div v-if="!loading">표시할 통계가 없습니다. 정산월 범위를 확인하거나 통계를 재계산해 주세요.</div>
           </template>
-        </Column>
 
-        <Column
-          v-if="viewMode === 'company'"
-          field="company_group"
-          header="구분"
-          frozen
-          :sortable="true"
-          :headerStyle="{ width: '90px', minWidth: '90px' }"
-          :bodyStyle="{ textAlign: 'center' }"
-        >
-          <template #body="{ data }">
-            {{ data._isTotal ? '' : (data.company_group || '-') }}
-          </template>
-        </Column>
+          <Column
+            field="label"
+            :header="dimensionHeader"
+            frozen
+            :sortable="true"
+            :headerStyle="{ width: '220px', minWidth: '220px' }"
+          >
+            <template #body="{ data }">
+              <span :style="{ fontWeight: data._isTotal ? 600 : 400 }">{{ data.label }}</span>
+            </template>
+          </Column>
 
-        <Column
-          v-if="viewMode === 'product'"
-          field="insurance_code"
-          header="보험코드"
-          frozen
-          :sortable="true"
-          :headerStyle="{ width: '110px', minWidth: '110px' }"
-          :bodyStyle="{ textAlign: 'center' }"
-        >
-          <template #body="{ data }">
-            {{ data._isTotal ? '' : (data.insurance_code || '-') }}
-          </template>
-        </Column>
+          <Column
+            v-if="viewMode === 'company'"
+            field="company_group"
+            header="구분"
+            frozen
+            :sortable="true"
+            :headerStyle="{ width: '90px', minWidth: '90px' }"
+            :bodyStyle="{ textAlign: 'center' }"
+          >
+            <template #body="{ data }">
+              {{ data._isTotal ? '' : (data.company_group || '-') }}
+            </template>
+          </Column>
 
-        <Column
-          v-for="month in monthColumns"
-          :key="month"
-          :field="`m_${month}`"
-          :header="month"
-          :sortable="true"
-          :headerStyle="{ width: '120px', minWidth: '120px' }"
-          :bodyStyle="{ textAlign: 'right' }"
-        >
-          <template #body="{ data }">
-            {{ formatNumber(data[`m_${month}`] || 0) }}
-          </template>
-        </Column>
+          <Column
+            v-if="viewMode === 'product'"
+            field="insurance_code"
+            header="보험코드"
+            frozen
+            :sortable="true"
+            :headerStyle="{ width: '110px', minWidth: '110px' }"
+            :bodyStyle="{ textAlign: 'center' }"
+          >
+            <template #body="{ data }">
+              {{ data._isTotal ? '' : (data.insurance_code || '-') }}
+            </template>
+          </Column>
 
-        <Column
-          field="row_total"
-          header="합계"
-          :sortable="true"
-          :headerStyle="{ width: '130px', minWidth: '130px' }"
-          :bodyStyle="{ textAlign: 'right', fontWeight: 600 }"
-        >
-          <template #body="{ data }">
-            {{ formatNumber(data.row_total || 0) }}
-          </template>
-        </Column>
-      </DataTable>
+          <Column
+            v-for="month in monthColumns"
+            :key="month"
+            :field="`m_${month}`"
+            :header="month"
+            :sortable="true"
+            :headerStyle="{ width: '120px', minWidth: '120px' }"
+            :bodyStyle="{ textAlign: 'right' }"
+          >
+            <template #body="{ data }">
+              {{ formatNumber(data[`m_${month}`] || 0) }}
+            </template>
+          </Column>
+
+          <Column
+            field="row_total"
+            header="합계"
+            :sortable="true"
+            :headerStyle="{ width: '130px', minWidth: '130px' }"
+            :bodyStyle="{ textAlign: 'right', fontWeight: 600 }"
+          >
+            <template #body="{ data }">
+              {{ formatNumber(data.row_total || 0) }}
+            </template>
+          </Column>
+        </DataTable>
+      </div>
     </div>
   </div>
 </template>
@@ -198,13 +202,16 @@ import { formatNumber } from '@/utils/formatUtils';
 import { useNotifications } from '@/utils/notifications';
 import { translateSupabaseError } from '@/utils/errorMessages';
 
-const { showError, showSuccess } = useNotifications();
+const { showError, showSuccess, showWarning } = useNotifications();
 
 const tabs = [
   { value: 'group', label: '그룹구분' },
   { value: 'company', label: '업체별' },
   { value: 'product', label: '제품별' },
 ];
+
+/** 조회 가능 최대 개월 수(시작·종료 포함) */
+const MAX_MONTH_RANGE = 12;
 
 const availableMonths = ref([]);
 const startMonth = ref('');
@@ -279,6 +286,41 @@ function rangeBounds() {
   const b = endMonth.value;
   if (!a || !b) return { low: '', high: '' };
   return a <= b ? { low: a, high: b } : { low: b, high: a };
+}
+
+/** 'YYYY-MM' 달력 기준 포함 개월 수 */
+function monthSpanInclusive(low, high) {
+  const [y1, m1] = low.split('-').map(Number);
+  const [y2, m2] = high.split('-').map(Number);
+  if (!y1 || !m1 || !y2 || !m2) return 0;
+  return (y2 - y1) * 12 + (m2 - m1) + 1;
+}
+
+/** high 기준 n개월 이전(포함 관계로 high-n+1) → addMonths(high, 1-n) */
+function shiftMonth(ym, delta) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${yy}-${mm}`;
+}
+
+/**
+ * 조회 기간이 12개월을 넘으면 종료월을 유지하고 시작월을 앞으로 당긴다.
+ * @returns {boolean} 보정했는지
+ */
+function clampMonthRange() {
+  const { low, high } = rangeBounds();
+  if (!low || !high) return false;
+  if (monthSpanInclusive(low, high) <= MAX_MONTH_RANGE) return false;
+
+  const clampedLow = shiftMonth(high, 1 - MAX_MONTH_RANGE);
+  if (startMonth.value <= endMonth.value) {
+    startMonth.value = clampedLow;
+  } else {
+    endMonth.value = clampedLow;
+  }
+  return true;
 }
 
 function monthsInRange(low, high) {
@@ -398,6 +440,9 @@ function rebuildTable() {
 }
 
 async function loadData() {
+  if (clampMonthRange()) {
+    showWarning(`조회 기간은 최대 ${MAX_MONTH_RANGE}개월까지 가능합니다. 시작월을 조정했습니다.`);
+  }
   const { low, high } = rangeBounds();
   if (!low || !high) {
     showError('정산월을 선택해 주세요.');
@@ -418,7 +463,7 @@ async function loadData() {
 }
 
 function onMonthChange() {
-  // 월 변경 시 자동 재조회
+  // 월 변경 시 12개월 제한 후 자동 재조회
   loadData();
 }
 
@@ -501,6 +546,31 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.monthly-statistics-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.monthly-data-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.monthly-data-header {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.monthly-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
 .tab-group {
   display: flex;
   gap: 6px;
@@ -559,11 +629,54 @@ onMounted(async () => {
 .tab-search-clear:hover {
   color: #212529;
 }
+.range-hint {
+  color: #868e96;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
 :deep(.monthly-total-row) {
   background: #f8f9fa !important;
   font-weight: 600;
 }
-.monthly-statistics-view :deep(.p-datatable) {
-  flex: 1;
+:deep(.monthly-total-row > td) {
+  background: #f8f9fa !important;
+}
+
+/* 가로 스크롤 시 frozen 컬럼 겹침 방지 */
+:deep(.monthly-stats-table .p-datatable-table-container) {
+  position: relative;
+}
+:deep(.monthly-stats-table .p-datatable-thead > tr > th) {
+  background: #f8f9fa !important;
+  z-index: 1;
+}
+:deep(.monthly-stats-table .p-datatable-scrollable .p-datatable-frozen-column),
+:deep(.monthly-stats-table .p-datatable-scrollable td[data-p-frozen-column='true']),
+:deep(.monthly-stats-table .p-datatable-scrollable th[data-p-frozen-column='true']) {
+  position: sticky;
+  background: #ffffff !important;
+  opacity: 1 !important;
+  z-index: 2;
+}
+:deep(.monthly-stats-table .p-datatable-scrollable th.p-datatable-frozen-column),
+:deep(.monthly-stats-table .p-datatable-scrollable th[data-p-frozen-column='true']) {
+  background: #f8f9fa !important;
+  z-index: 4; /* 헤더 + frozen 교차 영역이 본문 위로 */
+}
+:deep(.monthly-stats-table .p-datatable-tbody > tr > td.p-datatable-frozen-column),
+:deep(.monthly-stats-table .p-datatable-tbody > tr > td[data-p-frozen-column='true']) {
+  background: #ffffff !important;
+  z-index: 2;
+}
+:deep(.monthly-stats-table .monthly-total-row > td.p-datatable-frozen-column),
+:deep(.monthly-stats-table .monthly-total-row > td[data-p-frozen-column='true']) {
+  background: #f8f9fa !important;
+  z-index: 2;
+}
+/* frozen 영역과 스크롤 영역 경계 */
+:deep(.monthly-stats-table [data-p-frozen-column='true']:has(+ :not([data-p-frozen-column='true']))),
+:deep(.monthly-stats-table .p-datatable-frozen-column:has(+ :not(.p-datatable-frozen-column))) {
+  border-right: 2px solid #dee2e6 !important;
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.04);
 }
 </style>
