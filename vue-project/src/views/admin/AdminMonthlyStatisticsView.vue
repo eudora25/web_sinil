@@ -212,6 +212,8 @@ const tabs = [
 
 /** 조회 가능 최대 개월 수(시작·종료 포함) */
 const MAX_MONTH_RANGE = 12;
+/** 최근 N개월(당월 포함)은 조회 시 요약 재갱신. 그 이전은 적재분만 사용 */
+const LIVE_MONTH_WINDOW = 2;
 
 const availableMonths = ref([]);
 const startMonth = ref('');
@@ -358,15 +360,83 @@ async function fetchCompanyGroups() {
   companyGroups.value = [...new Set((data || []).map((r) => r.company_group).filter(Boolean))].sort();
 }
 
-async function fetchStatisticsRows(low, high) {
+/** 오늘 기준 YYYY-MM */
+function currentYearMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** 최근 LIVE_MONTH_WINDOW개월의 시작 월(포함) — 이 이상이면 조회 시 재갱신 */
+function liveMonthFrom() {
+  return shiftMonth(currentYearMonth(), 1 - LIVE_MONTH_WINDOW);
+}
+
+/**
+ * 최근 월은 항상 재집계, 그 이전은 performance_statistics 가 있는데 요약이 없을 때만 백필.
+ */
+async function ensureSummaryFresh(months) {
+  if (!months.length) return;
+  const liveFrom = liveMonthFrom();
+  const liveMonths = months.filter((m) => m >= liveFrom);
+  const frozenMonths = months.filter((m) => m < liveFrom);
+
+  const present = new Set();
+  {
+    const pageSize = 1000;
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('monthly_statistics_summary')
+        .select('settlement_month')
+        .in('settlement_month', months)
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      const chunk = data || [];
+      for (const r of chunk) present.add(r.settlement_month);
+      if (chunk.length < pageSize) break;
+      from += pageSize;
+    }
+  }
+
+  let backfill = frozenMonths.filter((m) => !present.has(m));
+  if (backfill.length) {
+    const hasPs = new Set();
+    const pageSize = 1000;
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('performance_statistics')
+        .select('settlement_month')
+        .in('settlement_month', backfill)
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      const chunk = data || [];
+      for (const r of chunk) hasPs.add(r.settlement_month);
+      if (chunk.length < pageSize) break;
+      from += pageSize;
+    }
+    backfill = backfill.filter((m) => hasPs.has(m));
+  }
+
+  const toRefresh = [...new Set([...liveMonths, ...backfill])].sort();
+  for (const m of toRefresh) {
+    const { error } = await supabase.rpc('refresh_monthly_statistics_summary', {
+      p_settlement_month: m,
+    });
+    if (error) throw error;
+  }
+}
+
+async function fetchSummaryRows(low, high) {
   const pageSize = 1000;
   let from = 0;
   const all = [];
-  // performance_statistics 에 필요한 컬럼만
   while (true) {
     const { data, error } = await supabase
-      .from('performance_statistics')
-      .select('settlement_month, company_id, company_name, company_group, product_id, product_name, insurance_code, prescription_amount, payment_amount, total_revenue')
+      .from('monthly_statistics_summary')
+      .select(
+        'settlement_month, dim_type, dim_key, company_group, company_id, company_name, product_id, product_name, insurance_code, prescription_amount, payment_amount, total_revenue'
+      )
       .gte('settlement_month', low)
       .lte('settlement_month', high)
       .range(from, from + pageSize - 1);
@@ -382,20 +452,15 @@ async function fetchStatisticsRows(low, high) {
 function buildPivot(rows, mode, months, metricKey) {
   const map = new Map();
 
-  const makeKey = (r) => {
-    if (mode === 'group') return r.company_group || '(미지정)';
-    if (mode === 'company') return r.company_id || r.company_name || '(미지정)';
-    return r.product_id || r.insurance_code || r.product_name || '(미지정)';
-  };
-
   const makeLabel = (r) => {
-    if (mode === 'group') return r.company_group || '(미지정)';
-    if (mode === 'company') return r.company_name || '(미지정)';
-    return r.product_name || r.insurance_code || '(미지정)';
+    if (mode === 'group') return r.company_group || r.dim_key || '(미지정)';
+    if (mode === 'company') return r.company_name || r.dim_key || '(미지정)';
+    return r.product_name || r.insurance_code || r.dim_key || '(미지정)';
   };
 
   for (const r of rows) {
-    const key = makeKey(r);
+    if (r.dim_type !== mode) continue;
+    const key = r.dim_key || makeLabel(r);
     if (!map.has(key)) {
       const base = {
         key,
@@ -408,7 +473,6 @@ function buildPivot(rows, mode, months, metricKey) {
       map.set(key, base);
     }
     const row = map.get(key);
-    // 라벨/부가정보 보강
     if (mode === 'company' && !row.company_group && r.company_group) row.company_group = r.company_group;
     if (mode === 'product' && !row.insurance_code && r.insurance_code) row.insurance_code = r.insurance_code;
     if (mode !== 'group' && row.label === '(미지정)' && makeLabel(r) !== '(미지정)') row.label = makeLabel(r);
@@ -433,9 +497,11 @@ function rebuildTable() {
   }
   const months = monthsInRange(low, high);
   monthColumns.value = months;
-  const filtered = selectedGroup.value
-    ? rawRows.value.filter((r) => r.company_group === selectedGroup.value)
-    : rawRows.value;
+  // 제품 요약은 업체 그룹이 없어, 구분 필터는 그룹/업체 탭에만 적용
+  let filtered = rawRows.value;
+  if (selectedGroup.value && viewMode.value !== 'product') {
+    filtered = rawRows.value.filter((r) => r.company_group === selectedGroup.value);
+  }
   tableRows.value = buildPivot(filtered, viewMode.value, months, metric.value);
 }
 
@@ -450,7 +516,9 @@ async function loadData() {
   }
   loading.value = true;
   try {
-    rawRows.value = await fetchStatisticsRows(low, high);
+    const months = monthsInRange(low, high);
+    await ensureSummaryFresh(months);
+    rawRows.value = await fetchSummaryRows(low, high);
     rebuildTable();
   } catch (err) {
     console.error('월별 통계 조회 실패:', err);

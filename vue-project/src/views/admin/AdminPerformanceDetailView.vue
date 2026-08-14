@@ -3787,6 +3787,15 @@ async function executeCalculateStatistics() {
         console.error(`통계 계산 오류 [${month}]:`, statisticsError);
         throw new Error(`통계 계산 실패 [${month}]: ${statisticsError.message}`);
       }
+
+      // 월별 통계 화면용 요약도 함께 갱신
+      const { error: summaryError } = await supabase.rpc('refresh_monthly_statistics_summary', {
+        p_settlement_month: month
+      });
+      if (summaryError) {
+        console.error(`월별 요약 갱신 오류 [${month}]:`, summaryError);
+        throw new Error(`월별 요약 갱신 실패 [${month}]: ${summaryError.message}`);
+      }
     }
 
     devLog('통계 계산 완료');
