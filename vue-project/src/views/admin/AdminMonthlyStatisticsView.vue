@@ -710,36 +710,52 @@ onMounted(async () => {
   background: #f8f9fa !important;
 }
 
-/* 가로 스크롤 시 frozen 컬럼 겹침 방지 */
+/* sticky 헤더 + frozen 컬럼 겹침 방지
+   frozen(left) 본문 셀이 thead(top) 위로 그려지는 브라우저 이슈 대응:
+   filter로 헤더 전용 스택 컨텍스트를 만들고 z-index를 강제 */
 :deep(.monthly-stats-table .p-datatable-table-container) {
   position: relative;
 }
+:deep(.monthly-stats-table .p-datatable-table) {
+  border-collapse: separate !important;
+  border-spacing: 0;
+}
+:deep(.monthly-stats-table .p-datatable-thead) {
+  position: relative;
+  z-index: 5;
+}
 :deep(.monthly-stats-table .p-datatable-thead > tr > th) {
+  position: sticky !important;
+  top: 0 !important;
   background: #f8f9fa !important;
-  z-index: 1;
-}
-:deep(.monthly-stats-table .p-datatable-scrollable .p-datatable-frozen-column),
-:deep(.monthly-stats-table .p-datatable-scrollable td[data-p-frozen-column='true']),
-:deep(.monthly-stats-table .p-datatable-scrollable th[data-p-frozen-column='true']) {
-  position: sticky;
-  background: #ffffff !important;
   opacity: 1 !important;
-  z-index: 2;
+  z-index: 5 !important;
 }
-:deep(.monthly-stats-table .p-datatable-scrollable th.p-datatable-frozen-column),
-:deep(.monthly-stats-table .p-datatable-scrollable th[data-p-frozen-column='true']) {
+:deep(.monthly-stats-table .p-datatable-thead > tr > th.p-datatable-frozen-column),
+:deep(.monthly-stats-table .p-datatable-thead > tr > th[data-p-frozen-column='true']) {
+  position: sticky !important;
+  top: 0 !important;
   background: #f8f9fa !important;
-  z-index: 4; /* 헤더 + frozen 교차 영역이 본문 위로 */
+  opacity: 1 !important;
+  z-index: 6 !important;
+  /* stacking context: tbody sticky 셀보다 위에 페인트 */
+  filter: opacity(1);
+}
+:deep(.monthly-stats-table .p-datatable-tbody) {
+  position: relative;
+  z-index: 1;
 }
 :deep(.monthly-stats-table .p-datatable-tbody > tr > td.p-datatable-frozen-column),
 :deep(.monthly-stats-table .p-datatable-tbody > tr > td[data-p-frozen-column='true']) {
+  position: sticky !important;
   background: #ffffff !important;
-  z-index: 2;
+  opacity: 1 !important;
+  z-index: 1 !important;
 }
 :deep(.monthly-stats-table .monthly-total-row > td.p-datatable-frozen-column),
 :deep(.monthly-stats-table .monthly-total-row > td[data-p-frozen-column='true']) {
   background: #f8f9fa !important;
-  z-index: 2;
+  z-index: 1 !important;
 }
 /* frozen 영역과 스크롤 영역 경계 */
 :deep(.monthly-stats-table [data-p-frozen-column='true']:has(+ :not([data-p-frozen-column='true']))),
