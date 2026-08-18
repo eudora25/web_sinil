@@ -1925,9 +1925,11 @@ async function saveEdit(rowData) {
       throw new Error('수수료율은 100%를 초과할 수 없습니다.');
     }
 
-    // 저장값 정규화: 소수점 3자리 반올림 + 0/NaN이면 등급 기본율로 fallback (등록 화면 PerformanceRegisterEdit과 동일)
+    // 저장값 정규화: 소수점 3자리 반올림. 빈값/비숫자만 등급 기본율 폴백 (0%는 유효값으로 유지)
     let finalCommissionRate = Math.round(calculatedRate * 1000) / 1000;
-    if (isNaN(finalCommissionRate) || finalCommissionRate === 0) {
+    const commissionRaw = String(rowData.commission_rate_modify ?? '').replace(/,/g, '').replace(/%/g, '').trim();
+    const isBlankOrInvalid = commissionRaw === '' || isNaN(Number(commissionRaw));
+    if (isBlankOrInvalid || isNaN(finalCommissionRate)) {
       const grade = await getCommissionGradeForClientCompany(rowData.company_id, rowData.client_id);
       const product = products.value.find(p => p.id === rowData.product_id_modify);
       if (product) {

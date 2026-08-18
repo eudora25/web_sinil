@@ -1404,9 +1404,11 @@ async function savePerformanceData() {
       registered_by: currentUserUid, // 실제 등록한 사용자 ID (관리자 또는 일반사용자)
         review_status: reviewStatus,
         commission_rate: (() => {
-          // 소수점 3자리로 반올림
+          // 소수점 3자리로 반올림. 빈값/비숫자만 등급 기본율 폴백 (0%는 유효값으로 유지)
+          const raw = String(row.commission_rate ?? '').replace(/,/g, '').replace(/%/g, '').trim();
+          const isBlankOrInvalid = raw === '' || isNaN(Number(raw));
           const roundedRate = Math.round(calculatedRate * 1000) / 1000;
-          return isNaN(roundedRate) || roundedRate === 0 ? commissionRate : roundedRate;
+          return isBlankOrInvalid || isNaN(roundedRate) ? commissionRate : roundedRate;
         })()
       };
     });
@@ -1475,9 +1477,11 @@ async function savePerformanceData() {
           prescription_type: row.prescription_type,
           remarks: row.remarks,
           commission_rate: (() => {
-            // 소수점 3자리로 반올림. 0(미입력 포함)이면 등급 기본율로 폴백 — INSERT와 동일 처리
+            // 소수점 3자리로 반올림. 빈값/비숫자만 등급 기본율 폴백 (0%는 유효값으로 유지) — INSERT와 동일
+            const raw = String(row.commission_rate ?? '').replace(/,/g, '').replace(/%/g, '').trim();
+            const isBlankOrInvalid = raw === '' || isNaN(Number(raw));
             const roundedRate = Math.round(calculatedRate * 1000) / 1000;
-            return isNaN(roundedRate) || roundedRate === 0 ? commissionRate : roundedRate;
+            return isBlankOrInvalid || isNaN(roundedRate) ? commissionRate : roundedRate;
           })(),
           review_status: reviewStatus,
           updated_by: currentUserUid,
