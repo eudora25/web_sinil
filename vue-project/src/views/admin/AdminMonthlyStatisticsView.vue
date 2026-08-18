@@ -21,9 +21,9 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <label>지표</label>
           <select v-model="metric" class="select_month" @change="rebuildTable">
-            <option value="prescription_amount">매출액(처방액)</option>
+            <option value="prescription_amount">처방액</option>
             <option value="payment_amount">지급액</option>
-            <option value="total_revenue">흡수매출(도매+직거래)</option>
+            <option value="total_revenue">매출액</option>
           </select>
         </div>
 
@@ -553,8 +553,8 @@ async function downloadExcel() {
       metric.value === 'payment_amount'
         ? '지급액'
         : metric.value === 'total_revenue'
-          ? '흡수매출'
-          : '매출액(처방액)';
+          ? '매출액'
+          : '처방액';
 
     const headers = [dimensionHeader.value];
     if (viewMode.value === 'company') headers.push('구분');
