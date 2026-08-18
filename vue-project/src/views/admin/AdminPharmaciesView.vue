@@ -299,6 +299,7 @@ import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 import { useNotifications } from '@/utils/notifications'
 import { translateSupabaseError } from '@/utils/errorMessages'
+import { postgrestOrIlike } from '@/utils/postgrestUtils'
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
@@ -458,7 +459,7 @@ const fetchPharmacies = async () => {
     // 검색 조건 적용
     if (searchKeyword.value.length >= 2) {
       const keyword = searchKeyword.value.toLowerCase();
-      query = query.or(`name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%,pharmacy_code.ilike.%${keyword}%`)
+      query = query.or(postgrestOrIlike(['name', 'business_registration_number', 'pharmacy_code'], keyword))
     }
 
     // 페이징 적용
@@ -1156,7 +1157,7 @@ const downloadExcel = async () => {
       // 검색 조건이 있으면 적용
       if (searchKeyword.value.length >= 2) {
         const keyword = searchKeyword.value.toLowerCase();
-        query = query.or(`name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%,pharmacy_code.ilike.%${keyword}%`)
+        query = query.or(postgrestOrIlike(['name', 'business_registration_number', 'pharmacy_code'], keyword))
       }
 
       const { data: batch, error } = await query

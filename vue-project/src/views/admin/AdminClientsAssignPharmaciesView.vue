@@ -312,6 +312,7 @@ import { read, utils } from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 import { useNotifications } from '@/utils/notifications'
 import { translateSupabaseError } from '@/utils/errorMessages'
+import { postgrestOrIlike } from '@/utils/postgrestUtils'
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -408,7 +409,7 @@ const fetchPharmacies = async (page = 1, searchKeyword = '') => {
 
     // 검색어가 있으면 필터링
     if (searchKeyword) {
-      query = query.or(`name.ilike.%${searchKeyword}%,business_registration_number.ilike.%${searchKeyword}%`)
+      query = query.or(postgrestOrIlike(['name', 'business_registration_number'], searchKeyword))
     }
 
     const { data, error, count } = await query

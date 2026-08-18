@@ -203,6 +203,7 @@ import Button from 'primevue/button'
 import { supabase } from '@/supabase'
 import { useNotifications } from '@/utils/notifications'
 import { translateSupabaseError } from '@/utils/errorMessages'
+import { postgrestOrIlike } from '@/utils/postgrestUtils'
 import { loadSettlementSettings, getAbsorptionExclusionCutoffMonth } from '@/utils/settlementSettings'
 
 const { showSuccess, showError } = useNotifications()
@@ -285,7 +286,7 @@ async function searchPharmacies() {
   const { data } = await supabase
     .from('pharmacies')
     .select('id, name, business_registration_number')
-    .or(`name.ilike.%${kw}%,business_registration_number.ilike.%${kw}%`)
+    .or(postgrestOrIlike(['name', 'business_registration_number'], kw))
     .limit(20)
   pharmacyResults.value = data || []
 }
@@ -297,7 +298,7 @@ async function searchProducts() {
   const { data } = await supabase
     .from('products')
     .select('product_name, insurance_code')
-    .or(`product_name.ilike.%${kw}%,insurance_code.ilike.%${kw}%`)
+    .or(postgrestOrIlike(['product_name', 'insurance_code'], kw))
     .limit(30)
   const seen = new Set(); const out = []
   ;(data || []).forEach(p => { if (p.insurance_code && !seen.has(p.insurance_code)) { seen.add(p.insurance_code); out.push(p) } })

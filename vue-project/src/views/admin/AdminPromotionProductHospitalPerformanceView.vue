@@ -331,6 +331,7 @@ import InputText from 'primevue/inputtext';
 import { supabase } from '@/supabase';
 import { useNotifications } from '@/utils/notifications';
 import { translateSupabaseError } from '@/utils/errorMessages';
+import { postgrestOrIlike } from '@/utils/postgrestUtils';
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
@@ -680,7 +681,7 @@ async function searchHospitals() {
     const { data, error } = await supabase
       .from('clients')
       .select('id, name, business_registration_number, address')
-      .or(`name.ilike.%${searchText}%,business_registration_number.ilike.%${searchText}%`)
+      .or(postgrestOrIlike(['name', 'business_registration_number'], searchText))
       .eq('status', 'active')
       .limit(20);
     

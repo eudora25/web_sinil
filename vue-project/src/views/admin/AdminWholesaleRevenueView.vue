@@ -285,6 +285,7 @@ import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 import { useNotifications } from '@/utils/notifications'
 import { translateSupabaseError } from '@/utils/errorMessages'
+import { postgrestOrIlike } from '@/utils/postgrestUtils'
 
 const { showSuccess, showError, showWarning, showInfo } = useNotifications();
 
@@ -353,7 +354,7 @@ const fetchRevenues = async () => {
     // 검색 조건 적용
     if (searchInput.value.length >= 2) {
       const keyword = searchInput.value.toLowerCase();
-      query = query.or(`pharmacy_name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%,standard_code.ilike.%${keyword}%,product_name.ilike.%${keyword}%`)
+      query = query.or(postgrestOrIlike(['pharmacy_name', 'business_registration_number', 'standard_code', 'product_name'], keyword))
     }
 
     // 기간 필터 적용 (A to B 방식)
@@ -433,7 +434,7 @@ const fetchSummary = async () => {
     // 검색 조건 적용
     if (searchInput.value.length >= 2) {
       const keyword = searchInput.value.toLowerCase();
-      countQuery = countQuery.or(`pharmacy_name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%,standard_code.ilike.%${keyword}%,product_name.ilike.%${keyword}%`)
+      countQuery = countQuery.or(postgrestOrIlike(['pharmacy_name', 'business_registration_number', 'standard_code', 'product_name'], keyword))
     }
 
     // 기간 필터 적용 (A to B 방식)
@@ -1030,7 +1031,7 @@ const downloadExcel = async () => {
       // 검색 조건 적용
       if (searchInput.value.length >= 2) {
         const keyword = searchInput.value.toLowerCase();
-        query = query.or(`pharmacy_name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%,standard_code.ilike.%${keyword}%,product_name.ilike.%${keyword}%`)
+        query = query.or(postgrestOrIlike(['pharmacy_name', 'business_registration_number', 'standard_code', 'product_name'], keyword))
       }
 
       // 기간 필터 적용 (A to B 방식)

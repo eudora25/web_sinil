@@ -157,6 +157,7 @@ import Dialog from 'primevue/dialog'
 import { supabase } from '@/supabase'
 import { useNotifications } from '@/utils/notifications'
 import { translateSupabaseError } from '@/utils/errorMessages'
+import { postgrestOrIlike } from '@/utils/postgrestUtils'
 
 const { showSuccess, showError, showWarning } = useNotifications()
 
@@ -187,7 +188,7 @@ const fetchDistributors = async () => {
 
     if (searchInput.value.length >= 2) {
       const keyword = searchInput.value.toLowerCase()
-      query = query.or(`name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%`)
+      query = query.or(postgrestOrIlike(['name', 'business_registration_number'], keyword))
     }
 
     const from = (currentPage.value - 1) * pageSize.value
@@ -212,7 +213,7 @@ const fetchTotalCount = async () => {
     let query = supabase.from('distributors').select('*', { count: 'exact', head: true })
     if (searchInput.value.length >= 2) {
       const keyword = searchInput.value.toLowerCase()
-      query = query.or(`name.ilike.%${keyword}%,business_registration_number.ilike.%${keyword}%`)
+      query = query.or(postgrestOrIlike(['name', 'business_registration_number'], keyword))
     }
     const { count, error } = await query
     if (!error) totalCount.value = count || 0

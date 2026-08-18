@@ -317,6 +317,7 @@ import * as XLSX from 'xlsx'
 import { generateExcelFileName } from '@/utils/excelUtils'
 import { useNotifications } from '@/utils/notifications'
 import { translateSupabaseError } from '@/utils/errorMessages'
+import { postgrestOrIlike } from '@/utils/postgrestUtils'
 
 const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
@@ -541,8 +542,8 @@ const fetchClients = async () => {
 
     const kw = searchKeyword.value && searchKeyword.value.trim().length >= 2 ? searchKeyword.value.trim() : '';
     if (kw) {
-      const safe = kw.replace(/[,()]/g, ' '); // PostgREST or() 구문 보호
-      query = query.or(CLIENT_SEARCH_FIELDS.map(f => `${f}.ilike.%${safe}%`).join(','));
+      // PostgREST .or() 예약문자(,()) 보호: 따옴표 패턴으로 괄호 포함 검색 가능
+      query = query.or(postgrestOrIlike(CLIENT_SEARCH_FIELDS, kw));
     }
 
     const { data, error, count } = await query;
