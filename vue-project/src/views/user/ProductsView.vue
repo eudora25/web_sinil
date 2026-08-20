@@ -171,6 +171,8 @@ const fetchProducts = async () => {
         .eq('status', 'active')
         .not('base_month', 'is', null)
         .order('base_month', { ascending: false })
+        // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+        .order('id', { ascending: false })
         .range(offset, offset + limit - 1);
       
       if (monthError) {

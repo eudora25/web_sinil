@@ -455,6 +455,8 @@ const fetchPharmacies = async () => {
       .from('pharmacies')
       .select('*', { count: 'exact' })
       .order('pharmacy_code', { ascending: true })
+      // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+      .order('id', { ascending: true })
 
     // 검색 조건 적용
     if (searchKeyword.value.length >= 2) {

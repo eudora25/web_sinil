@@ -1408,6 +1408,8 @@ async function checkStatistics() {
             .eq('companies.company_group', 'NEWCSO')
             .eq('review_status', '완료')
             .or('review_action.is.null,review_action.neq.삭제')
+            // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+            .order('id', { ascending: true })
             .range(prescriptionMonthFrom, prescriptionMonthFrom + prescriptionMonthBatchSize - 1);
 
           if (monthsError) {
@@ -1570,6 +1572,8 @@ async function checkStatistics() {
               .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
+              // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+              .order('id', { ascending: true })
               .range(from, from + batchSize - 1);
 
             if (recordsError) {
@@ -1616,6 +1620,8 @@ async function checkStatistics() {
               .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
+              // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+              .order('id', { ascending: true })
               .range(from, from + batchSize - 1);
 
             if (recordsError) {
@@ -1703,6 +1709,8 @@ async function checkStatistics() {
               .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
+              // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+              .order('id', { ascending: true })
               .range(from, from + batchSize - 1);
 
             if (recordsError) {
@@ -1765,6 +1773,8 @@ async function checkStatistics() {
               .eq('review_status', '완료')
               .or('review_action.is.null,review_action.neq.삭제')
               .order('created_at', { ascending: true })
+              // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+              .order('id', { ascending: true })
               .range(from, from + batchSize - 1);
 
             if (recordsError) {
@@ -1812,6 +1822,8 @@ async function checkStatistics() {
                 .eq('review_status', '완료')
                 .or('review_action.is.null,review_action.neq.삭제')
                 .order('created_at', { ascending: true })
+                // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+                .order('id', { ascending: true })
                 .range(from, from + batchSize - 1);
 
               if (recordsError) {

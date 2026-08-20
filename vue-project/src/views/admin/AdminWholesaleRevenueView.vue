@@ -346,6 +346,9 @@ const fetchRevenues = async () => {
       .from('wholesale_sales')
       .select('*, distributors(name)')
       .order('sales_date', { ascending: false })
+      // sales_date 만으로는 같은 날짜 행의 순서가 매 요청마다 달라져
+      // range() 페이징에서 같은 행이 두 페이지에 나오거나 아예 빠진다. 고유키로 순서를 고정한다.
+      .order('id', { ascending: false })
 
     if (selectedDistributorId.value) {
       query = query.eq('distributor_id', selectedDistributorId.value)
@@ -1023,6 +1026,9 @@ const downloadExcel = async () => {
         .from('wholesale_sales')
         .select('*, distributors(name)')
         .order('sales_date', { ascending: false })
+        // sales_date 만으로는 같은 날짜 행의 순서가 매 요청마다 달라져
+        // range() 페이징에서 같은 행이 두 페이지에 나오거나 아예 빠진다. 고유키로 순서를 고정한다.
+        .order('id', { ascending: false })
 
       if (selectedDistributorId.value) {
         query = query.eq('distributor_id', selectedDistributorId.value)

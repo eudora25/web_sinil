@@ -487,7 +487,10 @@ async function fetchHospitalPerformance() {
             .gte('prescription_month', baseMonth);
           if (endMonth) prQuery = prQuery.lte('prescription_month', endMonth);
 
-          const { data: prRecords, error: prError } = await prQuery.range(from, from + batchSize - 1);
+          // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+          const { data: prRecords, error: prError } = await prQuery
+            .order('id', { ascending: true })
+            .range(from, from + batchSize - 1);
           if (prError) throw prError;
           if (!prRecords || prRecords.length === 0) break;
 

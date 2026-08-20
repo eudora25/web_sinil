@@ -1246,6 +1246,8 @@ async function fetchFilterOptions(settlementMonth) {
             .from('performance_records')
             .select('company_id, client_id')
             .eq('settlement_month', settlementMonth)
+            // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+            .order('id', { ascending: true })
             .range(from, from + batchSize - 1);
 
         if (perfError) {
@@ -1545,7 +1547,9 @@ async function loadPerformanceData() {
     while (true) {
       const { data, error } = await query
         .range(from, from + batchSize - 1)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+        .order('id', { ascending: false });
 
     if (error) throw error;
 
@@ -1649,6 +1653,8 @@ async function loadPerformanceData() {
           .from('performance_records')
           .select('settlement_month, company_id, client_id, prescription_month, product_id')
           .in('settlement_month', otherMonths)
+          // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+          .order('id', { ascending: true })
           .range(nearbyFrom, nearbyFrom + nearbyBatchSize - 1);
 
         if (nearbyError) {

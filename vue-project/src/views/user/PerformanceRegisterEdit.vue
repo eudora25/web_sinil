@@ -1754,6 +1754,8 @@ async function loadExistingData() {
             .eq('company_id', myCompany.id)
             .eq('client_id', clientId)
             .in('settlement_month', otherMonths)
+            // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+            .order('id', { ascending: true })
             .range(nearbyFrom, nearbyFrom + nearbyBatchSize - 1);
 
           if (nearbyError) {

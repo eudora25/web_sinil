@@ -389,6 +389,8 @@ async function ensureSummaryFresh(months) {
         .from('monthly_statistics_summary')
         .select('settlement_month')
         .in('settlement_month', months)
+        // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+        .order('id', { ascending: true })
         .range(from, from + pageSize - 1);
       if (error) throw error;
       const chunk = data || [];
@@ -408,6 +410,8 @@ async function ensureSummaryFresh(months) {
         .from('performance_statistics')
         .select('settlement_month')
         .in('settlement_month', backfill)
+        // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+        .order('id', { ascending: true })
         .range(from, from + pageSize - 1);
       if (error) throw error;
       const chunk = data || [];
@@ -439,6 +443,8 @@ async function fetchSummaryRows(low, high) {
       )
       .gte('settlement_month', low)
       .lte('settlement_month', high)
+      // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+      .order('id', { ascending: true })
       .range(from, from + pageSize - 1);
     if (error) throw error;
     const chunk = data || [];

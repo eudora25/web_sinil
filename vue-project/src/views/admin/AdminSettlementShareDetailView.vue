@@ -251,7 +251,9 @@ async function loadDetailData() {
         .eq('company_id', companyId.value)
         .eq('review_status', '완료')
         .range(from, from + batchSize - 1)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        // range() 페이징은 정렬이 고유해야 같은 행이 두 페이지에 나오거나 빠지는 일이 없다.
+        .order('id', { ascending: false });
       
       if (error) throw error;
       
