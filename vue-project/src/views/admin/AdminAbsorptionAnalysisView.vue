@@ -407,7 +407,7 @@ import { convertCommissionRateToDecimal, formatNumber } from '@/utils/formatUtil
 import { isPromotionApplicableToCompany, isAssignedForMonth } from '@/utils/promotion';
 import { isSmallClientZeroApplicable, fetchClientFirstMonths, getClientFirstMonth, companyClientRxMonthKey } from '@/utils/smallClient';
 
-const { showSuccess, showError, showWarning, showInfo } = useNotifications();
+const { showSuccess, showError, showWarning, showInfo, showConfirm } = useNotifications();
 
 const columnWidths = {
   no: '3.5%',
@@ -725,6 +725,7 @@ async function fetchClientsForMonth(companyId = null) {
         
         while (true) {
           const { data, error } = await query
+            .order('id', { ascending: true })
             .range(from, from + batchSize - 1);
 
         if (error) throw error;
@@ -1137,7 +1138,8 @@ async function loadAbsorptionAnalysisResults() {
       while (true) {
         const { data, error } = await query
           .range(from, from + batchSize - 1)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: true });
         
         if (error) throw error;
         
@@ -1189,7 +1191,8 @@ async function loadAbsorptionAnalysisResults() {
       while (true) {
         const { data, error } = await query
           .range(from, from + batchSize - 1)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: true });
         
         if (error) throw error;
         
@@ -1668,6 +1671,104 @@ watch(sortCriteria, () => {
 // --- 유틸리티 함수 ---
 const isCalculating = ref(false); // 중복 실행 방지 플래그
 
+/**
+ * PostgREST range() 페이징 공통 처리 (1회 1,000건 제한 회피).
+ * 넘기는 쿼리에는 반드시 고유키 정렬(order)이 걸려 있어야 한다.
+ * 정렬이 없으면 배치마다 행 순서가 달라져 일부 행이 누락되거나 중복된다.
+ */
+const fetchAllRows = async (query, batchSize = 1000) => {
+  let rows = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await query.range(from, from + batchSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    rows = rows.concat(data);
+    if (data.length < batchSize) break;
+    from += batchSize;
+  }
+
+  return rows;
+};
+
+/**
+ * 다른 정산월의 흡수율 분석 스냅샷(performance_records_absorption)이
+ * 원본 실적(performance_records)과 어긋났는지 검사한다.
+ *
+ * calculate_absorption_rates 는 정산월을 구분하지 않고 처방월만으로 처방액 분모를 잡는다.
+ * (같은 처방월 실적이 여러 정산월에 걸쳐 등록될 때 같은 매출을 두 번 세지 않기 위한 설계)
+ * 그래서 다른 정산월 스냅샷이 낡아 있으면 이번 정산월의 도매/직거래 매출이 조용히 잘못 배분된다.
+ * 자동으로 맞추면 이미 확정된 과거 정산월 값이 소리 없이 바뀌므로 경고만 한다.
+ *
+ * @returns {Promise<Array<{settlement_month: string, count: number}>>} 정산월별 불일치 건수
+ */
+const findSnapshotDrift = async (settlementMonth, prescriptionMonths) => {
+  if (!settlementMonth || !prescriptionMonths || prescriptionMonths.length === 0) return [];
+
+  try {
+    // 양쪽 조회는 서로 독립적이므로 동시에 실행한다(건수가 많아 왕복 시간이 길다).
+    const [snapshotRows, sourceRows] = await Promise.all([
+      fetchAllRows(
+        supabase
+          .from('performance_records_absorption')
+          .select('id, settlement_month, prescription_month, prescription_qty, review_action')
+          .neq('settlement_month', settlementMonth)
+          .in('prescription_month', prescriptionMonths)
+          .order('id', { ascending: true })
+      ),
+      fetchAllRows(
+        supabase
+          .from('performance_records')
+          .select('id, settlement_month, prescription_month, prescription_qty, review_action')
+          .neq('settlement_month', settlementMonth)
+          .in('prescription_month', prescriptionMonths)
+          .eq('review_status', '완료')
+          .or('review_action.is.null,review_action.neq.삭제')
+          .order('id', { ascending: true })
+      )
+    ]);
+
+    const sourceById = new Map(sourceRows.map(r => [r.id, r]));
+    const snapshotIds = new Set(snapshotRows.map(r => r.id));
+    // 스냅샷이 한 건이라도 있는 정산월만 "분석을 돌린 달"로 본다.
+    // 아직 흡수율 분석을 실행하지 않은 정산월까지 경고하면 노이즈만 커진다.
+    const analyzedMonths = new Set(snapshotRows.map(r => r.settlement_month));
+
+    const countByMonth = new Map();
+    const addDrift = (month) => countByMonth.set(month, (countByMonth.get(month) || 0) + 1);
+
+    snapshotRows.forEach(snap => {
+      const src = sourceById.get(snap.id);
+      // 원본에서 처방월이 바뀌었거나 삭제/검수취소된 실적이 스냅샷에 그대로 남아 있는 경우
+      if (!src) {
+        addDrift(snap.settlement_month);
+        return;
+      }
+      if (Number(src.prescription_qty || 0) !== Number(snap.prescription_qty || 0) ||
+          (src.review_action || null) !== (snap.review_action || null)) {
+        addDrift(snap.settlement_month);
+      }
+    });
+
+    // 원본은 이 처방월인데 스냅샷에는 없는 경우 (처방월 정정 후 재분석하지 않음 / 복사 누락)
+    sourceRows.forEach(src => {
+      if (!snapshotIds.has(src.id) && analyzedMonths.has(src.settlement_month)) {
+        addDrift(src.settlement_month);
+      }
+    });
+
+    return [...countByMonth.entries()]
+      .map(([settlement_month, count]) => ({ settlement_month, count }))
+      .sort((a, b) => a.settlement_month.localeCompare(b.settlement_month));
+  } catch (err) {
+    // 검사가 실패해도 본 작업(흡수율 분석)은 막지 않는다.
+    console.warn('스냅샷 불일치 검사 실패 (무시):', err);
+    return [];
+  }
+};
+
 const calculateAbsorptionRates = async () => {
   if (!selectedSettlementMonth.value) {
     showWarning('정산월을 선택해주세요.');
@@ -1684,30 +1785,6 @@ const calculateAbsorptionRates = async () => {
   loading.value = true;
   try {
     // 1단계: 필터 조건에 맞는 원본 데이터 복사
-    
-    // 먼저 기존 분석 데이터에서 해당 조건의 데이터 삭제 (반영 흡수율은 보존)
-    let deleteQuery = supabase
-      .from('performance_records_absorption')
-      .delete()
-      .eq('settlement_month', selectedSettlementMonth.value);
-    
-    if (selectedCompanyId.value !== 'ALL') {
-      deleteQuery = deleteQuery.eq('company_id', selectedCompanyId.value);
-    }
-    if (selectedHospitalId.value !== 'ALL') {
-      deleteQuery = deleteQuery.eq('client_id', selectedHospitalId.value);
-    }
-    if (prescriptionOffset.value !== 0) {
-      const prescriptionMonth = getPrescriptionMonth(selectedSettlementMonth.value, prescriptionOffset.value);
-      deleteQuery = deleteQuery.eq('prescription_month', prescriptionMonth);
-    }
-
-    const { error: deleteError } = await deleteQuery;
-    if (deleteError) {
-      console.warn('기존 분석 데이터 삭제 중 오류 (무시):', deleteError);
-    }
-    
-    // 반영 흡수율은 applied_absorption_rates 테이블에 별도로 보존되므로 삭제하지 않음
 
     // 필터 조건에 맞는 performance_records 데이터 조회
     // 삭제된 레코드는 제외 (review_action != '삭제')
@@ -1733,8 +1810,11 @@ const calculateAbsorptionRates = async () => {
       `)
       .eq('settlement_month', selectedSettlementMonth.value)
       .eq('review_status', '완료')
-      .or('review_action.is.null,review_action.neq.삭제');  // 삭제된 레코드 제외
-    
+      .or('review_action.is.null,review_action.neq.삭제')
+      // range() 페이징은 정렬이 없으면 배치마다 행 순서가 달라져 일부 실적이 통째로 빠진다.
+      // 고유키(id) 정렬을 고정해 페이징 결과를 결정적으로 만든다.
+      .order('id', { ascending: true });
+
     if (selectedCompanyId.value !== 'ALL') {
       sourceQuery = sourceQuery.eq('company_id', selectedCompanyId.value);
     }
@@ -1747,33 +1827,55 @@ const calculateAbsorptionRates = async () => {
     }
 
     // === 전체 데이터 조회 (1,000건 제한 해결) ===
-    let allSourceData = [];
-    let from = 0;
-    const batchSize = 1000;
-    
-    while (true) {
-      const { data, error } = await sourceQuery
-        .range(from, from + batchSize - 1);
-      
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        break;
-      }
-      
-      allSourceData = allSourceData.concat(data);
-      
-      if (data.length < batchSize) {
-        break;
-      }
-      
-      from += batchSize;
-    }
+    // 원본 조회를 먼저 끝낸 뒤에 기존 스냅샷을 지운다.
+    // (먼저 지우면 대상 실적이 0건일 때 기존 분석 데이터만 날아간다)
+    const allSourceData = await fetchAllRows(sourceQuery);
 
     if (allSourceData.length === 0) {
       showWarning('필터 조건에 맞는 완료된 실적 데이터가 없습니다.');
       return;
     }
+
+    // 다른 정산월 스냅샷이 원본과 어긋나 있으면 이번 분석의 매출 배분이 틀어지므로 먼저 경고한다.
+    const prescriptionMonthsInScope = [...new Set(allSourceData.map(r => r.prescription_month).filter(Boolean))];
+    const driftGroups = await findSnapshotDrift(selectedSettlementMonth.value, prescriptionMonthsInScope);
+    if (driftGroups.length > 0) {
+      const detail = driftGroups.map(g => `· ${g.settlement_month} 정산 : ${g.count}건`).join('\n');
+      const proceed = await showConfirm(
+        `아래 정산월의 흡수율 분석 데이터가 원본 실적과 일치하지 않습니다.\n\n${detail}\n\n` +
+        '흡수율은 정산월을 구분하지 않고 같은 처방월끼리 매출을 나눠 가집니다. ' +
+        '위 정산월의 흡수율 분석을 먼저 다시 실행하지 않으면 이번 분석의 도매/직거래 매출이 잘못 배분됩니다.\n\n' +
+        '그래도 지금 진행하시겠습니까?',
+        '스냅샷 불일치 경고',
+        '진행',
+        '취소'
+      );
+      if (!proceed) return;
+    }
+
+    // 기존 분석 데이터에서 해당 조건의 데이터 삭제 (반영 흡수율은 보존)
+    let deleteQuery = supabase
+      .from('performance_records_absorption')
+      .delete()
+      .eq('settlement_month', selectedSettlementMonth.value);
+
+    if (selectedCompanyId.value !== 'ALL') {
+      deleteQuery = deleteQuery.eq('company_id', selectedCompanyId.value);
+    }
+    if (selectedHospitalId.value !== 'ALL') {
+      deleteQuery = deleteQuery.eq('client_id', selectedHospitalId.value);
+    }
+    if (prescriptionOffset.value !== 0) {
+      const prescriptionMonth = getPrescriptionMonth(selectedSettlementMonth.value, prescriptionOffset.value);
+      deleteQuery = deleteQuery.eq('prescription_month', prescriptionMonth);
+    }
+
+    const { error: deleteError } = await deleteQuery;
+    if (deleteError) {
+      console.warn('기존 분석 데이터 삭제 중 오류 (무시):', deleteError);
+    }
+
+    // 반영 흡수율은 applied_absorption_rates 테이블에 별도로 보존되므로 삭제하지 않음
 
     // 프로모션 제품 정보 조회 (성능 최적화를 위해 한 번에 조회)
     const productIds = [...new Set(allSourceData.map(r => r.product_id).filter(id => id))];
@@ -1977,6 +2079,33 @@ const calculateAbsorptionRates = async () => {
       
       // 메모리 해제를 위한 짧은 지연
       await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    // 복사 누락 검증: 스냅샷 건수가 원본과 다르면 매출 배분이 그만큼 틀어지므로 알린다.
+    let verifyQuery = supabase
+      .from('performance_records_absorption')
+      .select('id', { count: 'exact', head: true })
+      .eq('settlement_month', selectedSettlementMonth.value);
+
+    if (selectedCompanyId.value !== 'ALL') {
+      verifyQuery = verifyQuery.eq('company_id', selectedCompanyId.value);
+    }
+    if (selectedHospitalId.value !== 'ALL') {
+      verifyQuery = verifyQuery.eq('client_id', selectedHospitalId.value);
+    }
+    if (prescriptionOffset.value !== 0) {
+      const prescriptionMonth = getPrescriptionMonth(selectedSettlementMonth.value, prescriptionOffset.value);
+      verifyQuery = verifyQuery.eq('prescription_month', prescriptionMonth);
+    }
+
+    const { count: copiedCount, error: verifyError } = await verifyQuery;
+    if (verifyError) {
+      console.warn('복사 건수 검증 실패 (무시):', verifyError);
+    } else if (copiedCount !== null && copiedCount !== allSourceData.length) {
+      showWarning(
+        `복사된 실적 건수가 원본과 다릅니다. (원본 ${allSourceData.length}건 / 복사 ${copiedCount}건) 흡수율 분석을 다시 실행해 주세요.`,
+        8000
+      );
     }
 
     // 2단계: 흡수율 계산 (복사된 데이터에 대해서만)
@@ -2484,6 +2613,7 @@ async function deleteFilteredAnalysisData() {
        }
 
        const { data, error } = await query
+         .order('id', { ascending: true })
          .range(from, from + batchSize - 1);
        
        if (error) throw error;
